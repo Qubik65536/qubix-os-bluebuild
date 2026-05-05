@@ -3,11 +3,11 @@
 # image will be published to ghcr.io/<user>/<name>
 name: qubix-os-bluebuild
 # description will be included in the image's metadata
-description: This is my personal OS image.
+description: Customized OS Image, built with BlueBuild, based on Universal Blue Aurora.
 
 # the base image to build on top of (FROM) and the version tag to use
-base-image: ghcr.io/ublue-os/silverblue-main
-image-version: 42 # latest is also supported if you want new updates ASAP
+base-image: ghcr.io/ublue-os/aurora-dx
+image-version: beta # latest is also supported if you want new updates ASAP
 
 # module configuration, executed in order
 # you can include multiple instances of the same module
@@ -41,5 +41,11 @@ modules:
           - org.mozilla.firefox
           - org.gnome.Loupe
       - scope: user # Also add Flathub user repo, but no user packages
+
+  - type: os-release
+    properties:
+      ID: qubix_os_bluebuild
+      NAME: QubixOS-BlueBuild
+      PRETTY_NAME: Qubix OS (BlueBuild Image)
 
   - type: signing # this sets up the proper policy & signing files for signed images to work fully
