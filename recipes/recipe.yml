@@ -42,10 +42,12 @@ modules:
           - org.gnome.Loupe
       - scope: user # Also add Flathub user repo, but no user packages
 
-  - type: os-release
-    properties:
-      ID: qubix_os_bluebuild
-      NAME: QubixOS-BlueBuild
-      PRETTY_NAME: Qubix OS (BlueBuild Image)
+  - type: containerfile
+    snippets:
+      - |
+        RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
+            && sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release \
+            && sed -i 's/^NAME=.*/NAME="QubixOS-BlueBuild"/' /usr/lib/os-release \
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
 
   - type: signing # this sets up the proper policy & signing files for signed images to work fully

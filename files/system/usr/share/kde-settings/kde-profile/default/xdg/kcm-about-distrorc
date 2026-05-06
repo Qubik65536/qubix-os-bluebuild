@@ -1,2 +1,4 @@
 [General]
+LogoPath=/usr/share/pixmaps/system-logo.png
 Name=Qubix OS
+Variant=BlueBuild Image, based on Fedora Kinoite and Aurora Developer Experience
