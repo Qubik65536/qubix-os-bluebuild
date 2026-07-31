@@ -54,12 +54,14 @@ described here or in `files/system/`.
 - **Identity:** `name: qubix-os-bluebuild-cachyos` → a *separate* image, so switching
   kernels is a rebase and the fallback is a published image (DD-017).
 - Same base, same overlay, same packages, same flatpaks. The only differences:
-  `common-kernel-cachyos.yml` (module 4), a second `PRETTY_NAME` rewrite (module 6), and
-  `initramfs` (module 7).
-- **The swap:** COPR `bieszczaders/kernel-cachyos`, then one `containerfile` snippet —
-  log `kmod-*`, `dnf5 remove` Fedora's five kernel packages, `rm -rf` the stock module
-  dir, `dnf5 install` `kernel-cachyos{,-core,-modules}`, assert exactly one kernel with a
-  `vmlinuz` remains.
+  `common-kernel-cachyos.yml`, a second `PRETTY_NAME` rewrite, and `initramfs` — in that
+  order, between `common-base.yml` and `signing`.
+- **The swap:** COPR `bieszczaders/kernel-cachyos`, then two `containerfile` snippets —
+  (1) snapshot the package list and log `kmod-*`, `dnf5 remove` Fedora's five kernel
+  packages, `rm -rf` the stock module dir, `dnf5 install --setopt=tsflags=noscripts`
+  `kernel-cachyos{,-core,-modules,-devel-matched}`, `depmod`, assert one kernel with a
+  `vmlinuz` and a `modules.dep`; (2) diff the package list and reinstall the
+  libguestfs/`virt-v2v` stack and `virtualbox-guest-additions`.
 - **Requires x86-64-v3 hardware and Secure Boot off.** Both documented in
   `docs/variants.md`; neither is checkable at build time.
 
@@ -71,8 +73,16 @@ described here or in `files/system/`.
   `name`/`base-image` and is not a buildable recipe.
 - In the kernel swap, **remove before install**: `kernel-cachyos-core` declares
   `Provides: kernel`, so a later `dnf5 remove kernel` would take the new kernel out again.
+- **`tsflags=noscripts` on the kernel install is required, not an optimisation.**
+  `kernel-cachyos-core`'s `%posttrans` runs `kernel-install` → `05-rpmostree.install` →
+  `dracut`, which dies on the missing `modules.dep` and fails the whole build. The build
+  runs `depmod` itself instead. Removing that setopt reintroduces the failure.
 - A kernel swap **must** be followed by the `initramfs` module. Nothing else generates
   `/usr/lib/modules/<kver>/initramfs.img` in a container build.
+- Removing `kernel-core` removes **every dependent package**, not just kernel modules —
+  on Aurora DX that is libguestfs, `guestfs-tools`, `virt-v2v`, `libguestfs-appliance`,
+  `libguestfs-xfs`, `virtualbox-guest-additions`, and `kernel-devel-matched`. All are
+  restored afterwards. `kmod-*` packages are not, and cannot be.
 - The `containerfile` snippet reads `IMAGE_VERSION` **before** rewriting, then interpolates
   it. Reordering the `sed` calls breaks `PRETTY_NAME`.
 - `sed` patterns are anchored (`^ID=`) so they can't match `VERSION_ID=`. Keep the anchors.

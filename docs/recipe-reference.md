@@ -205,7 +205,7 @@ Installs the cosign public key and the container policy files so that
 These run in `recipe-cachyos.yml` and nowhere else. Full context:
 [`variants.md`](variants.md), DD-017.
 
-### V1. `dnf` + `containerfile` — the CachyOS kernel swap
+### V1. `dnf` + `containerfile` ×2 — the CachyOS kernel swap
 
 *Defined in `common-kernel-cachyos.yml`, between `common-base.yml` and
 `common-identity.yml`.*
@@ -215,20 +215,30 @@ These run in `recipe-cachyos.yml` and nowhere else. Full context:
   repos:
     copr:
       - bieszczaders/kernel-cachyos
-- type: containerfile
+- type: containerfile        # the swap
   snippets:
     - |
       RUN set -eu \
-          && … remove Fedora's kernel, delete its module dir, install CachyOS's \
+          && … remove Fedora's kernel, delete its module dir, \
+             install CachyOS's with tsflags=noscripts, depmod \
           && test "$(ls -1 /usr/lib/modules | wc -l)" -eq 1
+- type: containerfile        # put back what the removal took with it
+  snippets:
+    - |
+      RUN set -eu \
+          && … log the removed set, reinstall the libguestfs/virt stack
 ```
 
 | Piece | Why it is written this way |
 |---|---|
-| A `containerfile` snippet, not `dnf` module fields | The **order** of remove-then-install is load-bearing and the module does not guarantee it |
+| A `containerfile` snippet, not `dnf` module fields | The **order** of remove-then-install is load-bearing, scriptlets must be disabled for the install only, and `depmod` has to run in between |
 | Remove before install | `kernel-cachyos-core` declares `Provides: kernel`; removing "kernel" afterwards would remove the new kernel |
 | `rm -rf /usr/lib/modules/<stock kver>` | RPM removal leaves generated files (`initramfs.img`, `modules.dep`) behind; two module directories make the image ambiguous |
-| `rpm -qa 'kmod-*'` before the removal | Prebuilt out-of-tree modules go with the stock kernel; this puts the list in the build log |
+| `--setopt=tsflags=noscripts` on the install | `kernel-cachyos-core`'s `%posttrans` runs `kernel-install` → `05-rpmostree.install` → `dracut`, which fails on the missing `modules.dep` and fails the build |
+| `depmod -a "$KVER"` | The one part of the skipped scriptlets that matters; the `initramfs` module's dracut run needs `modules.dep` |
+| `kernel-cachyos-devel-matched` | Replaces the `kernel-devel-matched` that came out with Fedora's kernel, so `akmods` has headers |
+| `rpm -qa 'kmod-*'` before the removal | Prebuilt out-of-tree modules go with the stock kernel and cannot come back; this puts the list in the build log |
+| The `comm` diff and reinstall | Removing `kernel-core` also removes the libguestfs/`virt-v2v` stack and `virtualbox-guest-additions`, which only need `kernel` — provided by the new kernel, so they are restored. The diff is logged so drift is visible |
 | The `test` assertions | Fail the build at the swap rather than publishing an image that cannot boot |
 
 - **Ordering:** after `common-base.yml`; **before** `common-identity.yml`; requires the

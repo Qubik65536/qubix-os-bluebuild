@@ -284,6 +284,26 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - Each matrix job's name identifies the variant it builds
     - `docs/build-and-release.md` and `.agent/context/ci.md` match the workflow
 
+- [x] **IMG-008** — Make the CachyOS kernel swap actually build
+  - **Category:** Image content
+  - **Depends on:** IMG-005
+  - **Notes:** First CI run of `recipe-cachyos.yml` failed. `kernel-cachyos-core`'s
+    `%posttrans` runs `kernel-install`, which on a ublue base is hooked by
+    `/usr/lib/kernel/install.d/05-rpmostree.install` → `dracut`, and dracut aborts with
+    `modules.dep is missing. Did you run depmod?`. The CachyOS RPMs ship no `modules.dep`
+    and nothing runs `depmod` in a container build. The transaction's scriptlet failure
+    fails the whole build.
+    The removal also took 11 unrelated packages with it — the libguestfs/virt-v2v stack,
+    `virtualbox-guest-additions`, `kernel-devel-matched`, and the `kmod-*` packages.
+  - **Acceptance criteria:**
+    - The kernel install does not run the failing `kernel-install` hook
+    - `modules.dep` exists for the new kernel before the `initramfs` module runs, asserted
+      at build time
+    - Packages removed as collateral are restored where the CachyOS kernel satisfies their
+      dependencies; the build log lists everything the removal took
+    - `docs/variants.md`, `docs/build-and-release.md`, DD-017 and `.agent/context/recipe.md`
+      record the mechanism and what is not restorable
+
 ---
 
 ## Open

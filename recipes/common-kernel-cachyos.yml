@@ -32,30 +32,72 @@ modules:
   #    Remove first, while the CachyOS packages do not exist yet, then install.
   #
   #    Step by step:
-  #      - Record which out-of-tree modules were present. Any kmod-* RPM depends on the
-  #        exact kernel-uname-r being removed and goes with it; this line is what makes
-  #        that visible in the build log instead of surprising someone after a rebase.
+  #      - Record the installed package set, so module 3 can report what the removal took
+  #        with it, and record the kmod-* packages specifically: any prebuilt out-of-tree
+  #        module is built against one exact kernel-uname-r and cannot survive the swap.
   #      - Remove Fedora's kernel. --no-autoremove keeps unrelated leaf packages.
   #      - Delete the stock kernel's module directory: RPM leaves generated files behind
   #        (initramfs.img, modules.dep), and a bootc image with two module directories is
   #        ambiguous about which kernel it boots.
-  #      - Install the CachyOS kernel. The metapackage pulls -core and -modules; both are
-  #        named anyway so the transaction is explicit.
-  #      - Assert exactly ONE kernel remains, with a vmlinuz. If anything above only half
-  #        worked, the build fails here rather than shipping an unbootable image.
+  #      - Install the CachyOS kernel with tsflags=noscripts. THIS IS REQUIRED, not a
+  #        speed-up: kernel-cachyos-core's %posttrans runs kernel-install, which on a
+  #        ublue base is hooked by 05-rpmostree.install → dracut, and dracut aborts with
+  #        "modules.dep is missing. Did you run depmod?" because the CachyOS RPMs ship no
+  #        modules.dep and nothing has run depmod yet. The scriptlet failure fails the
+  #        whole build. Skipping scriptlets and doing the work here is the fix. DD-017.
+  #      - kernel-cachyos-devel-matched replaces the kernel-devel-matched that came out
+  #        with Fedora's kernel, so akmods still has headers to build against.
+  #      - depmod, because that is the part of the skipped scriptlets that matters: the
+  #        `initramfs` module's dracut run needs modules.dep to exist.
+  #      - Assert exactly ONE kernel remains, with a vmlinuz and a modules.dep. If
+  #        anything above only half worked, the build fails here rather than shipping an
+  #        unbootable image.
   - type: containerfile
     snippets:
       - |
         RUN set -eu \
-            && echo "Out-of-tree kernel modules present before the swap:" \
+            && rpm -qa --queryformat '%{NAME}\n' | sort > /tmp/pkgs-before-swap \
+            && echo "Out-of-tree kernel modules present before the swap (these cannot survive it):" \
             && { rpm -qa 'kmod-*' | sort || true; } \
             && STOCK_KVER="$(rpm -q --queryformat '%{VERSION}-%{RELEASE}.%{ARCH}\n' kernel-core | tail -n1)" \
             && echo "Removing Fedora kernel ${STOCK_KVER}" \
             && dnf5 -y remove --no-autoremove \
                  kernel kernel-core kernel-modules kernel-modules-core kernel-modules-extra \
             && rm -rf "/usr/lib/modules/${STOCK_KVER}" \
-            && dnf5 -y install kernel-cachyos kernel-cachyos-core kernel-cachyos-modules \
+            && dnf5 -y install --setopt=tsflags=noscripts \
+                 kernel-cachyos kernel-cachyos-core kernel-cachyos-modules \
+                 kernel-cachyos-devel-matched \
             && dnf5 clean all \
             && test "$(ls -1 /usr/lib/modules | wc -l)" -eq 1 \
-            && test -f "/usr/lib/modules/$(ls -1 /usr/lib/modules)/vmlinuz" \
-            && echo "Kernel now: $(ls -1 /usr/lib/modules)"
+            && KVER="$(ls -1 /usr/lib/modules)" \
+            && test -f "/usr/lib/modules/${KVER}/vmlinuz" \
+            && depmod -a "${KVER}" \
+            && test -f "/usr/lib/modules/${KVER}/modules.dep" \
+            && echo "Kernel now: ${KVER}"
+
+  # 3. Put back what the kernel removal took with it.
+  #    Removing kernel-core removes everything that depends on it, which on Aurora DX is
+  #    more than kernel modules: the libguestfs/virt-v2v stack and virtualbox-guest-additions
+  #    all declare a plain `Requires: kernel`. kernel-cachyos-core PROVIDES `kernel`, so
+  #    they install cleanly again now that it is in place — this variant is supposed to
+  #    differ from the standard image in the kernel and nothing else (DD-017).
+  #
+  #    --skip-unavailable because a package can legitimately be ungettable (in the base
+  #    image, virtualbox-guest-additions came from a repo that is not enabled at build
+  #    time). The comm output above the install is the drift alarm: anything listed there
+  #    and not named below is gone from this variant, deliberately or not.
+  #
+  #    kmod-* and their userspace halves are NOT restored: they are built against the
+  #    exact kernel-uname-r that was just removed and would pull it back in.
+  - type: containerfile
+    snippets:
+      - |
+        RUN set -eu \
+            && rpm -qa --queryformat '%{NAME}\n' | sort > /tmp/pkgs-after-swap \
+            && echo "Packages the kernel removal took with it:" \
+            && comm -23 /tmp/pkgs-before-swap /tmp/pkgs-after-swap \
+            && dnf5 -y install --skip-unavailable \
+                 libguestfs libguestfs-appliance libguestfs-xfs guestfs-tools virt-v2v \
+                 virtualbox-guest-additions \
+            && dnf5 clean all \
+            && rm -f /tmp/pkgs-before-swap /tmp/pkgs-after-swap

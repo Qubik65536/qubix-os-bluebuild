@@ -30,36 +30,38 @@ image-version: beta
 
 # ── Modules (executed in order) ───────────────────────────────────────────────
 modules:
-  # 1–3. Overlay, packages, flatpaks — shared with every variant, byte for byte.
+  # Overlay, packages, flatpaks — shared with every variant, byte for byte.
   - from-file: common-base.yml
 
-  # 4. Kernel swap: Fedora's kernel out, CachyOS's in. DD-017.
-  #    Before the identity rewrite, so that rewrite stays the last word on os-release.
+  # Kernel swap: Fedora's kernel out, CachyOS's in, plus the packages the removal takes
+  # with it. Before the identity rewrite, so that rewrite stays the last word on
+  # os-release. DD-017.
   - from-file: common-kernel-cachyos.yml
 
-  # 5. os-release rewrite: ID, NAME, PRETTY_NAME. Late, by constraint (DD-003).
+  # os-release rewrite: ID, NAME, PRETTY_NAME. Late, by constraint (DD-003).
   - from-file: common-identity.yml
 
-  # 6. Variant identity.
-  #    Rewrites PRETTY_NAME again so `cat /etc/os-release`, KDE's About page, and bug
-  #    reports say which kernel is running. Written from scratch rather than patching the
-  #    string module 5 produced, so the two modules stay independent of each other's
-  #    wording (DD-016). ID and NAME stay shared: this is the same distribution, a
-  #    different build of it.
+  # Variant identity.
+  # Rewrites PRETTY_NAME again so `cat /etc/os-release`, KDE's About page, and bug reports
+  # say which kernel is running. Written from scratch rather than patching the string
+  # common-identity.yml produced, so the two modules stay independent of each other's
+  # wording (DD-016). ID and NAME stay shared: this is the same distribution, a different
+  # build of it.
   - type: containerfile
     snippets:
       - |
         RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
             && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, CachyOS Kernel, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
 
-  # 7. Regenerate the initramfs for the kernel installed in module 4.
-  #    Mandatory here: installing a kernel RPM in a container build does NOT produce
-  #    /usr/lib/modules/<kver>/initramfs.img — on a normal system rpm-ostree does that on
-  #    the client, and there is no client at build time. Runs late so it also picks up the
-  #    dracut-relevant content of the overlay (DD-017).
+  # Regenerate the initramfs for the kernel installed by the swap above.
+  # Mandatory here: installing a kernel RPM in a container build does NOT produce
+  # /usr/lib/modules/<kver>/initramfs.img — on a normal system rpm-ostree does that on the
+  # client, and there is no client at build time. The swap runs depmod, without which this
+  # module's dracut call fails. Runs late so it also picks up the dracut-relevant content
+  # of the overlay (DD-017).
   - type: initramfs
 
-  # 8. Client-side trust configuration. Same key and policy as the standard image;
-  #    the two images are signed with the same cosign key. DD-008.
-  #    Ordering: last, by convention.
+  # Client-side trust configuration. Same key and policy as the standard image; the two
+  # images are signed with the same cosign key. DD-008.
+  # Ordering: last, by convention.
   - type: signing

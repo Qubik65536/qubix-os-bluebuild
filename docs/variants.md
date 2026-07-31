@@ -56,12 +56,19 @@ signature, which signs the *image* and is verified by `rpm-ostree`, not by firmw
 **3. Know what you give up:**
 
 - Any prebuilt out-of-tree kernel module (`kmod-*`) inherited from Aurora is removed with
-  Fedora's kernel — those RPMs are built against one exact kernel version. The build log
-  lists what was installed before the swap.
+  Fedora's kernel and is **not** restored — those RPMs are built against one exact kernel
+  version. Today that means `kmod-v4l2loopback` (virtual webcam devices, used by OBS and
+  similar) and `kmod-xone` (Xbox One controller dongle), plus their userspace halves. The
+  build log lists them before the swap.
 - CachyOS stopped shipping prebuilt NVIDIA drivers in February 2026. On proprietary NVIDIA
   hardware, stay on the standard image.
 - No Fedora QA. The kernel version follows CachyOS's releases and can change between two
   daily builds of this image.
+
+Everything else that comes out with Fedora's kernel goes back in: the
+libguestfs/`virt-v2v` stack and `virtualbox-guest-additions` only require `kernel`, which
+the CachyOS kernel provides, and `kernel-cachyos-devel-matched` replaces
+`kernel-devel-matched` so `akmods` still has headers.
 
 ### Installing
 
@@ -117,19 +124,34 @@ grep PRETTY_NAME /etc/os-release
 In [`common-kernel-cachyos.yml`](../recipes/common-kernel-cachyos.yml), in this order:
 
 1. Enable the CachyOS kernel COPR.
-2. Log the `kmod-*` packages that are about to be lost.
+2. Record the installed package list, and log the `kmod-*` packages that are about to be
+   lost.
 3. `dnf5 remove` Fedora's `kernel`, `kernel-core`, `kernel-modules`,
    `kernel-modules-core`, `kernel-modules-extra`.
 4. Delete the stock kernel's `/usr/lib/modules/<kver>` directory, which RPM leaves behind
    with generated files in it.
-5. `dnf5 install` `kernel-cachyos`, `kernel-cachyos-core`, `kernel-cachyos-modules`.
-6. Assert exactly one kernel remains, with a `vmlinuz`.
-7. (In the recipe.) Run the `initramfs` module — a kernel installed in a container build
+5. `dnf5 install --setopt=tsflags=noscripts` `kernel-cachyos`, `kernel-cachyos-core`,
+   `kernel-cachyos-modules`, `kernel-cachyos-devel-matched`.
+6. Assert exactly one kernel remains, with a `vmlinuz`; run `depmod`; assert `modules.dep`
+   now exists.
+7. Diff the package list against step 2, log what the removal took, and reinstall the
+   packages the CachyOS kernel can satisfy.
+8. (In the recipe.) Run the `initramfs` module — a kernel installed in a container build
    has no `initramfs.img` until something generates one.
 
+Two of those steps are not obvious:
+
 **Removal must come before installation.** `kernel-cachyos-core` declares
-`Provides: kernel`, so removing "kernel" afterwards would remove the new kernel. DD-017
-records this and the rest of the reasoning.
+`Provides: kernel`, so removing "kernel" afterwards would remove the new kernel.
+
+**Scriptlets must be skipped, and `depmod` run by hand.** `kernel-cachyos-core`'s
+`%posttrans` calls `kernel-install`, which a ublue base image hooks with
+`05-rpmostree.install` → `dracut`. That dracut run fails — `modules.dep is missing. Did
+you run depmod?` — because the CachyOS RPMs ship no `modules.dep` and nothing generates
+one in a container. The failing scriptlet fails the whole build, so the install skips
+scriptlets and the build runs the part that matters itself.
+
+DD-017 records this and the rest of the reasoning.
 
 ## Adding another variant
 

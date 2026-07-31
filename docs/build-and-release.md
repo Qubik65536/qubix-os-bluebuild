@@ -148,6 +148,12 @@ BlueBuild action's changelog before merging — a major bump can change module s
      subpackage. See DD-017 and [`variants.md`](variants.md).
    - **`dracut` failure in the `initramfs` module** → the kernel installed but its modules
      are incomplete. Read the module list the swap logged.
+   - **`%posttrans scriptlet failed` / `modules.dep is missing. Did you run depmod?`** →
+     the kernel install ran RPM scriptlets. `--setopt=tsflags=noscripts` must be on that
+     `dnf5 install`, with `depmod` after it. See DD-017.
+   - **A package vanished from the CachyOS variant** → check the "Packages the kernel
+     removal took with it" list in that build's log against the reinstall line in
+     `common-kernel-cachyos.yml`.
    - **Disk space** → confirm `maximize_build_space: true` is still set. Two images per
      run makes this likelier, but each job gets its own runner.
    - **Signing failure** → `SIGNING_SECRET` missing, malformed, or rotated.

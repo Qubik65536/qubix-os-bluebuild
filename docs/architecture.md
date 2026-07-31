@@ -93,11 +93,11 @@ image layer. Order is load-bearing. For `recipe.yml`:
 
 `recipe-cachyos.yml` composes the same blocks plus three, in a fixed order:
 
-| # | Module | From | What it does | Why it is here |
-|---|---|---|---|---|
-| 4 | `dnf` + `containerfile` | `common-kernel-cachyos.yml` | Enables the CachyOS kernel COPR, removes Fedora's kernel, installs CachyOS's, asserts one kernel remains | After the shared `dnf` work, **before** the identity rewrite. Removal must precede installation — DD-017. |
-| 6 | `containerfile` | `recipe-cachyos.yml` | Rewrites `PRETTY_NAME` again, naming the kernel | After the shared identity rewrite, which would otherwise overwrite it. |
-| 7 | `initramfs` | `recipe-cachyos.yml` | Regenerates `/usr/lib/modules/<kver>/initramfs.img` | Installing a kernel in a container build produces no initramfs; late, so it also covers earlier changes. |
+| Module | From | What it does | Why it is here |
+|---|---|---|---|
+| `dnf` + `containerfile` ×2 | `common-kernel-cachyos.yml` | Enables the CachyOS kernel COPR; removes Fedora's kernel, installs CachyOS's with scriptlets off, runs `depmod`, asserts one kernel remains; restores the packages the removal took with it | After the shared `dnf` work, **before** the identity rewrite. Removal must precede installation — DD-017. |
+| `containerfile` | `recipe-cachyos.yml` | Rewrites `PRETTY_NAME` again, naming the kernel | After the shared identity rewrite, which would otherwise overwrite it. |
+| `initramfs` | `recipe-cachyos.yml` | Regenerates `/usr/lib/modules/<kver>/initramfs.img` | Installing a kernel in a container build produces no initramfs; late, so it also covers earlier changes. |
 
 **Rule:** when adding a module, state its ordering constraint in
 [`recipe-reference.md`](recipe-reference.md). If it has none, say so.
