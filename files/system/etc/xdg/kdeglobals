@@ -1,0 +1,22 @@
+# Read by: KDE Frameworks (KConfig), for every user in a Plasma session.
+#
+# This is a CASCADE FRAGMENT, not a replacement for Plasma's defaults. KConfig merges
+# every `kdeglobals` found across $XDG_CONFIG_DIRS key by key, and Fedora sets
+#   XDG_CONFIG_DIRS=/etc/xdg:/usr/share/kde-settings/kde-profile/default/xdg
+# (see kde-settings' /etc/xdg/plasma-workspace/env/env.sh), so this file wins over the
+# kde-settings profile for the keys named here, and changes nothing else. Fonts, icon
+# theme, colour scheme and look-and-feel keep coming from kde-settings.
+#
+# See docs/design-decisions.md DD-012.
+
+[General]
+# Default terminal emulator for "Open Terminal Here", Dolphin, KRunner, and anything
+# else going through KTerminalLauncherJob.
+#
+# Only TerminalApplication is set, deliberately. KTerminalLauncherJob prefers
+# TerminalService (a desktop-file ID) and then appends " -e <command>" to that entry's
+# Exec line. WezTerm's own entry is `Exec=wezterm start --cwd .`, and `-e` is an alias
+# for the `start` SUBCOMMAND, not a flag of it — `wezterm start --cwd . -e ls` fails to
+# parse. With TerminalApplication alone the launcher builds `wezterm -e ls`, which is
+# the supported form, and passes the working directory as the process CWD.
+TerminalApplication=wezterm

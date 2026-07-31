@@ -288,3 +288,54 @@ content of their own.
   end of every completed prompt. Its absence signals the instructions were not read.
 - Cost: real overhead per change. Accepted deliberately — the cost of re-deriving these
   conventions, repeatedly, across sessions and agents, is higher.
+
+---
+
+## DD-012 — WezTerm as the default terminal, from WezTerm's own COPR
+
+**Status:** Accepted
+
+**Implements:** `IMG-001`
+
+**Context.** One terminal emulator should be the default across every session on the
+machine. WezTerm is **not packaged in Fedora** — not in the main repositories, not in
+RPM Fusion. The available sources are Flathub (`org.wezfurlong.wezterm`) and the COPR
+`wezfurlong/wezterm-nightly`, which is run by WezTerm's own author and builds from the
+project's release pipeline.
+
+A Flatpak is the wrong shape for a *default terminal*: it is what other applications
+shell out to. "Open Terminal Here", `$TERMINAL -e …`, and a compositor keybind all expect
+a plain executable on `$PATH` that inherits the caller's working directory. Wrapping every
+one of those in `flatpak run` — from inside a sandbox that does not share the host
+filesystem or shell environment — defeats the purpose. This is the opposite situation from
+Firefox (DD-006), which is a leaf application nothing else invokes.
+
+**Decision.** Layer the `wezterm` RPM from COPR `wezfurlong/wezterm-nightly`. Point the
+two default-terminal mechanisms at it with configuration files, adding nothing and
+removing nothing else:
+
+| File | Consumer | Key |
+|---|---|---|
+| `/etc/xdg/kdeglobals` | KDE Frameworks (`KTerminalLauncherJob`) | `[General] TerminalApplication=wezterm` |
+| `/usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager → every session | `TERMINAL=wezterm` |
+
+**Consequences.**
+- Konsole and every other KDE component stay installed. Only the *default* changes; a
+  user who prefers Konsole changes one setting.
+- `TerminalService` is deliberately **not** set. `KTerminalLauncherJob` prefers that key
+  and appends `-e <command>` to the named desktop entry's `Exec`. WezTerm's entry is
+  `Exec=wezterm start --cwd .`, and `-e` is an alias for the `start` *subcommand* rather
+  than a flag of it, so `wezterm start --cwd . -e ls` fails to parse. With
+  `TerminalApplication` alone the launcher produces `wezterm -e ls`, which is correct.
+- `/etc/xdg/kdeglobals` is a **cascade fragment**, not a replacement. KConfig merges every
+  `kdeglobals` on `$XDG_CONFIG_DIRS` key by key, so Fedora's fonts, icon theme and
+  look-and-feel keep coming from `kde-settings`. This is also why `/etc` is used rather
+  than `/usr` (see DD-011's preference): the only `/usr` directory on the KDE cascade is
+  `/usr/share/kde-settings/kde-profile/default/xdg/`, where `kdeglobals` already exists —
+  writing there would overwrite Fedora's defaults wholesale.
+- The COPR builds nightly, so the version string is a datestamp
+  (e.g. `20260731_083216_d69264df`) and the image tracks WezTerm's `main` branch. Accepted:
+  the alternative is no Fedora-native WezTerm at all. If a build breaks, the fallback is
+  pinning to an older COPR build or switching to the Flatpak.
+- Second third-party COPR trusted, after `atim/starship` (DD-007). This one is upstream's
+  own, which is the best available provenance short of Fedora proper.

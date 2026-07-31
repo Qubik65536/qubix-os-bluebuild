@@ -12,7 +12,7 @@ terms over synonyms.
 | **BlueBuild** | The build system used here. Transpiles `recipes/recipe.yml` into a `Containerfile` and builds it. <https://blue-build.org> |
 | **Branding asset** | A file under `files/system/` that replaces an upstream logo, banner, or watermark. See [`branding.md`](branding.md). |
 | **Context cache** | `.agent/context/` — one brief Markdown entry per file/module, so an agent can orient without reading the whole repo. |
-| **COPR** | Fedora's community package repository service. This project enables `atim/starship`. |
+| **COPR** | Fedora's community package repository service. This project enables `atim/starship` and `wezfurlong/wezterm-nightly`. |
 | **cosign** | The Sigstore tool used to sign and verify published images. |
 | **DD-###** | A design decision record in [`design-decisions.md`](design-decisions.md). |
 | **Delta** | What this repository changes relative to Aurora DX. Kept deliberately small. |
@@ -33,3 +33,4 @@ terms over synonyms.
 | **Signing policy** | Client-side configuration, installed into the image by the `signing` module, that lets `ostree-image-signed:` rebases verify against `cosign.pub`. |
 | **Task** | An entry in [`../.agent/plan.md`](../.agent/plan.md) with an ID, category, dependencies, and acceptance criteria. |
 | **Universal Blue** | The project producing the `ublue-os` images, including Aurora. |
+| **WezTerm** | The GPU-accelerated terminal emulator set as the default in every session (DD-012). Not packaged in Fedora; layered from WezTerm's own COPR. |

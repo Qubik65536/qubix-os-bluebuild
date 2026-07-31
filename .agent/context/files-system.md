@@ -5,9 +5,23 @@
 ## Purpose
 
 The image root overlay. The `files` module copies `files/system/*` verbatim into `/` in the
-image, so **repository path = image path**. In practice this tree is entirely branding.
+image, so **repository path = image path**. Two kinds of content live here: branding assets
+(the bulk of it) and system-wide desktop configuration.
 
-## Essential details
+## Desktop configuration
+
+| Path | Consumer | Effect |
+|---|---|---|
+| `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012) |
+| `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
+
+`etc/xdg/kdeglobals` is a **fragment**, not a replacement — KConfig merges every
+`kdeglobals` on `$XDG_CONFIG_DIRS` key by key. Fedora's `XDG_CONFIG_DIRS` is
+`/etc/xdg:/usr/share/kde-settings/kde-profile/default/xdg`, so `/etc/xdg` wins for the
+keys it names and inherits everything else. Do **not** add a `kdeglobals` under
+`usr/share/kde-settings/…` — that path already exists upstream and would be overwritten.
+
+## Branding
 
 - **Mechanism:** branding works by *overwriting upstream paths* (DD-004). Files are
   therefore named after the component that reads them, **not** after their contents.
@@ -29,9 +43,13 @@ image, so **repository path = image path**. In practice this tree is entirely br
   `usr/share/kde-settings/kde-profile/default/xdg/kcm-about-distrorc` — KDE "About this
   System". Sets `Name=Qubix OS`, a `Variant` string, and
   `LogoPath=/usr/share/pixmaps/system-logo.png`.
-- **`files/system/etc/`** — empty placeholder (`.gitkeep`). Prefer `/usr` for configuration;
-  `/etc` is three-way merged on updates, `/usr` is replaced wholesale.
 - Logo primary colour: `#47603b`.
+
+## `/usr` vs `/etc`
+
+Prefer `/usr` for configuration: `/etc` is three-way merged on updates, `/usr` is replaced
+wholesale. Use `/etc` only where the consumer offers no `/usr` path that can be written
+without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012).
 
 ## Gotchas
 
@@ -46,8 +64,9 @@ image, so **repository path = image path**. In practice this tree is entirely br
 
 ## Update when
 
-You add, remove, or change any asset. Then also update `docs/branding.md` — including its
-checksum table:
+You add, remove, or change any asset or configuration file. For configuration, also update
+`docs/recipe-reference.md` (the `files` module table). For assets, also update
+`docs/branding.md` — including its checksum table:
 
 ```bash
 shasum -a 256 files/system/usr/share/pixmaps/* \

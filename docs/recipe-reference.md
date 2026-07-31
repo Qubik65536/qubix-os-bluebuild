@@ -33,7 +33,14 @@ Copies everything under `files/system/` into `/` in the image. `source` is relat
 `files/`. The mapping is literal and byte-for-byte — no templating, no variable
 substitution.
 
-- **Currently carries:** branding assets only. Full map in [`branding.md`](branding.md).
+- **Currently carries:** branding assets (full map in [`branding.md`](branding.md)) and
+  system-wide desktop configuration:
+
+  | Path in image | Purpose |
+  |---|---|
+  | `/etc/xdg/kdeglobals` | KDE cascade fragment: default terminal (DD-012) |
+  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012) |
+
 - **Ordering:** no hard constraint. Kept first so content lands before anything that might
   read it.
 - **Adding files:** create the file at its final image path under `files/system/`, then add
@@ -46,17 +53,25 @@ substitution.
   repos:
     copr:
       - atim/starship
+      - wezfurlong/wezterm-nightly
   install:
-    packages: [micro, starship]
+    packages: [micro, starship, wezterm]
   remove:
     packages: [firefox, firefox-langpacks]
 ```
 
 | Field | Effect |
 |---|---|
-| `repos.copr` | Enables COPR repositories before installing. `atim/starship` provides `starship`, which is absent from Fedora's main repos. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt. |
+| `repos.copr` | Enables COPR repositories before installing. See the table below. |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012). |
 | `remove.packages` | Removed RPMs. `firefox` is removed in favour of the Flatpak (DD-006); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
+
+COPR repositories in use:
+
+| COPR | Owner | Provides | Why not Fedora proper |
+|---|---|---|---|
+| `atim/starship` | third party | `starship` | Not in Fedora's main repos (DD-007) |
+| `wezfurlong/wezterm-nightly` | WezTerm's own author | `wezterm`, `wezterm-common`, `wezterm-gui`, `wezterm-mux-server` | WezTerm is not packaged in Fedora at all (DD-012) |
 
 - **Ordering:** must precede `default-flatpaks` so the Firefox RPM is gone before the
   Flatpak is queued.

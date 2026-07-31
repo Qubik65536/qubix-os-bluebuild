@@ -197,23 +197,25 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `files/system/.../kcm-about-distrorc` has a header naming its consumer
     - No comment changes the behaviour of any file
 
+### Desktop sessions
+
+- [x] **IMG-001** — Install WezTerm and make it the default terminal in both sessions
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** WezTerm is not packaged in Fedora. The upstream-maintained COPR
+    `wezfurlong/wezterm-nightly` is the only Fedora-native source. See DD-012.
+  - **Acceptance criteria:**
+    - `recipe.yml` enables COPR `wezfurlong/wezterm-nightly` and installs `wezterm`
+    - KDE Plasma resolves the default terminal to WezTerm without any user action
+    - `$TERMINAL` resolves to `wezterm` in every session, session-manager agnostic
+    - No KDE component (Konsole included) is removed
+    - `docs/`, `.agent/context/`, and a `DD-###` record cover the change
+
 ---
 
 ## Open
 
 ### Desktop sessions
-
-- [ ] **IMG-001** — Install WezTerm and make it the default terminal in both sessions
-  - **Category:** Image content
-  - **Depends on:** —
-  - **Notes:** WezTerm is not packaged in Fedora. The upstream-maintained COPR
-    `wezfurlong/wezterm-nightly` is the only Fedora-native source.
-  - **Acceptance criteria:**
-    - `recipe.yml` enables COPR `wezfurlong/wezterm-nightly` and installs `wezterm`
-    - KDE Plasma resolves the default terminal to WezTerm without any user action
-    - The Niri session's terminal keybind opens WezTerm
-    - No KDE component (Konsole included) is removed
-    - `docs/`, `.agent/context/`, and a `DD-###` record cover the change
 
 - [ ] **IMG-002** — Add Niri as a second desktop session alongside KDE Plasma
   - **Category:** Image content
@@ -224,6 +226,7 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `recipe.yml` installs `niri`
     - Both "Plasma (Wayland)" and "Niri" are selectable in SDDM at login
     - A system-wide `/etc/niri/config.kdl` gives a working session on first login
+    - The Niri terminal keybind opens WezTerm
     - Nothing that ships with KDE Plasma is removed or disabled
     - `docs/desktops.md` exists, is indexed in `docs/README.md`, and explains switching
     - `.agent/context/` and a `DD-###` record cover the change
