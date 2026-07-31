@@ -201,6 +201,48 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
 
 ## Open
 
+### Desktop sessions
+
+- [ ] **IMG-001** — Install WezTerm and make it the default terminal in both sessions
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** WezTerm is not packaged in Fedora. The upstream-maintained COPR
+    `wezfurlong/wezterm-nightly` is the only Fedora-native source.
+  - **Acceptance criteria:**
+    - `recipe.yml` enables COPR `wezfurlong/wezterm-nightly` and installs `wezterm`
+    - KDE Plasma resolves the default terminal to WezTerm without any user action
+    - The Niri session's terminal keybind opens WezTerm
+    - No KDE component (Konsole included) is removed
+    - `docs/`, `.agent/context/`, and a `DD-###` record cover the change
+
+- [ ] **IMG-002** — Add Niri as a second desktop session alongside KDE Plasma
+  - **Category:** Image content
+  - **Depends on:** IMG-001
+  - **Notes:** Niri is in Fedora's main repositories and ships
+    `/usr/share/wayland-sessions/niri.desktop`, so SDDM lists it automatically.
+  - **Acceptance criteria:**
+    - `recipe.yml` installs `niri`
+    - Both "Plasma (Wayland)" and "Niri" are selectable in SDDM at login
+    - A system-wide `/etc/niri/config.kdl` gives a working session on first login
+    - Nothing that ships with KDE Plasma is removed or disabled
+    - `docs/desktops.md` exists, is indexed in `docs/README.md`, and explains switching
+    - `.agent/context/` and a `DD-###` record cover the change
+
+- [ ] **IMG-003** — Use DankMaterialShell as the Niri desktop shell
+  - **Category:** Image content
+  - **Depends on:** IMG-002
+  - **Notes:** <https://github.com/AvengeMedia/DankMaterialShell>. Packaged in COPR
+    `avengemedia/dms`; its dependencies (`quickshell`, `dgop`, `matugen`, …) live in the
+    companion COPR `avengemedia/danklinux`.
+  - **Acceptance criteria:**
+    - `recipe.yml` enables both COPRs and installs `dms`
+    - `dms.service` starts with the Niri session and **only** with the Niri session
+    - The shipped Niri config carries DankMaterialShell's keybinds
+    - Plasma is unaffected — no DankMaterialShell component runs in a Plasma session
+    - `docs/desktops.md`, `.agent/context/`, and a `DD-###` record cover the change
+
+### Maintenance
+
 - [ ] **MNT-001** — Replace the template `CODEOWNERS` entries
   - **Category:** Maintenance
   - **Depends on:** —
