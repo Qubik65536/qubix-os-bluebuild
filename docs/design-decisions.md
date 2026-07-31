@@ -380,6 +380,8 @@ default is changed for both sessions rather than one session being special-cased
   `$XDG_CURRENT_DESKTOP` and each desktop's `*-portals.conf`.
 - `brightnessctl` is added for niri's backlight keys. Plasma has its own power management
   and does not need it; the package is ~50 KB.
+  *(Reversed by DD-015: DankMaterialShell handles brightness natively, so the package was
+  dropped again.)*
 - Xwayland needs no configuration: since niri 25.08 the compositor exports `$DISPLAY` and
   spawns `xwayland-satellite` on demand.
 - Desktop *state* is not shared between the sessions — panels, wallpaper, and shortcuts
