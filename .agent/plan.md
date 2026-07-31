@@ -243,6 +243,76 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
 
 ## Open
 
+### Image variants
+
+- [ ] **IMG-004** — Split the recipe into shared module files and per-variant recipes
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Prerequisite for publishing more than one image. BlueBuild's `from-file:`
+    includes a module list from another file under `recipes/`. See DD-016.
+  - **Acceptance criteria:**
+    - The modules every variant shares live in `recipes/common-*.yml`, each a
+      `module-list-v1` file with banner comments
+    - `recipes/recipe.yml` keeps its identity keys and composes the shared files with
+      `from-file:`
+    - The rendered module order for `recipe.yml` is unchanged: overlay → packages →
+      flatpaks → identity → signing
+    - `docs/recipe-reference.md`, `docs/architecture.md`, `.agent/context/recipe.md`, and a
+      `DD-###` record cover the new layout
+
+- [ ] **IMG-005** — Publish a CachyOS-kernel variant of the image
+  - **Category:** Image content
+  - **Depends on:** IMG-004
+  - **Notes:** CachyOS's own Fedora port lives in COPR `bieszczaders/kernel-cachyos`
+    (`kernel-cachyos`, `-lts`, `-rt`, `-server`). The default kernel requires an
+    **x86-64-v3** CPU. Swapping the kernel means removing Fedora's and regenerating the
+    initramfs. See DD-017.
+  - **Acceptance criteria:**
+    - `recipes/recipe-cachyos.yml` builds `qubix-os-bluebuild-cachyos` from the same shared
+      modules as `recipe.yml`, differing only in the kernel and in `PRETTY_NAME`
+    - Fedora's kernel packages are removed and exactly one kernel remains in
+      `/usr/lib/modules`, asserted at build time
+    - The initramfs is regenerated for the CachyOS kernel
+    - `docs/variants.md` exists, is indexed in `docs/README.md`, and states the hardware
+      requirement, the Secure Boot caveat, and how to switch between variants
+    - `.agent/context/recipe.md` and a `DD-###` record cover the change
+
+- [ ] **BLD-001** — Build every image variant from the workflow
+  - **Category:** Build / CI
+  - **Depends on:** IMG-005
+  - **Notes:** The matrix currently names one recipe. It must name every published variant,
+    and a manual run should be able to target just one of them.
+  - **Acceptance criteria:**
+    - The matrix builds `recipe.yml` and `recipe-cachyos.yml`, with `fail-fast: false`
+    - `workflow_dispatch` takes a `recipe` input selecting one variant or all of them
+    - Each matrix job's name identifies the variant it builds
+    - `docs/build-and-release.md` and `.agent/context/ci.md` match the workflow
+
+- [ ] **IMG-006** — Decide whether the CachyOS variant ships the CachyOS addons
+  - **Category:** Image content
+  - **Depends on:** IMG-005
+  - **Notes:** COPR `bieszczaders/kernel-cachyos-addons` carries `cachyos-settings` (sysctl
+    and udev tuning), `scx-scheds` (sched_ext schedulers), `ananicy-cpp`, and `uksmd`.
+    DD-017 deliberately ships the kernel alone first; this task revisits that once the
+    kernel itself is known to boot.
+  - **Acceptance criteria:**
+    - Each addon is assessed for what it changes and whether it conflicts with Aurora's own
+      tuning
+    - The outcome is recorded as a new `DD-###` (adopting or rejecting), with the recipe
+      matching it
+
+- [ ] **IMG-007** — Confirm the Plymouth watermark survives without an `initramfs` module
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** BlueBuild's `initramfs` module exists because Plymouth theming lives in the
+    initramfs. `recipe.yml` overrides `spinner/watermark.png` (DD-004) but never
+    regenerates it, so the boot splash may still show Aurora's. The CachyOS variant
+    regenerates the initramfs anyway (IMG-005), which is a useful comparison.
+  - **Acceptance criteria:**
+    - The boot splash of the standard image is checked on real hardware after a rebase
+    - If the watermark does not apply, `recipe.yml` gains `- type: initramfs` before
+      `signing`, with a note in `docs/branding.md`
+
 ### Maintenance
 
 - [ ] **MNT-001** — Replace the template `CODEOWNERS` entries
