@@ -15,7 +15,7 @@ plus a tree of files to overlay. There is no imperative installer and no local b
 | Published to | `ghcr.io/qubik65536/qubix-os-bluebuild` |
 | Base image | `ghcr.io/ublue-os/aurora-dx` |
 | Base tag | `beta` |
-| Desktop | KDE Plasma (via Fedora Kinoite → Aurora) |
+| Desktops | KDE Plasma (via Fedora Kinoite → Aurora) and Niri, switchable at login |
 | Build system | [BlueBuild](https://blue-build.org) |
 | Signing | Sigstore cosign (`cosign.pub`) |
 | Rebuild cadence | Daily, 06:00 UTC, plus on every push |
@@ -29,7 +29,7 @@ Fedora (rpm-ostree base)
   └── Fedora Kinoite            immutable KDE Plasma desktop
         └── Universal Blue Aurora      Kinoite + codecs, drivers, quality-of-life fixes
               └── Aurora DX            Aurora + developer tooling (containers, IDEs, toolchains)
-                    └── Qubix OS       branding + package tweaks + identity
+                    └── Qubix OS       branding + package tweaks + identity + a Niri session
 ```
 
 Everything Aurora DX provides is inherited for free. This repository only records the
@@ -41,9 +41,10 @@ Everything Aurora DX provides is inherited for free. This repository only record
 |---|---|---|
 | Identity | `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` rewritten to Qubix OS | `recipe.yml` (containerfile snippet) |
 | Branding | Distro logos, banners, Plymouth boot watermark, KDE splash and "About this system" | `files/system/usr/share/**` |
-| Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR) | `recipe.yml` (`dnf`) |
+| Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `brightnessctl` | `recipe.yml` (`dnf`) |
 | Packages removed | `firefox`, `firefox-langpacks` | `recipe.yml` (`dnf`) |
 | Default terminal | WezTerm, for KDE and for the `$TERMINAL` convention | `files/system/etc/xdg/kdeglobals`, `files/system/usr/lib/environment.d/` |
+| Second session | Niri added alongside — nothing KDE removed. System config shipped | `recipe.yml` (`dnf`), `files/system/etc/niri/config.kdl` |
 | Flatpaks | Flathub configured; `org.mozilla.firefox` and `org.gnome.Loupe` installed system-wide | `recipe.yml` (`default-flatpaks`) |
 | Trust | Cosign signing policy installed so signed rebases verify | `recipe.yml` (`signing`) |
 
@@ -64,5 +65,6 @@ should be reported upstream, not patched here — see
 
 - Being a general-purpose distribution for other people. It is published publicly and
   anyone may use it, but it is tuned for one person's workflow.
-- Supporting non-Atomic Fedora, or any non-KDE desktop.
+- Supporting non-Atomic Fedora. KDE Plasma is the inherited desktop and is never removed;
+  Niri is an additional session, not a replacement (see [`desktops.md`](desktops.md)).
 - Local/offline builds. See [`build-and-release.md`](build-and-release.md).

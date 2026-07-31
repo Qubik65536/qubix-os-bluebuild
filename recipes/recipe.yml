@@ -29,7 +29,7 @@ modules:
   # 1. Overlay the image root.
   #    Copies files/system/* into / — repository path IS the image path, byte for byte.
   #    Carries branding assets (asset → consumer map in docs/branding.md) and
-  #    system-wide desktop configuration.
+  #    system-wide desktop configuration (docs/desktops.md).
   #    No templating here: anything needing a build-time value must use `containerfile`.
   #    Ordering: no hard constraint; kept first so content lands before anything reads it.
   - type: files
@@ -56,6 +56,15 @@ modules:
         # (the `wezterm` binary), wezterm-gui, and wezterm-mux-server. It is additive —
         # Konsole and every other KDE component stays installed. DD-012.
         - wezterm
+        # Second desktop session, ALONGSIDE KDE Plasma — nothing Plasma is removed.
+        # In Fedora's main repos. Ships /usr/share/wayland-sessions/niri.desktop, which
+        # is all SDDM needs to offer it as a login choice. Weak deps bring the pieces a
+        # bare compositor does not have (waybar, fuzzel, swaylock, the GTK/GNOME
+        # portals); xwayland-satellite is a hard dependency and needs no setup. DD-013.
+        - niri
+        # Backlight control for niri's brightness keys. Plasma has its own power
+        # management and does not need this; a bare compositor does.
+        - brightnessctl
     remove:
       packages:
         # Firefox is removed in favour of the Flatpak below, so browser security updates

@@ -20,7 +20,7 @@ reading the whole repository.
 | [`root.md`](root.md) | Repository root files: `README.md`, `LICENSE`, `cosign.pub`, `.gitignore` |
 | [`recipe.md`](recipe.md) | `recipes/recipe.yml` — the image definition |
 | [`ci.md`](ci.md) | `.github/` — workflow, dependabot, CODEOWNERS, Copilot pointer |
-| [`files-system.md`](files-system.md) | `files/system/**` — the image root overlay (branding) |
+| [`files-system.md`](files-system.md) | `files/system/**` — the image root overlay (branding + desktop config) |
 | [`scripts.md`](scripts.md) | `files/scripts/` and `modules/` — unused extension points |
 | [`docs.md`](docs.md) | `docs/**` — the human + agent documentation set |
 | [`agent-files.md`](agent-files.md) | `AGENTS.md`, `CLAUDE.md`, pointer files, and `.agent/` itself |

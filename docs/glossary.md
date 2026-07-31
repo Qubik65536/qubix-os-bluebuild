@@ -21,7 +21,9 @@ terms over synonyms.
 | **GHCR** | GitHub Container Registry — where the image is published. |
 | **`image-version`** | The base image *tag* (`beta` here). A channel, not a Fedora version number. |
 | **`IMAGE_VERSION`** | A field Universal Blue writes into `os-release`, identifying the upstream build. Interpolated into `PRETTY_NAME` (DD-003). |
+| **KDL** | The configuration language niri uses (<https://kdl.dev>). Braces and nodes, not YAML. |
 | **Kinoite** | Fedora's official immutable KDE Plasma variant. Aurora's base. |
+| **Niri** | A scrollable-tiling Wayland compositor. The second desktop session (DD-013). See [`desktops.md`](desktops.md). |
 | **Look-and-feel package** | A KDE Plasma theme bundle under `/usr/share/plasma/look-and-feel/`. Aurora's contains the startup splash this image overrides. |
 | **Module** | A step in `recipe.yml` (`files`, `dnf`, `default-flatpaks`, `containerfile`, `signing`). Modules run in file order. |
 | **Overlay** | The `files/system/` tree, copied verbatim into the image root. Repository path = image path. |
@@ -30,6 +32,8 @@ terms over synonyms.
 | **Rebase** | Switching a machine to a different OS image (`rpm-ostree rebase`). How Qubix OS is installed and uninstalled. |
 | **Recipe** | `recipes/recipe.yml`. The declarative definition of the image. |
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |
+| **SDDM** | The display manager (login screen). Lists sessions from `/usr/share/wayland-sessions/`, which is how Niri appears as a login choice. |
+| **Session** | One desktop environment as offered at the login screen. This image has two: Plasma (Wayland) and Niri. |
 | **Signing policy** | Client-side configuration, installed into the image by the `signing` module, that lets `ostree-image-signed:` rebases verify against `cosign.pub`. |
 | **Task** | An entry in [`../.agent/plan.md`](../.agent/plan.md) with an ID, category, dependencies, and acceptance criteria. |
 | **Universal Blue** | The project producing the `ublue-os` images, including Aurora. |

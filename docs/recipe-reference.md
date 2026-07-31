@@ -40,6 +40,7 @@ substitution.
   |---|---|
   | `/etc/xdg/kdeglobals` | KDE cascade fragment: default terminal (DD-012) |
   | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012) |
+  | `/etc/niri/config.kdl` | System-default Niri configuration (DD-014) |
 
 - **Ordering:** no hard constraint. Kept first so content lands before anything that might
   read it.
@@ -55,7 +56,7 @@ substitution.
       - atim/starship
       - wezfurlong/wezterm-nightly
   install:
-    packages: [micro, starship, wezterm]
+    packages: [micro, starship, wezterm, niri, brightnessctl]
   remove:
     packages: [firefox, firefox-langpacks]
 ```
@@ -63,7 +64,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012). |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012); `niri` = the second desktop session (DD-013); `brightnessctl` = backlight control for Niri's brightness keys. |
 | `remove.packages` | Removed RPMs. `firefox` is removed in favour of the Flatpak (DD-006); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:

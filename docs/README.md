@@ -14,6 +14,7 @@ additional, mandatory working rules in [`../AGENTS.md`](../AGENTS.md).
 | [`architecture.md`](architecture.md) | How the image is assembled, layer by layer. |
 | [`design-decisions.md`](design-decisions.md) | **Why** the project is built the way it is (DD-001…). |
 | [`recipe-reference.md`](recipe-reference.md) | Every module in `recipes/recipe.yml`, explained. |
+| [`desktops.md`](desktops.md) | The two desktop sessions, switching between them, and Niri's configuration. |
 | [`branding.md`](branding.md) | The branding asset map — which file overrides what. |
 | [`build-and-release.md`](build-and-release.md) | CI, tagging, signing, and the release cadence. |
 | [`usage.md`](usage.md) | Installing, rebasing, verifying, and building an ISO. |

@@ -211,17 +211,12 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - No KDE component (Konsole included) is removed
     - `docs/`, `.agent/context/`, and a `DD-###` record cover the change
 
----
-
-## Open
-
-### Desktop sessions
-
-- [ ] **IMG-002** — Add Niri as a second desktop session alongside KDE Plasma
+- [x] **IMG-002** — Add Niri as a second desktop session alongside KDE Plasma
   - **Category:** Image content
   - **Depends on:** IMG-001
   - **Notes:** Niri is in Fedora's main repositories and ships
     `/usr/share/wayland-sessions/niri.desktop`, so SDDM lists it automatically.
+    See DD-013 and DD-014.
   - **Acceptance criteria:**
     - `recipe.yml` installs `niri`
     - Both "Plasma (Wayland)" and "Niri" are selectable in SDDM at login
@@ -230,6 +225,12 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - Nothing that ships with KDE Plasma is removed or disabled
     - `docs/desktops.md` exists, is indexed in `docs/README.md`, and explains switching
     - `.agent/context/` and a `DD-###` record cover the change
+
+---
+
+## Open
+
+### Desktop sessions
 
 - [ ] **IMG-003** — Use DankMaterialShell as the Niri desktop shell
   - **Category:** Image content

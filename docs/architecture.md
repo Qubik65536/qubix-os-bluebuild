@@ -47,8 +47,8 @@ load-bearing.
 
 | # | Module | What it does | Why it is here |
 |---|---|---|---|
-| 1 | `files` | Copies `files/system/*` to `/` | Branding assets must exist before anything reads them; nothing later depends on being first, but putting content first keeps later layers small. |
-| 2 | `dnf` | Adds COPR `atim/starship`; installs `micro`, `starship`; removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
+| 1 | `files` | Copies `files/system/*` to `/` (branding + desktop configuration) | Content must exist before anything reads it; nothing later depends on being first, but putting content first keeps later layers small. |
+| 2 | `dnf` | Adds COPRs `atim/starship` and `wezfurlong/wezterm-nightly`; installs `micro`, `starship`, `wezterm`, `niri`, `brightnessctl`; removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
 | 3 | `default-flatpaks` | Configures Flathub (system + user), queues `org.mozilla.firefox` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM so the flatpak is the only Firefox. |
 | 4 | `containerfile` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
 | 5 | `signing` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
@@ -74,8 +74,12 @@ Consequences worth remembering:
   this is exactly why decision DD-003 exists.
 - **`/etc` vs `/usr`.** On an Atomic system `/etc` is user-writable and gets three-way
   merged on updates; `/usr` is read-only and fully replaced. Ship configuration in `/usr`
-  whenever the consumer supports it, so updates always win. `files/system/etc/` exists as
-  a placeholder but is currently empty.
+  whenever the consumer supports it, so updates always win. `files/system/etc/` is used
+  only where the consumer's search path offers no `/usr` entry that can be written without
+  overwriting an upstream file — currently `etc/xdg/kdeglobals` (DD-012) and
+  `etc/niri/config.kdl` (DD-014).
+- **Not only branding any more.** The overlay also carries the desktop-session
+  configuration described in [`desktops.md`](desktops.md).
 
 ## Identity rewrite
 
@@ -113,4 +117,3 @@ is the OS's job.
 |---|---|---|
 | `modules/` | Custom BlueBuild modules written for this image | Empty placeholder |
 | `files/scripts/` | Scripts invoked by the `script` module during build | Contains only `example.sh`, not wired into `recipe.yml` |
-| `files/system/etc/` | Overlay for `/etc` | Empty placeholder |

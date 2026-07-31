@@ -58,6 +58,8 @@ the same Fedora base but receives Universal Blue's changes earlier.
 
 **Consequences.**
 - KDE Plasma is the desktop, permanently. GNOME-specific work is out of scope.
+  *(Narrowed by DD-013: Plasma remains the inherited desktop and is never removed, but it
+  is no longer the only session installed.)*
 - The developer tooling this project would otherwise have to install is already present,
   which is why the `dnf` module installs only two packages.
 - `beta` means accepting occasional upstream breakage in exchange for earlier fixes. The
@@ -339,3 +341,84 @@ removing nothing else:
   pinning to an older COPR build or switching to the Flatpak.
 - Second third-party COPR trusted, after `atim/starship` (DD-007). This one is upstream's
   own, which is the best available provenance short of Fedora proper.
+
+---
+
+## DD-013 — Add Niri as a second session; never remove KDE Plasma
+
+**Status:** Accepted
+
+**Implements:** `IMG-002`
+
+**Narrows:** DD-002's consequence "KDE Plasma is the desktop, permanently"
+
+**Context.** A scrollable-tiling Wayland compositor and a full traditional desktop are
+good at different things. Wanting both is not the same as wanting to migrate. The obvious
+failure mode when adding a compositor to a KDE image is to start pruning "redundant" KDE
+pieces — the Plasma panel, KWin, Konsole, the KDE portal — which quietly makes the Plasma
+session worse in ways that only surface weeks later, on hardware you no longer have in
+front of you.
+
+Fedora packages `niri` in its main repositories, and the RPM installs
+`/usr/share/wayland-sessions/niri.desktop`. SDDM builds its session list from that
+directory, so a second session needs no display-manager configuration at all.
+
+**Decision.** Install `niri` as a **purely additive** layer. Both sessions are present at
+all times and the choice is made per login in SDDM. No KDE Plasma package is removed,
+masked, or reconfigured. Where a default has to name one thing (the terminal, DD-012), the
+default is changed for both sessions rather than one session being special-cased.
+
+**Consequences.**
+- Session switching is a login-screen choice, remembered per user. Documented in
+  [`desktops.md`](desktops.md).
+- The image grows by niri plus its weak dependencies: `waybar`, `fuzzel`, `swaylock`,
+  `gnome-keyring`, `wireplumber`, `xdg-desktop-portal-gnome`, `xdg-desktop-portal-gtk`,
+  and the hard dependency `xwayland-satellite`. Weak dependencies are left enabled
+  deliberately: a bare compositor with no panel, launcher, or locker is not a session
+  anyone can log into.
+- The GTK and GNOME portals do **not** affect Plasma. Portal selection is per-desktop via
+  `$XDG_CURRENT_DESKTOP` and each desktop's `*-portals.conf`.
+- `brightnessctl` is added for niri's backlight keys. Plasma has its own power management
+  and does not need it; the package is ~50 KB.
+- Xwayland needs no configuration: since niri 25.08 the compositor exports `$DISPLAY` and
+  spawns `xwayland-satellite` on demand.
+- Desktop *state* is not shared between the sessions — panels, wallpaper, and shortcuts
+  live in unrelated places. This is inherent, not a defect to fix.
+- Cost: two desktops to keep working instead of one, and upstream niri moves fast. The
+  mitigation is that neither can break the other — they share no configuration.
+
+---
+
+## DD-014 — Ship the Niri config as a system default in `/etc/niri/config.kdl`
+
+**Status:** Accepted
+
+**Implements:** `IMG-002`
+
+**Context.** Niri's built-in default config is a bare compositor: no panel, and a terminal
+keybind pointing at whatever the upstream default happens to be. A first login on a fresh
+install should land in a session that works. Niri resolves its config as
+`$XDG_CONFIG_HOME/niri/config.kdl`, falling back to `/etc/niri/config.kdl`; if **neither**
+exists, it writes its own 600-line annotated default into the user's home directory.
+
+There is no `/usr` path in that search order. This project otherwise prefers `/usr`,
+because `/etc` is three-way merged across updates while `/usr` is replaced wholesale.
+
+**Decision.** Ship a short, commented `/etc/niri/config.kdl` as the system default. Do not
+attempt to seed a per-user config.
+
+**Consequences.**
+- A first login gets a working session with the project's defaults, including WezTerm as
+  the terminal (DD-012), without any per-user setup step.
+- **Because the system file exists, niri no longer auto-creates
+  `~/.config/niri/config.kdl`.** Customising means copying the system file first. This is
+  a real change in behaviour for anyone who knows niri's normal bootstrap, so it is called
+  out in [`desktops.md`](desktops.md) and in the file's own header comment.
+- `/etc` is used against the general preference because niri offers no `/usr` alternative.
+  Practical effect: a user who edits `/etc/niri/config.kdl` in place keeps their edits
+  across rebases, and updates to the shipped version are three-way merged. Editing
+  `~/.config/niri/config.kdl` instead sidesteps that entirely and is what the docs
+  recommend.
+- The file is kept deliberately short rather than being a copy of niri's annotated
+  default. Unset options keep niri's built-in defaults, so the file stays readable and
+  does not silently pin behaviour that upstream later improves.

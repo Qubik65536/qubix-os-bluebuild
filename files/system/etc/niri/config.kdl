@@ -1,0 +1,181 @@
+// Qubix OS — system-wide Niri configuration.
+//
+// Read by: niri (KDL format — https://kdl.dev).
+//
+// LOADING ORDER. Niri looks for $XDG_CONFIG_HOME/niri/config.kdl (i.e.
+// ~/.config/niri/config.kdl) and falls back to THIS file. Because this file exists,
+// niri will NOT auto-create a per-user config on first login — a user who wants to
+// customise the session copies this file to ~/.config/niri/config.kdl first. That is
+// documented for users in docs/desktops.md.
+//
+// This file is a system default kept deliberately small and readable: it is not a copy
+// of niri's 600-line annotated default config. For every option not set here, niri's
+// built-in default applies. Full reference:
+//   /usr/share/doc/niri/wiki/  (shipped in the image)
+//   https://github.com/YaLTeR/niri/wiki
+//
+// Ordering note: Xwayland needs no configuration. Since niri 25.08 the compositor
+// exports $DISPLAY and spawns xwayland-satellite (a hard RPM dependency) on demand.
+//
+// See docs/desktops.md and docs/design-decisions.md DD-013, DD-014.
+
+// ── Startup ───────────────────────────────────────────────────────────────────
+// Waybar is niri's recommended panel and comes in as a weak dependency of the niri
+// RPM. Without a panel there is no clock, no tray and no workspace indicator.
+spawn-at-startup "waybar"
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+// The xkb block is left empty on purpose: niri then takes the keyboard layout from
+// org.freedesktop.locale1, which is what the installer and `localectl` set. Hardcoding
+// a layout here would override the user's actual choice.
+input {
+    keyboard {
+        xkb {}
+        numlock
+    }
+
+    touchpad {
+        tap
+        natural-scroll
+    }
+}
+
+// ── Layout ────────────────────────────────────────────────────────────────────
+// Niri is a scrollable-tiling compositor: windows form an infinite horizontal strip
+// of columns rather than a subdivided rectangle.
+layout {
+    gaps 8
+
+    // Widths cycled by Mod+R. Fractions of the output width.
+    preset-column-widths {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+    }
+
+    default-column-width { proportion 0.5; }
+
+    focus-ring {
+        width 2
+        // Qubix OS logo green, and a muted variant for unfocused monitors.
+        active-color "#47603b"
+        inactive-color "#3c3c3c"
+    }
+}
+
+// Ask applications to omit their own title bars so niri can draw borders around them.
+prefer-no-csd
+
+screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
+
+// ── Window rules ──────────────────────────────────────────────────────────────
+// WezTerm sizes itself from its initial configure event; an empty default-column-width
+// lets it pick its own width instead of being forced to 50%. This rule is carried over
+// from niri's own default config.
+window-rule {
+    match app-id=r#"^org\.wezfurlong\.wezterm$"#
+    default-column-width {}
+    draw-border-with-background false
+}
+
+// ── Key bindings ──────────────────────────────────────────────────────────────
+// "Mod" is Super (the Meta/Windows key) in a normal session.
+binds {
+    Mod+Shift+Slash { show-hotkey-overlay; }
+
+    // Applications. WezTerm is the system default terminal — see DD-012.
+    Mod+T hotkey-overlay-title="Open a Terminal" { spawn "wezterm"; }
+    Mod+D hotkey-overlay-title="Run an Application" { spawn "fuzzel"; }
+    Mod+Alt+L hotkey-overlay-title="Lock the Screen" { spawn "swaylock"; }
+
+    // Session.
+    Mod+Q repeat=false { close-window; }
+    Mod+Shift+E { quit; }
+    Mod+Shift+P { power-off-monitors; }
+
+    // Overview: a zoomed-out view of every workspace on every monitor.
+    Mod+O repeat=false { toggle-overview; }
+
+    // Focus. Arrow keys and hjkl are equivalent throughout.
+    Mod+Left  { focus-column-left; }
+    Mod+Down  { focus-window-down; }
+    Mod+Up    { focus-window-up; }
+    Mod+Right { focus-column-right; }
+    Mod+H     { focus-column-left; }
+    Mod+J     { focus-window-down; }
+    Mod+K     { focus-window-up; }
+    Mod+L     { focus-column-right; }
+
+    // Move the focused window.
+    Mod+Shift+Left  { move-column-left; }
+    Mod+Shift+Down  { move-window-down; }
+    Mod+Shift+Up    { move-window-up; }
+    Mod+Shift+Right { move-column-right; }
+    Mod+Shift+H     { move-column-left; }
+    Mod+Shift+J     { move-window-down; }
+    Mod+Shift+K     { move-window-up; }
+    Mod+Shift+L     { move-column-right; }
+
+    // Monitors.
+    Mod+Ctrl+Left  { focus-monitor-left; }
+    Mod+Ctrl+Right { focus-monitor-right; }
+    Mod+Ctrl+Shift+Left  { move-column-to-monitor-left; }
+    Mod+Ctrl+Shift+Right { move-column-to-monitor-right; }
+
+    // Workspaces. Niri's workspaces are dynamic and stack vertically.
+    Mod+Page_Down { focus-workspace-down; }
+    Mod+Page_Up   { focus-workspace-up; }
+    Mod+U         { focus-workspace-down; }
+    Mod+I         { focus-workspace-up; }
+    Mod+Shift+U   { move-column-to-workspace-down; }
+    Mod+Shift+I   { move-column-to-workspace-up; }
+
+    Mod+1 { focus-workspace 1; }
+    Mod+2 { focus-workspace 2; }
+    Mod+3 { focus-workspace 3; }
+    Mod+4 { focus-workspace 4; }
+    Mod+5 { focus-workspace 5; }
+    Mod+6 { focus-workspace 6; }
+    Mod+7 { focus-workspace 7; }
+    Mod+8 { focus-workspace 8; }
+    Mod+9 { focus-workspace 9; }
+
+    Mod+Shift+1 { move-column-to-workspace 1; }
+    Mod+Shift+2 { move-column-to-workspace 2; }
+    Mod+Shift+3 { move-column-to-workspace 3; }
+    Mod+Shift+4 { move-column-to-workspace 4; }
+    Mod+Shift+5 { move-column-to-workspace 5; }
+    Mod+Shift+6 { move-column-to-workspace 6; }
+    Mod+Shift+7 { move-column-to-workspace 7; }
+    Mod+Shift+8 { move-column-to-workspace 8; }
+    Mod+Shift+9 { move-column-to-workspace 9; }
+
+    // Sizing and layout.
+    Mod+R { switch-preset-column-width; }
+    Mod+Shift+R { switch-preset-window-height; }
+    Mod+F { maximize-column; }
+    Mod+Shift+F { fullscreen-window; }
+    Mod+C { center-column; }
+    Mod+W { toggle-column-tabbed-display; }
+    Mod+Shift+Space { toggle-window-floating; }
+    Mod+Minus { set-column-width "-10%"; }
+    Mod+Equal { set-column-width "+10%"; }
+
+    // Pull the neighbouring window into / push it out of the focused column.
+    Mod+BracketLeft  { consume-or-expel-window-left; }
+    Mod+BracketRight { consume-or-expel-window-right; }
+
+    // Screenshots. Written to screenshot-path above; Print alone opens the interactive
+    // region selector.
+    Print { screenshot; }
+    Ctrl+Print { screenshot-screen; }
+    Alt+Print { screenshot-window; }
+
+    // Media and brightness keys. allow-when-locked lets them work on the lock screen.
+    XF86AudioRaiseVolume  allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
+    XF86AudioLowerVolume  allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
+    XF86AudioMute         allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+    XF86AudioMicMute      allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
+    XF86MonBrightnessUp   allow-when-locked=true { spawn "brightnessctl" "set" "5%+"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "set" "5%-"; }
+}

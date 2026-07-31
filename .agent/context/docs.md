@@ -16,6 +16,7 @@ and *why*; `.agent/` answers *what do I need to know right now to touch this fil
 | `architecture.md` | Commit → CI → image → rebase pipeline; module order and constraints; the `files/` overlay mapping; unused extension points | Changing how the image is assembled |
 | `design-decisions.md` | `DD-001`…`DD-011` — every "why" in the project | Before questioning any convention |
 | `recipe-reference.md` | Per-module reference for `recipe.yml`, incl. unused-but-available modules | Editing the recipe |
+| `desktops.md` | The two sessions (Plasma, Niri), switching, Niri config and keybinds, default terminal | Touching either desktop session |
 | `branding.md` | Asset → image path → consumer map, grouped by source artwork; logo-change procedure | Touching anything under `files/system/` |
 | `build-and-release.md` | CI triggers, concurrency, permissions, signing, tags, failure triage | Changing CI or debugging a build |
 | `usage.md` | Install, update, rollback, verify, ISO, uninstall | Answering a user-facing question |

@@ -14,6 +14,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 |---|---|---|
 | `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
+| `etc/niri/config.kdl` | niri | System-default session config (DD-014) |
 
 `etc/xdg/kdeglobals` is a **fragment**, not a replacement — KConfig merges every
 `kdeglobals` on `$XDG_CONFIG_DIRS` key by key. Fedora's `XDG_CONFIG_DIRS` is
@@ -49,7 +50,8 @@ keys it names and inherits everything else. Do **not** add a `kdeglobals` under
 
 Prefer `/usr` for configuration: `/etc` is three-way merged on updates, `/usr` is replaced
 wholesale. Use `/etc` only where the consumer offers no `/usr` path that can be written
-without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012).
+without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012) and
+`etc/niri/config.kdl` (DD-014; niri's config search path has no `/usr` entry).
 
 ## Gotchas
 
