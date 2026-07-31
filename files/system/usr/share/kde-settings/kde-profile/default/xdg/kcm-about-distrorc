@@ -1,3 +1,6 @@
+# Read by KDE System Settings -> About this System (the kcm_about_distro module).
+# Overrides Aurora's copy at the same path via the `files` module. See docs/branding.md.
+# LogoPath points at one of the branding assets shipped in files/system/usr/share/pixmaps/.
 [General]
 LogoPath=/usr/share/pixmaps/system-logo.png
 Name=Qubix OS

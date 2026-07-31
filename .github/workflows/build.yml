@@ -1,42 +1,74 @@
+# Qubix OS — image build, sign, and publish.
+#
+# This is the ONLY place the image is ever built; there is no local build.
+# The whole job is delegated to the BlueBuild action, which renders recipes/recipe.yml
+# into a Containerfile, builds it, signs it with cosign, and pushes it to GHCR.
+#
+# Docs: docs/build-and-release.md  (triggers, signing, tags, failure triage)
+#       docs/design-decisions.md   (why — referenced below as DD-###)
 name: bluebuild
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
 on:
+  # Daily rebuild so upstream Aurora security fixes reach users within ~24h. DD-009.
   schedule:
     - cron:
         "00 06 * * *" # build at 06:00 UTC every day
         # (20 minutes after last ublue images start building)
+
+  # Every push, except commits that touch ONLY Markdown. DD-010.
+  # Caveat: a commit touching a .md file AND the recipe still builds — paths-ignore
+  # skips a push only when every changed path matches.
   push:
     paths-ignore: # don't rebuild if only documentation has changed
       - "**.md"
 
+  # PRs always build (paths-ignore does not apply here) — this validates the recipe
+  # before merge, which is worth the CI minutes.
   pull_request:
   workflow_dispatch: # allow manually triggering builds
+
+# ── Concurrency ───────────────────────────────────────────────────────────────
+# One build per ref; a newer push cancels the running one, so rapid pushes cost a
+# single build rather than a queue of superseded ones.
 concurrency:
   # only run one build at a time
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
+
 jobs:
   bluebuild:
     name: Build Custom Image
     runs-on: ubuntu-latest
+
+    # Least privilege: read the repo, push to GHCR, and mint an OIDC token for
+    # Sigstore signing. Nothing here needs more than this.
     permissions:
-      contents: read
-      packages: write
-      id-token: write
+      contents: read # check out the repository
+      packages: write # push the image to GHCR
+      id-token: write # OIDC token for cosign/Sigstore
+
+    # One entry per recipe to publish. Add a filename here to ship an extra variant;
+    # fail-fast is off so one broken variant doesn't cancel the others.
     strategy:
       fail-fast: false # stop GH from cancelling all matrix builds if one fails
       matrix:
         recipe:
           # !! Add your recipes here
           - recipe.yml
+
     steps:
-      # the build is fully handled by the reusable github action
+      # The build, tag, sign, and push are all handled by the reusable action.
+      # The cosign private key lives only in the SIGNING_SECRET repository secret —
+      # never in git (.gitignore blocks cosign.key / cosign.private). DD-008.
       - name: Build Custom Image
         uses: blue-build/github-action@v1.11
         with:
           recipe: ${{ matrix.recipe }}
           cosign_private_key: ${{ secrets.SIGNING_SECRET }}
           registry_token: ${{ github.token }}
-          pr_event_number: ${{ github.event.number }}
+          pr_event_number: ${{ github.event.number }} # tags PR builds separately from `latest`
 
+          # Reclaims runner disk before building; this image is large.
           # enabled by default, disable if your image is small and you want faster builds
           maximize_build_space: true

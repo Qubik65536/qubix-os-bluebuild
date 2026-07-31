@@ -1,0 +1,56 @@
+# Context: `files/system/`
+
+**Covers:** everything under `files/system/`
+
+## Purpose
+
+The image root overlay. The `files` module copies `files/system/*` verbatim into `/` in the
+image, so **repository path = image path**. In practice this tree is entirely branding.
+
+## Essential details
+
+- **Mechanism:** branding works by *overwriting upstream paths* (DD-004). Files are
+  therefore named after the component that reads them, **not** after their contents.
+- **Four distinct source images**, everything else is a byte-identical copy (DD-005):
+
+  | Artwork | Form | Size | SHA-256 prefix | Copies live at |
+  |---|---|---|---|---|
+  | A | SVG logo mark | 1024×1024pt | `3ccc88c3…` | `pixmaps/qubixos-logo.svg`, `icons/hicolor/scalable/distributor-logo.svg` |
+  | B | PNG logo mark | 512×512 | `f7448d03…` | `pixmaps/qubixos-logo.png`, `system-logo.png`, `system-logo-white.png`, `fedora-logo-sprite.png` |
+  | C | SVG banner | 1600×450 | `46d7526f…` | `pixmaps/qubixos-banner.svg`, `aurora-banner.svg` |
+  | D | PNG banner | 1600×450 | `38879687…` | `pixmaps/fedora-logo.png`, `fedora_logo_med.png` |
+  | E | PNG watermark | 128×36 | `41ba5629…` | `plymouth/themes/spinner/watermark.png`, `kinoite-watermark.png`, `pixmaps/fedora-logo-small.png` |
+
+- **Plasma splash:**
+  `usr/share/plasma/look-and-feel/dev.getaurora.aurora.desktop/contents/splash/images/aurora_logo.svgz`
+  — a gzipped copy of artwork A. The Aurora directory and filename are referenced by the
+  splash QML and **must not be renamed**.
+- **Text branding:**
+  `usr/share/kde-settings/kde-profile/default/xdg/kcm-about-distrorc` — KDE "About this
+  System". Sets `Name=Qubix OS`, a `Variant` string, and
+  `LogoPath=/usr/share/pixmaps/system-logo.png`.
+- **`files/system/etc/`** — empty placeholder (`.gitkeep`). Prefer `/usr` for configuration;
+  `/etc` is three-way merged on updates, `/usr` is replaced wholesale.
+- Logo primary colour: `#47603b`.
+
+## Gotchas
+
+- `fedora-logo.png`, `fedora_logo_med.png`, `fedora-logo-small.png`,
+  `fedora-logo-sprite.png`, `aurora-banner.svg`, and `aurora_logo.svgz` all contain
+  **Qubix** artwork. This is the override mechanism — do not "fix" the names.
+- `system-logo-white.png` is currently identical to `system-logo.png`, i.e. not actually a
+  light variant. Tracked as open task `BRD-001`.
+- macOS writes `.DS_Store` files into this tree while editing. They are gitignored and must
+  stay that way, or the `files` module would copy them into `/usr/share/pixmaps/`.
+- Changing artwork means updating **every** copy in the group above.
+
+## Update when
+
+You add, remove, or change any asset. Then also update `docs/branding.md` — including its
+checksum table:
+
+```bash
+shasum -a 256 files/system/usr/share/pixmaps/* \
+              files/system/usr/share/plymouth/themes/spinner/* \
+              files/system/usr/share/icons/hicolor/scalable/*.svg | sort
+```

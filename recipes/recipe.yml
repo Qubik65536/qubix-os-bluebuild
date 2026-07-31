@@ -1,47 +1,90 @@
 ---
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
-# image will be published to ghcr.io/<user>/<name>
+#
+# Qubix OS — image definition.
+#
+# BlueBuild transpiles this file into a Containerfile and builds it in CI.
+# Modules execute TOP TO BOTTOM; the order is load-bearing (see notes per module).
+#
+# Docs:  docs/recipe-reference.md   (what every key and module does)
+#        docs/architecture.md       (how this becomes a bootable OS)
+#        docs/design-decisions.md   (why — referenced below as DD-###)
+
+# ── Image identity ────────────────────────────────────────────────────────────
+# Published to ghcr.io/<owner>/<name>; renaming breaks existing rebases.
 name: qubix-os-bluebuild
-# description will be included in the image's metadata
+# Included in the image's OCI metadata.
 description: Customized OS Image, built with BlueBuild, based on Universal Blue Aurora.
 
-# the base image to build on top of (FROM) and the version tag to use
+# ── Base image (FROM) ─────────────────────────────────────────────────────────
+# Aurora DX = Fedora Kinoite (KDE Plasma) + Universal Blue fixes + developer tooling,
+# which is why the package list below is so short. DD-002.
 base-image: ghcr.io/ublue-os/aurora-dx
-image-version: beta # latest is also supported if you want new updates ASAP
+# A release CHANNEL, not a Fedora version: `beta` gets upstream changes earlier than
+# `latest`. A major Fedora jump only happens when this value is deliberately changed.
+image-version: beta
 
-# module configuration, executed in order
-# you can include multiple instances of the same module
+# ── Modules (executed in order) ───────────────────────────────────────────────
 modules:
+  # 1. Overlay the image root.
+  #    Copies files/system/* into / — repository path IS the image path, byte for byte.
+  #    Currently branding only; the full asset → consumer map is in docs/branding.md.
+  #    No templating here: anything needing a build-time value must use `containerfile`.
+  #    Ordering: no hard constraint; kept first so content lands before anything reads it.
   - type: files
     files:
       - source: system
         destination: / # copies files/system/* (* means everything inside it) into your image's root folder /
 
+  # 2. Package changes (layered RPMs).
+  #    Ordering: MUST precede default-flatpaks, so the Firefox RPM is gone before the
+  #    Flatpak replacing it is queued (DD-006).
   - type: dnf
     repos:
       copr:
+        # starship is not in Fedora's main repos; this is the maintainer-run COPR. DD-007.
         - atim/starship
     install:
       packages:
-        - micro
-        - starship
+        - micro # lightweight terminal editor
+        - starship # cross-shell prompt (from the COPR above)
     remove:
       packages:
-        # example: removing firefox (in favor of the flatpak)
-        # "firefox" is the main package, "firefox-langpacks" is a dependency
+        # Firefox is removed in favour of the Flatpak below, so browser security updates
+        # don't have to wait for a full image rebuild. DD-006.
         - firefox
         - firefox-langpacks # also remove firefox dependency (not required for all packages, this is a special case)
 
+  # 3. Flatpak remotes and seeded applications.
+  #    These are NOT baked into the image: a systemd unit installs them on first boot,
+  #    so the first boot needs network access.
+  #    Ordering: after the `dnf` removal above.
   - type: default-flatpaks
     configurations:
+      # System scope — present for every user on the machine.
       - notify: true # Send notification after install/uninstall is finished (true/false)
         scope: system
         # If no repo information is specified, Flathub will be used by default
         install: # system flatpaks we want all users to have and not remove
-          - org.mozilla.firefox
-          - org.gnome.Loupe
+          - org.mozilla.firefox # replaces the removed RPM
+          - org.gnome.Loupe # image viewer
+      # User scope — adds the Flathub user remote only, so per-user installs work
+      # out of the box without any packages being forced on anyone.
       - scope: user # Also add Flathub user repo, but no user packages
 
+  # 4. System identity rewrite (the one piece of imperative logic in this build).
+  #    A static os-release via the `files` module would discard every field upstream sets
+  #    (VERSION_ID, VARIANT, IMAGE_VERSION, …), and PRETTY_NAME needs a build-time value.
+  #    So: patch in place, changing only the three intended fields. DD-003.
+  #
+  #    Details that matter:
+  #      - IMAGE_VERSION is captured BEFORE the rewrites, then interpolated back in, so
+  #        the upstream Aurora/Fedora build stays visible in PRETTY_NAME.
+  #      - Patterns are anchored (^ID=) so they cannot match VERSION_ID= and friends.
+  #      - The last sed uses | as its delimiter because the replacement contains /.
+  #      - Single chained RUN: one layer, fails atomically.
+  #
+  #    Ordering: MUST run after any module that can regenerate os-release.
   - type: containerfile
     snippets:
       - |
@@ -50,4 +93,10 @@ modules:
             && sed -i 's/^NAME=.*/NAME="QubixOS-BlueBuild"/' /usr/lib/os-release \
             && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
 
+  # 5. Client-side trust configuration.
+  #    Installs the cosign public key and container policy INTO the image, so
+  #    `ostree-image-signed:` rebases verify. Signing of the published image itself
+  #    happens in CI with SIGNING_SECRET. Because the policy ships inside the image,
+  #    a first-time install needs the two-step rebase documented in docs/usage.md. DD-008.
+  #    Ordering: last, by convention.
   - type: signing # this sets up the proper policy & signing files for signed images to work fully
