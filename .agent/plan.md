@@ -256,13 +256,7 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/recipe-reference.md`, `docs/architecture.md`, `.agent/context/recipe.md`, and a
       `DD-###` record cover the new layout
 
----
-
-## Open
-
-### Image variants
-
-- [ ] **IMG-005** — Publish a CachyOS-kernel variant of the image
+- [x] **IMG-005** — Publish a CachyOS-kernel variant of the image
   - **Category:** Image content
   - **Depends on:** IMG-004
   - **Notes:** CachyOS's own Fedora port lives in COPR `bieszczaders/kernel-cachyos`
@@ -278,6 +272,12 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/variants.md` exists, is indexed in `docs/README.md`, and states the hardware
       requirement, the Secure Boot caveat, and how to switch between variants
     - `.agent/context/recipe.md` and a `DD-###` record cover the change
+
+---
+
+## Open
+
+### Image variants
 
 - [ ] **BLD-001** — Build every image variant from the workflow
   - **Category:** Build / CI

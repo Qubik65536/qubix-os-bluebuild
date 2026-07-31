@@ -31,14 +31,15 @@ How a commit in this repository becomes a bootable operating system.
  └──────────────────────────────────────────┘
               │
               ▼
-   ghcr.io/qubik65536/<name from the recipe>:latest
+   ghcr.io/qubik65536/qubix-os-bluebuild:latest
+   ghcr.io/qubik65536/qubix-os-bluebuild-cachyos:latest
               │
               ▼
    rpm-ostree rebase on the user's machine
 ```
 
 Each recipe is an independent build producing an independently named, independently
-signed image.
+signed image. What distinguishes them: [`variants.md`](variants.md).
 
 BlueBuild is a **transpiler**, not a runtime: `recipe.yml` is turned into an ordinary
 `Containerfile`, and the result is an ordinary OCI image. Nothing in this repo runs on a
@@ -52,6 +53,10 @@ user's machine at install time; everything happens at build time, once, in CI.
 |---|---|---|
 | `recipe.yml`, `recipe-*.yml` | A complete image definition: identity keys plus a module list | **Yes** — one CI job each |
 | `common-*.yml` | A module list included by recipes with `from-file:` | No — only ever included |
+
+Today: `recipe.yml` (standard) and `recipe-cachyos.yml` (CachyOS kernel), sharing
+`common-base.yml` and `common-identity.yml`; `common-kernel-cachyos.yml` is used by the
+latter only.
 
 The shared files exist so that a second image is a *composition*, not a copy (DD-016):
 
@@ -85,6 +90,14 @@ image layer. Order is load-bearing. For `recipe.yml`:
 | 3 | `default-flatpaks` | `common-base.yml` | Configures Flathub (system + user), queues `org.mozilla.firefox` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM so the flatpak is the only Firefox. |
 | 4 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
 | 5 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
+
+`recipe-cachyos.yml` composes the same blocks plus three, in a fixed order:
+
+| # | Module | From | What it does | Why it is here |
+|---|---|---|---|---|
+| 4 | `dnf` + `containerfile` | `common-kernel-cachyos.yml` | Enables the CachyOS kernel COPR, removes Fedora's kernel, installs CachyOS's, asserts one kernel remains | After the shared `dnf` work, **before** the identity rewrite. Removal must precede installation — DD-017. |
+| 6 | `containerfile` | `recipe-cachyos.yml` | Rewrites `PRETTY_NAME` again, naming the kernel | After the shared identity rewrite, which would otherwise overwrite it. |
+| 7 | `initramfs` | `recipe-cachyos.yml` | Regenerates `/usr/lib/modules/<kver>/initramfs.img` | Installing a kernel in a container build produces no initramfs; late, so it also covers earlier changes. |
 
 **Rule:** when adding a module, state its ordering constraint in
 [`recipe-reference.md`](recipe-reference.md). If it has none, say so.

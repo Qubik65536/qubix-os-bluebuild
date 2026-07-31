@@ -11,8 +11,10 @@ Upstream module documentation: <https://blue-build.org/reference/module/>
 | File | Kind | Role |
 |---|---|---|
 | [`recipe.yml`](../recipes/recipe.yml) | Recipe (built) | The standard image: identity keys + composition |
+| [`recipe-cachyos.yml`](../recipes/recipe-cachyos.yml) | Recipe (built) | The CachyOS-kernel image ([`variants.md`](variants.md)) |
 | [`common-base.yml`](../recipes/common-base.yml) | Module list (included) | Overlay, packages, flatpaks — shared by every image |
 | [`common-identity.yml`](../recipes/common-identity.yml) | Module list (included) | The `os-release` rewrite — shared by every image |
+| [`common-kernel-cachyos.yml`](../recipes/common-kernel-cachyos.yml) | Module list (included) | The kernel swap — `recipe-cachyos.yml` only |
 
 **`recipe*.yml` is built; `common-*.yml` is only ever included.** The build matrix names
 recipe files explicitly, so a shared file is never built by accident. Rationale: DD-016.
@@ -27,7 +29,7 @@ Only recipes carry these; a `common-*.yml` file contains nothing but `modules:`.
 
 | Key | Value in `recipe.yml` | Meaning |
 |---|---|---|
-| `name` | `qubix-os-bluebuild` | Image name. Published as `ghcr.io/<owner>/<name>`. Changing it changes the published image path and breaks existing rebases. **Each variant needs its own.** |
+| `name` | `qubix-os-bluebuild` (`qubix-os-bluebuild-cachyos` in the variant) | Image name. Published as `ghcr.io/<owner>/<name>`. Changing it changes the published image path and breaks existing rebases. **Each variant needs its own.** |
 | `description` | *(see file)* | Written into the image's OCI metadata. |
 | `base-image` | `ghcr.io/ublue-os/aurora-dx` | The `FROM`. See DD-002. |
 | `image-version` | `beta` | Tag of the base image. A **channel**, not a Fedora version. `latest` is the alternative. |
@@ -35,10 +37,14 @@ Only recipes carry these; a `common-*.yml` file contains nothing but `modules:`.
 ## Composition
 
 ```yaml
-modules:
-  - from-file: common-base.yml      # modules 1–3
-  - from-file: common-identity.yml  # module 4
-  - type: signing                   # module 5
+# recipe.yml                        # recipe-cachyos.yml
+modules:                            # modules:
+  - from-file: common-base.yml      #   - from-file: common-base.yml
+                                    #   - from-file: common-kernel-cachyos.yml
+  - from-file: common-identity.yml  #   - from-file: common-identity.yml
+                                    #   - type: containerfile   (PRETTY_NAME)
+                                    #   - type: initramfs
+  - type: signing                   #   - type: signing
 ```
 
 `from-file:` takes a path relative to `recipes/` and splices that file's `modules:` list in
@@ -193,6 +199,72 @@ Installs the cosign public key and the container policy files so that
 - Signing of the *published* image happens in CI, using `SIGNING_SECRET`; this module only
   sets up the *client-side* trust configuration inside the image. See
   [`build-and-release.md`](build-and-release.md).
+
+## Variant-only modules
+
+These run in `recipe-cachyos.yml` and nowhere else. Full context:
+[`variants.md`](variants.md), DD-017.
+
+### V1. `dnf` + `containerfile` — the CachyOS kernel swap
+
+*Defined in `common-kernel-cachyos.yml`, between `common-base.yml` and
+`common-identity.yml`.*
+
+```yaml
+- type: dnf
+  repos:
+    copr:
+      - bieszczaders/kernel-cachyos
+- type: containerfile
+  snippets:
+    - |
+      RUN set -eu \
+          && … remove Fedora's kernel, delete its module dir, install CachyOS's \
+          && test "$(ls -1 /usr/lib/modules | wc -l)" -eq 1
+```
+
+| Piece | Why it is written this way |
+|---|---|
+| A `containerfile` snippet, not `dnf` module fields | The **order** of remove-then-install is load-bearing and the module does not guarantee it |
+| Remove before install | `kernel-cachyos-core` declares `Provides: kernel`; removing "kernel" afterwards would remove the new kernel |
+| `rm -rf /usr/lib/modules/<stock kver>` | RPM removal leaves generated files (`initramfs.img`, `modules.dep`) behind; two module directories make the image ambiguous |
+| `rpm -qa 'kmod-*'` before the removal | Prebuilt out-of-tree modules go with the stock kernel; this puts the list in the build log |
+| The `test` assertions | Fail the build at the swap rather than publishing an image that cannot boot |
+
+- **Ordering:** after `common-base.yml`; **before** `common-identity.yml`; requires the
+  `initramfs` module later in the same recipe.
+
+### V2. `containerfile` — variant identity
+
+*Defined in `recipe-cachyos.yml`, immediately after `common-identity.yml`.*
+
+Rewrites `PRETTY_NAME` a second time, from scratch:
+
+| Field | Standard | CachyOS variant |
+|---|---|---|
+| `PRETTY_NAME` | `Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)` | `Qubix OS (BlueBuild Image, CachyOS Kernel, Version: <IMAGE_VERSION>)` |
+
+`ID` and `NAME` are deliberately left shared — same distribution, different build.
+
+- **Ordering:** after `common-identity.yml`, which would otherwise overwrite it.
+
+### V3. `initramfs` — regenerate the initramfs
+
+*Defined in `recipe-cachyos.yml`.*
+
+```yaml
+- type: initramfs
+```
+
+Runs `dracut --add ostree --no-hostonly --reproducible` for every kernel in
+`/usr/lib/modules`. Takes no options.
+
+**Mandatory after a kernel swap.** Installing a kernel RPM inside a container build does
+not produce an `initramfs.img`; on a normal system `rpm-ostree` does that on the client,
+and there is no client at build time.
+
+- **Ordering:** late — it should come after everything that affects early boot (dracut
+  configuration, `modprobe.d`, Plymouth theming), so one run covers them all.
 
 ## Modules available but not used
 

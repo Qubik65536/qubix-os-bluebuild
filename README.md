@@ -7,13 +7,26 @@ on top of [Universal Blue](https://universal-blue.org)'s Aurora DX.
 |---|---|
 | **Image** | `ghcr.io/qubik65536/qubix-os-bluebuild` |
 | **Base** | `ghcr.io/ublue-os/aurora-dx:beta` (Fedora Kinoite → Aurora → Aurora DX) |
-| **Desktop** | KDE Plasma |
+| **Desktop** | KDE Plasma, plus a Niri session |
 | **Signed** | Sigstore cosign — `cosign.pub` |
 | **Rebuilt** | Daily at 06:00 UTC, and on every push |
 
 Qubix OS is a thin, deliberately small layer over Aurora DX: Qubix branding, a rewritten
-system identity, two extra packages, and Firefox moved from an RPM to a Flatpak. Everything
-else is inherited upstream. The full delta is in [`docs/overview.md`](docs/overview.md).
+system identity, a handful of extra packages, and Firefox moved from an RPM to a Flatpak.
+Everything else is inherited upstream. The full delta is in
+[`docs/overview.md`](docs/overview.md).
+
+## Variants
+
+Two images are published. They are identical except for the kernel — see
+[`docs/variants.md`](docs/variants.md).
+
+| Variant | Image | Kernel | Requirements |
+|---|---|---|---|
+| **Standard** | `ghcr.io/qubik65536/qubix-os-bluebuild` | Fedora's | — |
+| **CachyOS** | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` | CachyOS (`kernel-cachyos`) | x86-64-v3 CPU, Secure Boot off |
+
+Run the standard image unless you specifically want the CachyOS kernel.
 
 ## Documentation
 
@@ -24,7 +37,8 @@ else is inherited upstream. The full delta is in [`docs/overview.md`](docs/overv
 | [Overview](docs/overview.md) | What this is, the upstream lineage, goals and non-goals |
 | [Architecture](docs/architecture.md) | How a commit becomes a bootable OS |
 | [Design decisions](docs/design-decisions.md) | Why the project is built this way (`DD-001`…) |
-| [Recipe reference](docs/recipe-reference.md) | Every module in `recipes/recipe.yml` |
+| [Recipe reference](docs/recipe-reference.md) | Every file and module in `recipes/` |
+| [Variants](docs/variants.md) | The published images, how they differ, how to switch |
 | [Branding](docs/branding.md) | Which asset overrides which upstream path |
 | [Build & release](docs/build-and-release.md) | CI, signing, tags, failure triage |
 | [Usage](docs/usage.md) | Install, update, roll back, verify |
@@ -60,7 +74,9 @@ the policy, the second one uses it.
   systemctl reboot
   ```
 
-The `latest` tag will automatically point to the latest build. That build will still always use the Fedora version specified in `recipe.yml`, so you won't get accidentally updated to the next major version.
+For the CachyOS variant, substitute `qubix-os-bluebuild-cachyos` for `qubix-os-bluebuild` in both commands — and read [`docs/variants.md`](docs/variants.md) first, because it has hardware requirements the standard image does not.
+
+The `latest` tag will automatically point to the latest build. That build will still always use the Fedora version specified in the recipe, so you won't get accidentally updated to the next major version.
 
 Updating, rolling back, and uninstalling are covered in [`docs/usage.md`](docs/usage.md).
 

@@ -6,13 +6,14 @@ Qubix OS is a **personal custom Linux desktop image**: an immutable, image-based
 Atomic system delivered as an OCI container image. Users don't install packages onto a
 mutable root filesystem; they *rebase* their machine onto a new version of this image.
 
-The whole operating system is defined declaratively by one file — `recipes/recipe.yml` —
-plus a tree of files to overlay. There is no imperative installer and no local build step.
+The whole operating system is defined declaratively by the recipes in `recipes/` plus a
+tree of files to overlay. There is no imperative installer and no local build step.
 
 | Property | Value |
 |---|---|
 | Image name | `qubix-os-bluebuild` |
 | Published to | `ghcr.io/qubik65536/qubix-os-bluebuild` |
+| Variants | Standard, plus `qubix-os-bluebuild-cachyos` (CachyOS kernel) — see [`variants.md`](variants.md) |
 | Base image | `ghcr.io/ublue-os/aurora-dx` |
 | Base tag | `beta` |
 | Desktops | KDE Plasma (via Fedora Kinoite → Aurora) and Niri + DankMaterialShell, switchable at login |
@@ -48,6 +49,7 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Niri shell | DankMaterialShell, started by systemd under Niri only | `files/system/usr/lib/systemd/user/niri.service.d/` |
 | Flatpaks | Flathub configured; `org.mozilla.firefox` and `org.gnome.Loupe` installed system-wide | `recipe.yml` (`default-flatpaks`) |
 | Trust | Cosign signing policy installed so signed rebases verify | `recipe.yml` (`signing`) |
+| Kernel *(CachyOS variant only)* | Fedora's kernel replaced with `kernel-cachyos`; initramfs regenerated | `recipe-cachyos.yml`, `common-kernel-cachyos.yml` |
 
 That's the entire surface area. Anything not in that table is upstream behaviour and
 should be reported upstream, not patched here — see
@@ -57,7 +59,7 @@ should be reported upstream, not patched here — see
 
 1. **Stay thin.** Prefer inheriting from Aurora DX over reimplementing. The delta above
    should stay small enough to read in one sitting.
-2. **Stay declarative.** Changes belong in `recipe.yml` or in `files/system/`, not in
+2. **Stay declarative.** Changes belong in the recipes or in `files/system/`, not in
    post-install scripts run on user machines.
 3. **Stay reproducible.** Every published image is built by CI from a commit, and signed.
 4. **Stay documented.** Every decision has a record; every file has a context-cache entry.

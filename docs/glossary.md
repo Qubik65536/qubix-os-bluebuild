@@ -9,35 +9,41 @@ terms over synonyms.
 | **Aurora** | Universal Blue's KDE Plasma image, built on Fedora Kinoite with codecs, drivers, and quality-of-life fixes added. |
 | **Aurora DX** | Aurora plus a developer toolchain (container tooling, IDEs, virtualisation). This project's base image. |
 | **Base image** | The image named in `base-image:` — what the recipe builds `FROM`. |
-| **BlueBuild** | The build system used here. Transpiles `recipes/recipe.yml` into a `Containerfile` and builds it. <https://blue-build.org> |
+| **BlueBuild** | The build system used here. Transpiles a recipe in `recipes/` into a `Containerfile` and builds it. <https://blue-build.org> |
+| **BORE** | Burst-Oriented Response Enhancer — the CPU scheduler the CachyOS kernel uses by default. |
 | **Branding asset** | A file under `files/system/` that replaces an upstream logo, banner, or watermark. See [`branding.md`](branding.md). |
+| **CachyOS** | A performance-focused Linux distribution whose patched kernel is packaged for Fedora in COPR `bieszczaders/kernel-cachyos`. Used by one [variant](variants.md) of this image (DD-017). |
 | **Context cache** | `.agent/context/` — one brief Markdown entry per file/module, so an agent can orient without reading the whole repo. |
-| **COPR** | Fedora's community package repository service. This project enables `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, and `avengemedia/danklinux`. |
+| **COPR** | Fedora's community package repository service. This project enables `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, and — on the CachyOS variant only — `bieszczaders/kernel-cachyos`. |
 | **cosign** | The Sigstore tool used to sign and verify published images. |
 | **DankMaterialShell** (DMS) | The desktop shell for the Niri session: panel, launcher, notifications, lock screen, power menu (DD-015). See [`desktops.md`](desktops.md). |
 | **DD-###** | A design decision record in [`design-decisions.md`](design-decisions.md). |
 | **Delta** | What this repository changes relative to Aurora DX. Kept deliberately small. |
 | **Deployment** | An `rpm-ostree` bootable instance of an image. Several coexist; the previous one is the rollback target. |
 | **Flatpak seeding** | Flatpaks are not baked into the image; a systemd unit installs them on first boot. Hence first boot needs network. |
+| **`from-file:`** | The recipe key that splices a shared `recipes/common-*.yml` module list into a recipe at that position (DD-016). |
 | **GHCR** | GitHub Container Registry — where the image is published. |
 | **`image-version`** | The base image *tag* (`beta` here). A channel, not a Fedora version number. |
 | **`IMAGE_VERSION`** | A field Universal Blue writes into `os-release`, identifying the upstream build. Interpolated into `PRETTY_NAME` (DD-003). |
+| **initramfs** | The RAM filesystem the kernel boots into before mounting the real root. Regenerated at build time by the `initramfs` module, which the kernel-swapping variant requires. |
 | **KDL** | The configuration language niri uses (<https://kdl.dev>). Braces and nodes, not YAML. |
 | **Kinoite** | Fedora's official immutable KDE Plasma variant. Aurora's base. |
 | **Look-and-feel package** | A KDE Plasma theme bundle under `/usr/share/plasma/look-and-feel/`. Aurora's contains the startup splash this image overrides. |
 | **matugen** | Generates a Material colour scheme from the wallpaper. DankMaterialShell uses it to theme itself and niri. |
-| **Module** | A step in `recipe.yml` (`files`, `dnf`, `default-flatpaks`, `containerfile`, `signing`). Modules run in file order. |
+| **Module** | A build step (`files`, `dnf`, `default-flatpaks`, `containerfile`, `initramfs`, `signing`). Modules run in the order the recipe composes them. |
 | **Niri** | A scrollable-tiling Wayland compositor. The second desktop session (DD-013). See [`desktops.md`](desktops.md). |
 | **Overlay** | The `files/system/` tree, copied verbatim into the image root. Repository path = image path. |
 | **Override** | Shipping a file at an upstream path so the upstream file is replaced in the image. The branding mechanism (DD-004). |
 | **Plymouth** | The boot splash system. Reads the watermark this image overrides. |
 | **Quickshell** | The QtQuick-based shell toolkit DankMaterialShell is written against. |
 | **Rebase** | Switching a machine to a different OS image (`rpm-ostree rebase`). How Qubix OS is installed and uninstalled. |
-| **Recipe** | `recipes/recipe.yml`. The declarative definition of the image. |
+| **Recipe** | A `recipes/recipe*.yml` file: the declarative definition of one published image. Shared parts live in `recipes/common-*.yml`. |
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |
 | **SDDM** | The display manager (login screen). Lists sessions from `/usr/share/wayland-sessions/`, which is how Niri appears as a login choice. |
 | **Session** | One desktop environment as offered at the login screen. This image has two: Plasma (Wayland) and Niri. |
 | **Signing policy** | Client-side configuration, installed into the image by the `signing` module, that lets `ostree-image-signed:` rebases verify against `cosign.pub`. |
 | **Task** | An entry in [`../.agent/plan.md`](../.agent/plan.md) with an ID, category, dependencies, and acceptance criteria. |
 | **Universal Blue** | The project producing the `ublue-os` images, including Aurora. |
+| **Variant** | One of the images this repository publishes. They share every module except the one dimension that distinguishes them. See [`variants.md`](variants.md). |
 | **WezTerm** | The GPU-accelerated terminal emulator set as the default in every session (DD-012). Not packaged in Fedora; layered from WezTerm's own COPR. |
+| **x86-64-v3** | A microarchitecture level (AVX2-era CPUs and newer). The default CachyOS kernel is built for it and will not boot on older hardware. |

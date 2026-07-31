@@ -1,0 +1,65 @@
+---
+# yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
+#
+# Qubix OS — CachyOS-kernel variant.
+#
+# Identical to recipes/recipe.yml in every respect except the kernel: same overlay, same
+# packages, same flatpaks, same signing. Fedora's kernel is replaced with CachyOS's
+# (BORE scheduler, sched_ext, desktop-latency patches). DD-017.
+#
+# REQUIRES an x86-64-v3 CPU and Secure Boot disabled — see docs/variants.md before
+# rebasing anything onto this image.
+#
+# Anything that should apply to EVERY Qubix OS image belongs in common-base.yml, not here.
+#
+# Docs:  docs/variants.md            (requirements, caveats, how to switch)
+#        docs/recipe-reference.md    (what every key and module does)
+#        docs/design-decisions.md    (why — referenced below as DD-###)
+
+# ── Image identity ────────────────────────────────────────────────────────────
+# A DIFFERENT image from the standard one: ghcr.io/<owner>/qubix-os-bluebuild-cachyos.
+# Switching kernels is therefore a rebase, and the fallback is a published image rather
+# than a local deployment that may be garbage-collected.
+name: qubix-os-bluebuild-cachyos
+description: Customized OS Image, built with BlueBuild, based on Universal Blue Aurora, running the CachyOS kernel.
+
+# ── Base image (FROM) ─────────────────────────────────────────────────────────
+# Same base and same channel as the standard image; only the kernel differs. DD-002.
+base-image: ghcr.io/ublue-os/aurora-dx
+image-version: beta
+
+# ── Modules (executed in order) ───────────────────────────────────────────────
+modules:
+  # 1–3. Overlay, packages, flatpaks — shared with every variant, byte for byte.
+  - from-file: common-base.yml
+
+  # 4. Kernel swap: Fedora's kernel out, CachyOS's in. DD-017.
+  #    Before the identity rewrite, so that rewrite stays the last word on os-release.
+  - from-file: common-kernel-cachyos.yml
+
+  # 5. os-release rewrite: ID, NAME, PRETTY_NAME. Late, by constraint (DD-003).
+  - from-file: common-identity.yml
+
+  # 6. Variant identity.
+  #    Rewrites PRETTY_NAME again so `cat /etc/os-release`, KDE's About page, and bug
+  #    reports say which kernel is running. Written from scratch rather than patching the
+  #    string module 5 produced, so the two modules stay independent of each other's
+  #    wording (DD-016). ID and NAME stay shared: this is the same distribution, a
+  #    different build of it.
+  - type: containerfile
+    snippets:
+      - |
+        RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, CachyOS Kernel, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+
+  # 7. Regenerate the initramfs for the kernel installed in module 4.
+  #    Mandatory here: installing a kernel RPM in a container build does NOT produce
+  #    /usr/lib/modules/<kver>/initramfs.img — on a normal system rpm-ostree does that on
+  #    the client, and there is no client at build time. Runs late so it also picks up the
+  #    dracut-relevant content of the overlay (DD-017).
+  - type: initramfs
+
+  # 8. Client-side trust configuration. Same key and policy as the standard image;
+  #    the two images are signed with the same cosign key. DD-008.
+  #    Ordering: last, by convention.
+  - type: signing

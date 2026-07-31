@@ -24,6 +24,7 @@ described here or in `files/system/`.
     makes an image "Qubix OS".
   - `common-identity.yml` — module 4: the `os-release` rewrite. Split out because of its
     ordering constraint (must run late).
+  - `common-kernel-cachyos.yml` — the kernel swap. **`recipe-cachyos.yml` only.**
 - **`from-file:` takes no arguments.** A variant needing a different value re-does the work
   after the shared module; the shared file never grows a switch.
 
@@ -48,12 +49,30 @@ described here or in `files/system/`.
   `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)"`. All other upstream
   fields survive untouched.
 
+### `recipe-cachyos.yml` (the CachyOS-kernel variant)
+
+- **Identity:** `name: qubix-os-bluebuild-cachyos` → a *separate* image, so switching
+  kernels is a rebase and the fallback is a published image (DD-017).
+- Same base, same overlay, same packages, same flatpaks. The only differences:
+  `common-kernel-cachyos.yml` (module 4), a second `PRETTY_NAME` rewrite (module 6), and
+  `initramfs` (module 7).
+- **The swap:** COPR `bieszczaders/kernel-cachyos`, then one `containerfile` snippet —
+  log `kmod-*`, `dnf5 remove` Fedora's five kernel packages, `rm -rf` the stock module
+  dir, `dnf5 install` `kernel-cachyos{,-core,-modules}`, assert exactly one kernel with a
+  `vmlinuz` remains.
+- **Requires x86-64-v3 hardware and Secure Boot off.** Both documented in
+  `docs/variants.md`; neither is checkable at build time.
+
 ## Gotchas
 
 - **Where does a change go?** Every image → `common-base.yml`. One image → that recipe.
   Editing a shared file changes every published image; check the whole matrix is green.
 - A `common-*.yml` file must **never** be added to the build matrix — it has no
   `name`/`base-image` and is not a buildable recipe.
+- In the kernel swap, **remove before install**: `kernel-cachyos-core` declares
+  `Provides: kernel`, so a later `dnf5 remove kernel` would take the new kernel out again.
+- A kernel swap **must** be followed by the `initramfs` module. Nothing else generates
+  `/usr/lib/modules/<kver>/initramfs.img` in a container build.
 - The `containerfile` snippet reads `IMAGE_VERSION` **before** rewriting, then interpolates
   it. Reordering the `sed` calls breaks `PRETTY_NAME`.
 - `sed` patterns are anchored (`^ID=`) so they can't match `VERSION_ID=`. Keep the anchors.
