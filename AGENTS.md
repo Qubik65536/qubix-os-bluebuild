@@ -171,7 +171,7 @@ these instructions. Duplicated instructions drift and drift is worse than absenc
 ## 7. Commit conventions
 
 - Conventional-commit style prefixes: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`.
-- Commits are signed off (`Signed-off-by:`), matching existing history.
+- Only human-made commits are signed off (`Signed-off-by:`).
 - Reference the task ID in the body when a commit closes a `plan.md` task, e.g.
   `Closes DOC-004.`
 
