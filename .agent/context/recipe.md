@@ -62,8 +62,11 @@ described here or in `files/system/`.
   `kernel-cachyos{,-core,-modules,-devel-matched}`, `depmod`, assert one kernel with a
   `vmlinuz` and a `modules.dep`; (2) diff the package list and reinstall the
   libguestfs/`virt-v2v` stack and `virtualbox-guest-additions`.
-- **Requires x86-64-v3 hardware and Secure Boot off.** Both documented in
-  `docs/variants.md`; neither is checkable at build time.
+- Also installs `sbsigntools` and `mokutil` — Secure Boot tooling, this variant only.
+- **Requires x86-64-v3 hardware, and Secure Boot off unless the user signs the kernel.**
+  The CachyOS `vmlinuz` has no PE signature and there is no vendor cert to enrol, so
+  `docs/variants.md` documents the Machine Owner Key procedure. Neither requirement is
+  checkable at build time. Signing in CI is open as `IMG-009`.
 
 ## Gotchas
 

@@ -304,11 +304,46 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/variants.md`, `docs/build-and-release.md`, DD-017 and `.agent/context/recipe.md`
       record the mechanism and what is not restorable
 
+- [x] **DOC-014** — Document enabling Secure Boot on the CachyOS variant
+  - **Category:** Documentation
+  - **Depends on:** IMG-008
+  - **Notes:** `docs/variants.md` currently says only "turn Secure Boot off". Verified
+    against the published RPM: the CachyOS `vmlinuz` has **no PE certificate table** and
+    the spec contains no signing step, so there is no CachyOS key to enrol — the kernel
+    has to be signed with a key the user owns. `CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT` and
+    `CONFIG_MODULE_SIG_FORCE` are both unset, so Secure Boot does not put this kernel into
+    lockdown.
+  - **Acceptance criteria:**
+    - `docs/variants.md` has a Secure Boot section with the complete MOK procedure:
+      generate, enrol, sign, verify
+    - It states that signing must be repeated after every update, and what to do when it
+      is forgotten
+    - The tools the procedure needs are present on the variant, not left to the user to
+      layer
+    - DD-017 records why the kernel is unsigned and what the durable alternative is
+
 ---
 
 ## Open
 
 ### Image variants
+
+- [ ] **IMG-009** — Sign the CachyOS kernel at build time
+  - **Category:** Image content
+  - **Depends on:** DOC-014
+  - **Notes:** The per-deployment signing DOC-014 documents is correct but has to be
+    repeated after every update. Signing in CI turns that into a single `mokutil --import`
+    on each machine. **Blocked on a human:** it needs an X.509 key pair whose private half
+    goes in a repository secret (`SECURE_BOOT_KEY`) and whose certificate is committed.
+    The private key must never reach a published layer, so the signing has to happen in a
+    BlueBuild `stages:` build stage, not in the final image.
+  - **Acceptance criteria:**
+    - The published CachyOS image's `/usr/lib/modules/<kver>/vmlinuz` carries a PE
+      signature (`sbverify --list` shows the certificate)
+    - The certificate ships in the image; the private key appears in no layer, verified by
+      inspecting the published image
+    - `docs/variants.md` replaces the per-update signing procedure with one enrolment
+    - A `DD-###` record covers the key's provenance and rotation
 
 - [ ] **IMG-006** — Decide whether the CachyOS variant ships the CachyOS addons
   - **Category:** Image content

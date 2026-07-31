@@ -31,6 +31,7 @@ terms over synonyms.
 | **Look-and-feel package** | A KDE Plasma theme bundle under `/usr/share/plasma/look-and-feel/`. Aurora's contains the startup splash this image overrides. |
 | **matugen** | Generates a Material colour scheme from the wallpaper. DankMaterialShell uses it to theme itself and niri. |
 | **Module** | A build step (`files`, `dnf`, `default-flatpaks`, `containerfile`, `initramfs`, `signing`). Modules run in the order the recipe composes them. |
+| **MOK** | Machine Owner Key — an X.509 key enrolled with shim via `mokutil`, letting a machine's owner trust binaries their vendor did not sign. How Secure Boot stays on with the CachyOS kernel ([`variants.md`](variants.md)). |
 | **Niri** | A scrollable-tiling Wayland compositor. The second desktop session (DD-013). See [`desktops.md`](desktops.md). |
 | **Overlay** | The `files/system/` tree, copied verbatim into the image root. Repository path = image path. |
 | **Override** | Shipping a file at an upstream path so the upstream file is replaced in the image. The branding mechanism (DD-004). |
@@ -40,7 +41,9 @@ terms over synonyms.
 | **Recipe** | A `recipes/recipe*.yml` file: the declarative definition of one published image. Shared parts live in `recipes/common-*.yml`. |
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |
 | **SDDM** | The display manager (login screen). Lists sessions from `/usr/share/wayland-sessions/`, which is how Niri appears as a login choice. |
+| **Secure Boot** | UEFI feature where firmware only loads signed boot binaries. Fedora's kernel is signed; the CachyOS one is not, so this variant needs it off or a [MOK](variants.md#secure-boot) enrolled. |
 | **Session** | One desktop environment as offered at the login screen. This image has two: Plasma (Wayland) and Niri. |
+| **shim** | The Fedora-signed first-stage bootloader that chains to GRUB and checks the kernel against firmware `db` plus the MOK list. |
 | **Signing policy** | Client-side configuration, installed into the image by the `signing` module, that lets `ostree-image-signed:` rebases verify against `cosign.pub`. |
 | **Task** | An entry in [`../.agent/plan.md`](../.agent/plan.md) with an ID, category, dependencies, and acceptance criteria. |
 | **Universal Blue** | The project producing the `ublue-os` images, including Aurora. |

@@ -24,6 +24,16 @@ modules:
     repos:
       copr:
         - bieszczaders/kernel-cachyos
+    install:
+      packages:
+        # Secure Boot tooling, on this variant only. The CachyOS kernel carries no PE
+        # signature (verified against the published RPM: its certificate table is empty,
+        # and the spec has no signing step), so running with Secure Boot ON means signing
+        # the kernel with a key of your own. These are the two tools that procedure needs
+        # — shipping them keeps it copy-pasteable instead of starting with a package
+        # layer and a reboot. docs/variants.md, DD-017.
+        - sbsigntools # sbsign / sbverify
+        - mokutil # enrol the key with shim
 
   # 2. The swap itself.
   #    Not expressible as `dnf` module install/remove fields, because the ORDER of the two

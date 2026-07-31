@@ -7,7 +7,7 @@ same flatpaks, same signing key.
 | Variant | Image | Kernel | Requirements |
 |---|---|---|---|
 | **Standard** | `ghcr.io/qubik65536/qubix-os-bluebuild` | Fedora's, as shipped by Aurora DX | None beyond Aurora DX's |
-| **CachyOS** | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` | `kernel-cachyos` from COPR `bieszczaders/kernel-cachyos` | **x86-64-v3 CPU**, **Secure Boot off** |
+| **CachyOS** | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` | `kernel-cachyos` from COPR `bieszczaders/kernel-cachyos` | **x86-64-v3 CPU**; Secure Boot off, or [your own key enrolled](#secure-boot) |
 
 Recipes: [`recipe.yml`](../recipes/recipe.yml) and
 [`recipe-cachyos.yml`](../recipes/recipe-cachyos.yml). Both compose the same shared module
@@ -48,10 +48,9 @@ A line marked `(supported, searched)` means you are fine. If only `x86-64-v2` is
 supported, do not use this variant — the COPR's `-lts` and `-server` kernels build for
 v2, and adopting one is a recipe change, not a user choice.
 
-**2. Turn off Secure Boot**, or enrol the kernel's signing key yourself. A COPR-built
-kernel is not signed by Fedora's key. This is unrelated to this project's cosign
-signature, which signs the *image* and is verified by `rpm-ostree`, not by firmware
-(DD-008).
+**2. Decide what to do about Secure Boot.** The CachyOS kernel is unsigned, so with
+Secure Boot on it will not boot until you sign it yourself. Turning Secure Boot off is the
+one-step answer; the [Secure Boot](#secure-boot) section below is the other one.
 
 **3. Know what you give up:**
 
@@ -69,6 +68,100 @@ Everything else that comes out with Fedora's kernel goes back in: the
 libguestfs/`virt-v2v` stack and `virtualbox-guest-additions` only require `kernel`, which
 the CachyOS kernel provides, and `kernel-cachyos-devel-matched` replaces
 `kernel-devel-matched` so `akmods` still has headers.
+
+### Secure Boot
+
+The CachyOS kernel carries **no signature at all** — not Fedora's, not CachyOS's. (Checked
+against the published RPM: the `vmlinuz` PE certificate table is empty and the kernel spec
+has no signing step.) So there is no vendor key to enrol, and with Secure Boot enabled the
+firmware's shim refuses to load it.
+
+Two ways forward. Turning Secure Boot off in firmware is the honest, boring one, and it is
+what most people do. If you want to keep Secure Boot on, you sign the kernel with a
+Machine Owner Key (MOK) of your own — enrol once, then **re-sign after every update**.
+
+> This project's cosign signature is a different mechanism entirely: it signs the *image*
+> and is checked by `rpm-ostree` at rebase time, not by your firmware at boot (DD-008).
+> A verified image and a Secure Boot–bootable kernel are independent properties.
+
+`sbsigntools` and `mokutil` ship on this variant, so nothing needs layering first.
+
+#### 1. Create a key (once)
+
+`/etc` survives rebases and updates, so the key can live there.
+
+```bash
+sudo mkdir -p /etc/pki/qubix-mok
+cd /etc/pki/qubix-mok
+sudo openssl req -new -x509 -newkey rsa:2048 -nodes -days 3650 \
+  -subj "/CN=$(hostname) local Secure Boot key/" \
+  -keyout MOK.priv -outform DER -out MOK.der
+sudo openssl x509 -inform DER -in MOK.der -outform PEM -out MOK.pem
+sudo chmod 600 MOK.priv
+```
+
+Back `MOK.priv` up somewhere safe and keep it off shared storage — anything signed with it
+is trusted by this machine at boot.
+
+#### 2. Enrol it with shim (once)
+
+```bash
+sudo mokutil --import /etc/pki/qubix-mok/MOK.der   # asks for a one-time password
+systemctl reboot
+```
+
+On the next boot, **MokManager** appears before the boot menu: choose *Enroll MOK* →
+*Continue* → *Yes* → enter the one-time password. This step needs a physical console; it
+cannot be done over SSH. Confirm afterwards:
+
+```bash
+mokutil --list-enrolled | grep -A1 'Subject:'
+```
+
+#### 3. Sign the deployed kernel (after every update)
+
+`rpm-ostree` writes each deployment's kernel into `/boot`, and that copy is what the
+bootloader loads. Sign it after the update finishes and **before** rebooting:
+
+```bash
+sudo mount -o remount,rw /boot 2>/dev/null || true
+for k in /boot/ostree/*/vmlinuz-*; do
+  sbverify --list "$k" >/dev/null 2>&1 && continue          # already signed
+  sudo sbsign --key /etc/pki/qubix-mok/MOK.priv \
+              --cert /etc/pki/qubix-mok/MOK.pem \
+              --output "$k.signed" "$k" && sudo mv "$k.signed" "$k"
+done
+sbverify --list /boot/ostree/*/vmlinuz-*
+```
+
+The loop skips kernels that are already signed, so it is safe to re-run, and it covers
+every deployment on the machine rather than only the newest.
+
+You cannot sign the kernel inside the image instead: `/usr/lib/modules/<kver>/vmlinuz`
+lives in the read-only, checksummed ostree deployment. The `/boot` copy is the only one
+you own. That is also why this repeats — every update produces a new deployment with a
+fresh, unsigned copy.
+
+#### If you forget
+
+The boot fails with a security-policy violation and **the previous deployment still
+boots**, because its kernel is still signed. Pick it from the GRUB menu (hold `Esc` or
+`Shift` during boot), sign the new deployment with the loop above, and reboot.
+
+#### What Secure Boot does *not* enforce here
+
+This kernel is built with `CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT` and
+`CONFIG_MODULE_SIG_FORCE` unset, so booting with Secure Boot on does **not** put it into
+lockdown and does **not** require kernel modules to be signed. Its own in-tree modules are
+signed at build time with a key embedded in the kernel; anything you build locally with
+`akmods` will load regardless. Secure Boot on this variant therefore buys you a verified
+boot chain, not a locked-down kernel.
+
+#### The durable alternative
+
+Signing per update is a chore. The fix is for the image to sign the kernel in CI, so each
+machine only ever runs one `mokutil --import`. That needs a key pair whose private half
+lives in a repository secret and never reaches a published layer — tracked as `IMG-009`.
 
 ### Installing
 

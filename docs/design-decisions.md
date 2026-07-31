@@ -610,9 +610,24 @@ followed by `depmod` and BlueBuild's `initramfs` module.
 - **x86-64-v3 is a hardware requirement of this variant.** Check before rebasing:
   `/lib64/ld-linux-x86-64.so.2 --help | grep 'x86-64-v3'`. `-lts` and `-server` build for
   x86-64-v2 and are the fallback if that requirement ever becomes a problem.
-- **Secure Boot must be off**, or the kernel's signing key enrolled. A COPR kernel is not
-  signed by Fedora's key, and this repository's cosign key signs the *image*, not the
-  kernel — a different mechanism entirely (DD-008).
+- **Secure Boot must be off, or the kernel signed with a key the user owns.** The COPR
+  kernel is not signed *at all*: the published `vmlinuz`'s PE certificate table is empty
+  and the CachyOS spec has no signing step, so there is no vendor certificate anyone could
+  enrol. Under Secure Boot, shim refuses to load it. This repository's cosign key signs the
+  *image* and is checked by `rpm-ostree` at rebase time, not by firmware at boot — a
+  different mechanism entirely (DD-008), and one that does not help here.
+  The variant therefore ships `sbsigntools` and `mokutil`, and
+  [`variants.md`](variants.md) documents enrolling a Machine Owner Key and signing each
+  deployment's `/boot` kernel copy. That copy is the only one a user can sign: the kernel
+  inside the ostree deployment is read-only and checksummed, so the work repeats after
+  every update. Signing in CI would reduce it to a single enrolment per machine, which is
+  `IMG-009` — it needs a private key in a repository secret and a build stage that keeps
+  that key out of every published layer, so it is a deliberate follow-up rather than part
+  of this record.
+- Secure Boot on this variant does **not** imply lockdown: the kernel is built with
+  `CONFIG_LOCK_DOWN_IN_EFI_SECURE_BOOT` and `CONFIG_MODULE_SIG_FORCE` unset. Locally built
+  `akmods` modules keep loading. Worth knowing before assuming the security properties of
+  a Fedora kernel carry over.
 - Any prebuilt out-of-tree module (`kmod-*`) inherited from Aurora is removed with the
   stock kernel and **cannot** be restored: those RPMs depend on the exact
   `kernel-uname-r` that is going away, so reinstalling one would pull Fedora's kernel back

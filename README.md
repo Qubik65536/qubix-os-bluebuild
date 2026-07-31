@@ -24,7 +24,7 @@ Two images are published. They are identical except for the kernel — see
 | Variant | Image | Kernel | Requirements |
 |---|---|---|---|
 | **Standard** | `ghcr.io/qubik65536/qubix-os-bluebuild` | Fedora's | — |
-| **CachyOS** | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` | CachyOS (`kernel-cachyos`) | x86-64-v3 CPU, Secure Boot off |
+| **CachyOS** | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` | CachyOS (`kernel-cachyos`) | x86-64-v3 CPU; Secure Boot off, or your own key enrolled |
 
 Run the standard image unless you specifically want the CachyOS kernel.
 

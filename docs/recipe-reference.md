@@ -215,6 +215,8 @@ These run in `recipe-cachyos.yml` and nowhere else. Full context:
   repos:
     copr:
       - bieszczaders/kernel-cachyos
+  install:
+    packages: [sbsigntools, mokutil]   # Secure Boot tooling, this variant only
 - type: containerfile        # the swap
   snippets:
     - |
@@ -240,6 +242,7 @@ These run in `recipe-cachyos.yml` and nowhere else. Full context:
 | `rpm -qa 'kmod-*'` before the removal | Prebuilt out-of-tree modules go with the stock kernel and cannot come back; this puts the list in the build log |
 | The `comm` diff and reinstall | Removing `kernel-core` also removes the libguestfs/`virt-v2v` stack and `virtualbox-guest-additions`, which only need `kernel` — provided by the new kernel, so they are restored. The diff is logged so drift is visible |
 | The `test` assertions | Fail the build at the swap rather than publishing an image that cannot boot |
+| `sbsigntools`, `mokutil` | The CachyOS kernel is unsigned, so keeping Secure Boot on means signing it with your own key; shipping the tools keeps that procedure copy-pasteable ([`variants.md`](variants.md)) |
 
 - **Ordering:** after `common-base.yml`; **before** `common-identity.yml`; requires the
   `initramfs` module later in the same recipe.
