@@ -9,13 +9,15 @@ What you *can* do locally:
 
 | Check | How |
 |---|---|
-| Recipe schema | The `yaml-language-server` comment at the top of `recipe.yml` gives editors live validation. |
-| YAML syntax | `python3 -c 'import yaml,sys; yaml.safe_load(open("recipes/recipe.yml"))'` |
+| Recipe schema | The `yaml-language-server` comment at the top of each file in `recipes/` gives editors live validation. |
+| YAML syntax | `for f in recipes/*.yml; do ruby -ryaml -e 'YAML.load_file(ARGV[0])' "$f"; done` |
+| Composed module order | Expand every `from-file:` and check the rendered list against [`architecture.md`](architecture.md). |
 | Asset paths | Confirm the path under `files/system/` matches the intended image path. |
 | Asset sync | `shasum -a 256` across the branding groups — see [`branding.md`](branding.md). |
 
 What you cannot do locally: confirm a package exists, confirm a COPR resolves, confirm the
-`sed` patterns match upstream's `os-release`, or confirm anything renders. Those need CI.
+`sed` patterns match upstream's `os-release`, confirm the kernel swap leaves a bootable
+image, or confirm anything renders. Those need CI — and the kernel needs real hardware.
 
 > **For agents:** never describe a change as "verified" or "working" on the basis of local
 > inspection. Say what you checked and say that CI is the actual verification.
@@ -27,11 +29,37 @@ What you cannot do locally: confirm a package exists, confirm a COPR resolves, c
 | Aspect | Value | Notes |
 |---|---|---|
 | Name | `bluebuild` | |
+| Jobs | `select-recipes` → `bluebuild` | The first decides what to build; the second is the matrix that builds it. |
 | Runner | `ubuntu-latest` | |
 | Action | `blue-build/github-action@v1.11` | Does the whole build, tag, sign, and push. |
-| Matrix | `recipe: [recipe.yml]` | Add a recipe filename here to publish additional variants. |
+| Matrix | `recipe: ${{ fromJSON(needs.select-recipes.outputs.recipes) }}` | One job per recipe. |
 | `fail-fast` | `false` | One failing variant doesn't cancel the others. |
-| `maximize_build_space` | `true` | Reclaims runner disk before building; the image is large. |
+| `timeout-minutes` | `90` | A full build is 30–45 min; this only catches a hung run. |
+| `maximize_build_space` | `true` | Reclaims runner disk before building; the images are large. |
+
+### What gets built
+
+| Recipe | Image |
+|---|---|
+| `recipe.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild` |
+| `recipe-cachyos.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` |
+
+`recipes/common-*.yml` files are **included**, never built ([`variants.md`](variants.md),
+DD-016).
+
+### Selecting recipes
+
+`select-recipes` emits a JSON array that becomes the matrix:
+
+- Push, PR, schedule → every recipe.
+- `workflow_dispatch` → the `recipe` input: `all` (default) or a single recipe filename.
+
+Manual single-variant runs exist for the case where one image needs a rebuild — an
+upstream fix, or a COPR that was briefly broken — and rebuilding both would be waste.
+
+**Adding a variant means editing this file in two places:** the `workflow_dispatch`
+`options` list and the `all` branch of `select-recipes`. They are ten lines apart and both
+carry a comment saying so.
 
 ### Triggers
 
@@ -40,7 +68,7 @@ What you cannot do locally: confirm a package exists, confirm a COPR resolves, c
 | `schedule` | `00 06 * * *` (daily, 06:00 UTC) | ~20 min after Universal Blue starts building. DD-009. |
 | `push` | Any branch, **except** commits touching only `**.md` | `paths-ignore` — DD-010. |
 | `pull_request` | Every PR | Always builds, even docs-only. This validates the recipe before merge. |
-| `workflow_dispatch` | Manual | Use after an upstream fix lands, instead of waiting for the cron. |
+| `workflow_dispatch` | Manual | Use after an upstream fix lands, instead of waiting for the cron. Takes a `recipe` input to build one variant. |
 
 ### Concurrency
 
@@ -49,8 +77,9 @@ group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
 cancel-in-progress: true
 ```
 
-One build per ref at a time; a newer push cancels the running build. Rapid pushes cost one
-build, not five.
+One run per ref at a time; a newer push cancels the running one. Rapid pushes cost one
+run, not five. The whole matrix is cancelled together, so variants are never partially
+superseded.
 
 ### Permissions
 
@@ -70,10 +99,11 @@ Nothing needs more; do not widen these.
 | Public key | [`../cosign.pub`](../cosign.pub), committed. |
 | Client trust policy | Installed **into the image** by the `signing` module in the recipe. |
 
-Verify a published image:
+Both images are signed with the same key. Verify a published image:
 
 ```bash
 cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild
+cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild-cachyos
 ```
 
 Because the trust policy ships inside the image, a machine that has never run Qubix OS
@@ -87,7 +117,7 @@ installation failing verification until it rebases.
 
 | Tag | Meaning |
 |---|---|
-| `latest` | The most recent successful build. What users rebase to. |
+| `latest` | The most recent successful build of that image. What users rebase to. Each variant has its own. |
 | `<date>` / `<version>` | Per-build tags produced by the BlueBuild action. Useful for pinning or rolling back to a specific day. |
 | PR tags | Pull-request builds are tagged separately via `pr_event_number` and are not `latest`. |
 
@@ -106,11 +136,20 @@ BlueBuild action's changelog before merging — a major bump can change module s
 1. Open the failing run in the Actions tab and read the BlueBuild step's log.
 2. Classify it:
    - **Package not found / COPR error** → upstream repo problem. Often transient; retry via
-     `workflow_dispatch` before changing the recipe.
+     `workflow_dispatch` — targeting just the affected variant — before changing a recipe.
    - **`sed` matched nothing** → upstream changed `os-release`. Re-check DD-003's
      assumptions.
    - **File copy error** → a path under `files/system/` is wrong.
-   - **Disk space** → confirm `maximize_build_space: true` is still set.
+   - **One variant failed, the other passed** → the fault is in that recipe's own modules,
+     not in `common-base.yml`. Both images share those.
+   - **Kernel swap assertion failed** (`test … -eq 1`, CachyOS variant) → more or fewer
+     than one kernel is left in `/usr/lib/modules`. Usually the CachyOS COPR did not
+     provide a kernel for the current Fedora release, or Fedora renamed a kernel
+     subpackage. See DD-017 and [`variants.md`](variants.md).
+   - **`dracut` failure in the `initramfs` module** → the kernel installed but its modules
+     are incomplete. Read the module list the swap logged.
+   - **Disk space** → confirm `maximize_build_space: true` is still set. Two images per
+     run makes this likelier, but each job gets its own runner.
    - **Signing failure** → `SIGNING_SECRET` missing, malformed, or rotated.
 3. Record anything non-obvious: a `plan.md` task if it needs fixing, a `DD-###` record if
    it changes a decision, and a note in the relevant `docs/` page.

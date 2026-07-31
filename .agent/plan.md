@@ -273,13 +273,7 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       requirement, the Secure Boot caveat, and how to switch between variants
     - `.agent/context/recipe.md` and a `DD-###` record cover the change
 
----
-
-## Open
-
-### Image variants
-
-- [ ] **BLD-001** — Build every image variant from the workflow
+- [x] **BLD-001** — Build every image variant from the workflow
   - **Category:** Build / CI
   - **Depends on:** IMG-005
   - **Notes:** The matrix currently names one recipe. It must name every published variant,
@@ -289,6 +283,12 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `workflow_dispatch` takes a `recipe` input selecting one variant or all of them
     - Each matrix job's name identifies the variant it builds
     - `docs/build-and-release.md` and `.agent/context/ci.md` match the workflow
+
+---
+
+## Open
+
+### Image variants
 
 - [ ] **IMG-006** — Decide whether the CachyOS variant ships the CachyOS addons
   - **Category:** Image content

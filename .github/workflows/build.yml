@@ -1,45 +1,96 @@
 # Qubix OS — image build, sign, and publish.
 #
-# This is the ONLY place the image is ever built; there is no local build.
-# The whole job is delegated to the BlueBuild action, which renders recipes/recipe.yml
-# into a Containerfile, builds it, signs it with cosign, and pushes it to GHCR.
+# This is the ONLY place the images are ever built; there is no local build.
+# The whole job is delegated to the BlueBuild action, which renders a recipe from
+# recipes/ into a Containerfile, builds it, signs it with cosign, and pushes it to GHCR.
+#
+# ONE JOB PER RECIPE. Every recipes/recipe*.yml is a separate published image; the shared
+# recipes/common-*.yml files are included by those recipes and are never built directly
+# (DD-016). Adding a variant means adding it in TWO places in this file: the
+# `workflow_dispatch` options and the `select-recipes` job below.
 #
 # Docs: docs/build-and-release.md  (triggers, signing, tags, failure triage)
+#       docs/variants.md           (what the variants are)
 #       docs/design-decisions.md   (why — referenced below as DD-###)
 name: bluebuild
 
 # ── Triggers ──────────────────────────────────────────────────────────────────
 on:
   # Daily rebuild so upstream Aurora security fixes reach users within ~24h. DD-009.
+  # This also picks up new CachyOS kernel builds for the variant image (DD-017).
   schedule:
     - cron:
         "00 06 * * *" # build at 06:00 UTC every day
         # (20 minutes after last ublue images start building)
 
   # Every push, except commits that touch ONLY Markdown. DD-010.
-  # Caveat: a commit touching a .md file AND the recipe still builds — paths-ignore
+  # Caveat: a commit touching a .md file AND a recipe still builds — paths-ignore
   # skips a push only when every changed path matches.
   push:
     paths-ignore: # don't rebuild if only documentation has changed
       - "**.md"
 
-  # PRs always build (paths-ignore does not apply here) — this validates the recipe
+  # PRs always build (paths-ignore does not apply here) — this validates the recipes
   # before merge, which is worth the CI minutes.
   pull_request:
-  workflow_dispatch: # allow manually triggering builds
+
+  # Manual runs can target a single variant. Useful when one image needs a rebuild —
+  # an upstream fix, a COPR that was briefly broken — and rebuilding both is waste.
+  workflow_dispatch:
+    inputs:
+      recipe:
+        description: Which image(s) to build
+        type: choice
+        required: false
+        default: all
+        options:
+          - all
+          - recipe.yml
+          - recipe-cachyos.yml
 
 # ── Concurrency ───────────────────────────────────────────────────────────────
-# One build per ref; a newer push cancels the running one, so rapid pushes cost a
-# single build rather than a queue of superseded ones.
+# One run per ref; a newer push cancels the running one, so rapid pushes cost a
+# single run rather than a queue of superseded ones. The whole matrix is cancelled
+# together — variants are never partially superseded.
 concurrency:
   # only run one build at a time
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  bluebuild:
-    name: Build Custom Image
+  # ── Which recipes does this run build? ──────────────────────────────────────
+  # Emits a JSON array consumed as the build matrix. Every trigger except a manual
+  # run builds everything; a manual run honours the `recipe` input.
+  # `inputs.recipe` is empty for non-dispatch events, hence the `|| 'all'`.
+  select-recipes:
+    name: Select recipes
     runs-on: ubuntu-latest
+    outputs:
+      recipes: ${{ steps.select.outputs.recipes }}
+    steps:
+      - name: Select recipes
+        id: select
+        env:
+          SELECTION: ${{ inputs.recipe || 'all' }}
+        run: |
+          set -euo pipefail
+          if [ "${SELECTION}" = "all" ]; then
+            # !! Add new recipes here AND to the workflow_dispatch options above.
+            RECIPES='["recipe.yml","recipe-cachyos.yml"]'
+          else
+            RECIPES="[\"${SELECTION}\"]"
+          fi
+          echo "Building: ${RECIPES}"
+          echo "recipes=${RECIPES}" >> "${GITHUB_OUTPUT}"
+
+  # ── Build, sign, push ───────────────────────────────────────────────────────
+  bluebuild:
+    name: Build ${{ matrix.recipe }}
+    needs: select-recipes
+    runs-on: ubuntu-latest
+    # A full image build is ~30–45 minutes. This bound only catches a hung run, so it
+    # frees the runner in an hour and a half instead of GitHub's six-hour default.
+    timeout-minutes: 90
 
     # Least privilege: read the repo, push to GHCR, and mint an OIDC token for
     # Sigstore signing. Nothing here needs more than this.
@@ -48,19 +99,19 @@ jobs:
       packages: write # push the image to GHCR
       id-token: write # OIDC token for cosign/Sigstore
 
-    # One entry per recipe to publish. Add a filename here to ship an extra variant;
-    # fail-fast is off so one broken variant doesn't cancel the others.
+    # One job per recipe, from the job above. fail-fast is off so one broken variant
+    # doesn't cancel the others — a kernel COPR outage must not stop the standard image
+    # from shipping.
     strategy:
       fail-fast: false # stop GH from cancelling all matrix builds if one fails
       matrix:
-        recipe:
-          # !! Add your recipes here
-          - recipe.yml
+        recipe: ${{ fromJSON(needs.select-recipes.outputs.recipes) }}
 
     steps:
       # The build, tag, sign, and push are all handled by the reusable action.
       # The cosign private key lives only in the SIGNING_SECRET repository secret —
-      # never in git (.gitignore blocks cosign.key / cosign.private). DD-008.
+      # never in git (.gitignore blocks cosign.key / cosign.private). Both images are
+      # signed with the same key. DD-008.
       - name: Build Custom Image
         uses: blue-build/github-action@v1.11
         with:
@@ -69,6 +120,6 @@ jobs:
           registry_token: ${{ github.token }}
           pr_event_number: ${{ github.event.number }} # tags PR builds separately from `latest`
 
-          # Reclaims runner disk before building; this image is large.
+          # Reclaims runner disk before building; these images are large.
           # enabled by default, disable if your image is small and you want faster builds
           maximize_build_space: true
