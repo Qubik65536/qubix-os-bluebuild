@@ -1,0 +1,35 @@
+---
+# yaml-language-server: $schema=https://schema.blue-build.org/module-list-v1.json
+#
+# Qubix OS — system identity rewrite. Shared by every variant.
+#
+# Included with `from-file: common-identity.yml`. Kept apart from common-base.yml because
+# of its ordering constraint: it must run LATE, after every module that could regenerate
+# os-release — which, for a variant that swaps the kernel, includes that swap. DD-016.
+#
+# Docs:  docs/recipe-reference.md, docs/design-decisions.md (DD-003)
+
+modules:
+  # System identity rewrite (the one piece of imperative logic every variant runs).
+  # A static os-release via the `files` module would discard every field upstream sets
+  # (VERSION_ID, VARIANT, IMAGE_VERSION, …), and PRETTY_NAME needs a build-time value.
+  # So: patch in place, changing only the three intended fields. DD-003.
+  #
+  # Details that matter:
+  #   - IMAGE_VERSION is captured BEFORE the rewrites, then interpolated back in, so
+  #     the upstream Aurora/Fedora build stays visible in PRETTY_NAME.
+  #   - Patterns are anchored (^ID=) so they cannot match VERSION_ID= and friends.
+  #   - The last sed uses | as its delimiter because the replacement contains /.
+  #   - Single chained RUN: one layer, fails atomically.
+  #
+  # A variant that wants its own PRETTY_NAME rewrites the field again AFTER this module
+  # rather than parameterising it — see recipes/recipe-cachyos.yml.
+  #
+  # Ordering: MUST run after any module that can regenerate os-release.
+  - type: containerfile
+    snippets:
+      - |
+        RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
+            && sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release \
+            && sed -i 's/^NAME=.*/NAME="QubixOS-BlueBuild"/' /usr/lib/os-release \
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release

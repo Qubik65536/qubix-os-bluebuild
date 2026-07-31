@@ -18,7 +18,7 @@ reading the whole repository.
 | Entry | Covers |
 |---|---|
 | [`root.md`](root.md) | Repository root files: `README.md`, `LICENSE`, `cosign.pub`, `.gitignore` |
-| [`recipe.md`](recipe.md) | `recipes/recipe.yml` — the image definition |
+| [`recipe.md`](recipe.md) | `recipes/**` — the recipes and the shared module files they compose |
 | [`ci.md`](ci.md) | `.github/` — workflow, dependabot, CODEOWNERS, Copilot pointer |
 | [`files-system.md`](files-system.md) | `files/system/**` — the image root overlay (branding + desktop config) |
 | [`scripts.md`](scripts.md) | `files/scripts/` and `modules/` — unused extension points |
@@ -27,8 +27,8 @@ reading the whole repository.
 
 ## Quick orientation
 
-The repository builds one thing: a custom Fedora Atomic OCI image, defined by
-`recipes/recipe.yml`, built by GitHub Actions via the BlueBuild action, published to GHCR,
-and signed with cosign. There is no application code, no test suite, and **no local
+The repository builds custom Fedora Atomic OCI images, defined by the recipes in
+`recipes/`, built by GitHub Actions via the BlueBuild action, published to GHCR, and
+signed with cosign. There is no application code, no test suite, and **no local
 build**. Roughly 90% of the non-documentation content is branding assets under
 `files/system/`.

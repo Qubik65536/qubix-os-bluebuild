@@ -1,26 +1,55 @@
 # Recipe Reference
 
-Reference for [`recipes/recipe.yml`](../recipes/recipe.yml) — the file that defines the
-image. Modules execute **in file order**; see [`architecture.md`](architecture.md) for the
-ordering constraints.
+Reference for the files in [`recipes/`](../recipes/) — the definition of the image.
+Modules execute **in composed file order**; see [`architecture.md`](architecture.md) for
+the ordering constraints.
 
 Upstream module documentation: <https://blue-build.org/reference/module/>
 
+## The files
+
+| File | Kind | Role |
+|---|---|---|
+| [`recipe.yml`](../recipes/recipe.yml) | Recipe (built) | The standard image: identity keys + composition |
+| [`common-base.yml`](../recipes/common-base.yml) | Module list (included) | Overlay, packages, flatpaks — shared by every image |
+| [`common-identity.yml`](../recipes/common-identity.yml) | Module list (included) | The `os-release` rewrite — shared by every image |
+
+**`recipe*.yml` is built; `common-*.yml` is only ever included.** The build matrix names
+recipe files explicitly, so a shared file is never built by accident. Rationale: DD-016.
+
+Every file starts with a `yaml-language-server` schema comment — `recipe-v1` for recipes,
+`module-list-v1` for shared module lists. Keep them; they give editors and agents live
+validation.
+
 ## Top-level keys
 
-| Key | Value | Meaning |
+Only recipes carry these; a `common-*.yml` file contains nothing but `modules:`.
+
+| Key | Value in `recipe.yml` | Meaning |
 |---|---|---|
-| `name` | `qubix-os-bluebuild` | Image name. Published as `ghcr.io/<owner>/<name>`. Changing it changes the published image path and breaks existing rebases. |
+| `name` | `qubix-os-bluebuild` | Image name. Published as `ghcr.io/<owner>/<name>`. Changing it changes the published image path and breaks existing rebases. **Each variant needs its own.** |
 | `description` | *(see file)* | Written into the image's OCI metadata. |
 | `base-image` | `ghcr.io/ublue-os/aurora-dx` | The `FROM`. See DD-002. |
 | `image-version` | `beta` | Tag of the base image. A **channel**, not a Fedora version. `latest` is the alternative. |
 
-The file starts with a `yaml-language-server` schema comment; keep it, it gives editors
-and agents live validation of the recipe.
+## Composition
+
+```yaml
+modules:
+  - from-file: common-base.yml      # modules 1–3
+  - from-file: common-identity.yml  # module 4
+  - type: signing                   # module 5
+```
+
+`from-file:` takes a path relative to `recipes/` and splices that file's `modules:` list in
+at this position. It takes **no arguments** — a variant that needs a different value does
+its own module afterwards rather than the shared file growing a switch (DD-016).
 
 ## Modules
 
 ### 1. `files` — overlay the image root
+
+*Defined in `common-base.yml`.*
 
 ```yaml
 - type: files
@@ -49,6 +78,8 @@ substitution.
   a `.agent/context/` note if it introduces a new area.
 
 ### 2. `dnf` — package changes
+
+*Defined in `common-base.yml`.*
 
 ```yaml
 - type: dnf
@@ -89,6 +120,8 @@ COPR repositories in use:
 
 ### 3. `default-flatpaks` — Flatpak remotes and seeded applications
 
+*Defined in `common-base.yml`.*
+
 ```yaml
 - type: default-flatpaks
   configurations:
@@ -112,6 +145,8 @@ No `repo` is specified, so Flathub is used by default.
   boot by a systemd unit, so first boot needs network access.
 
 ### 4. `containerfile` — raw build steps
+
+*Defined in `common-identity.yml`.*
 
 ```yaml
 - type: containerfile
@@ -145,6 +180,8 @@ Implementation notes:
 
 ### 5. `signing` — install the verification policy
 
+*Defined in each recipe, last.*
+
 ```yaml
 - type: signing
 ```
@@ -169,8 +206,10 @@ Installs the cosign public key and the container policy files so that
 ## Checklist for changing the recipe
 
 1. Add a task in [`../.agent/plan.md`](../.agent/plan.md) with acceptance criteria.
-2. Make the change, with a banner comment on the module explaining **why**.
-3. If it's a judgement call, add a `DD-###` record in
+2. Decide **where** it belongs: every image → `common-base.yml`; one image → that recipe.
+3. Make the change, with a banner comment on the module explaining **why**.
+4. If it's a judgement call, add a `DD-###` record in
    [`design-decisions.md`](design-decisions.md).
-4. Update this page and `.agent/context/recipe.md`.
-5. Push and confirm the CI build is green — there is no local build.
+5. Update this page and `.agent/context/recipe.md`.
+6. Push and confirm the CI build is green — for **every** recipe, not just the one you
+   edited. There is no local build.

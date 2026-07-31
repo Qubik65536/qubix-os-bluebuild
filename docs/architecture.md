@@ -15,8 +15,9 @@ How a commit in this repository becomes a bootable operating system.
               │  reads
               ▼
  ┌──────────────────────────────────────────┐
- │ recipes/recipe.yml                       │
- │  BlueBuild renders it to a Containerfile │
+ │ recipes/recipe.yml   recipes/recipe-*.yml│   one matrix job per recipe
+ │  + recipes/common-*.yml (shared modules) │
+ │  BlueBuild renders each to a Containerfile│
  └──────────────────────────────────────────┘
               │  FROM ghcr.io/ublue-os/aurora-dx:beta
               ▼
@@ -30,28 +31,60 @@ How a commit in this repository becomes a bootable operating system.
  └──────────────────────────────────────────┘
               │
               ▼
-   ghcr.io/qubik65536/qubix-os-bluebuild:latest
+   ghcr.io/qubik65536/<name from the recipe>:latest
               │
               ▼
    rpm-ostree rebase on the user's machine
 ```
 
+Each recipe is an independent build producing an independently named, independently
+signed image.
+
 BlueBuild is a **transpiler**, not a runtime: `recipe.yml` is turned into an ordinary
 `Containerfile`, and the result is an ordinary OCI image. Nothing in this repo runs on a
 user's machine at install time; everything happens at build time, once, in CI.
 
+## Recipe layout
+
+`recipes/` holds two kinds of file, distinguished by name:
+
+| Pattern | Kind | Built? |
+|---|---|---|
+| `recipe.yml`, `recipe-*.yml` | A complete image definition: identity keys plus a module list | **Yes** — one CI job each |
+| `common-*.yml` | A module list included by recipes with `from-file:` | No — only ever included |
+
+The shared files exist so that a second image is a *composition*, not a copy (DD-016):
+
+```yaml
+# recipes/recipe.yml
+modules:
+  - from-file: common-base.yml      # overlay, packages, flatpaks
+  - from-file: common-identity.yml  # the os-release rewrite
+  - type: signing
+```
+
+`from-file:` splices the referenced file's `modules:` list in at that position, so the
+rendered `Containerfile` is exactly what a single flat recipe would have produced. Two
+rules follow:
+
+- **A change meant for every image goes in `common-base.yml`.** A change meant for one
+  image goes in that recipe.
+- **Ordering constraints cross file boundaries.** `common-identity.yml` is separate from
+  `common-base.yml` because it must run last-but-one; a recipe composes the blocks in the
+  order the constraints demand.
+
 ## Module execution order
 
-Modules in `recipe.yml` run **top to bottom**, each producing an image layer. Order is
-load-bearing.
+Modules run **top to bottom** in the order the recipe composes them, each producing an
+image layer. Order is load-bearing. For `recipe.yml`:
 
-| # | Module | What it does | Why it is here |
-|---|---|---|---|
-| 1 | `files` | Copies `files/system/*` to `/` (branding + desktop configuration) | Content must exist before anything reads it; nothing later depends on being first, but putting content first keeps later layers small. |
-| 2 | `dnf` | Adds COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`; installs `micro`, `starship`, `wezterm`, `niri`, `dms` and its fonts; removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
-| 3 | `default-flatpaks` | Configures Flathub (system + user), queues `org.mozilla.firefox` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM so the flatpak is the only Firefox. |
-| 4 | `containerfile` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
-| 5 | `signing` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
+| # | Module | From | What it does | Why it is here |
+|---|---|---|---|---|
+| 1 | `files` | `common-base.yml` | Copies `files/system/*` to `/` (branding + desktop configuration) | Content must exist before anything reads it; nothing later depends on being first, but putting content first keeps later layers small. |
+| 2 | `dnf` | `common-base.yml` | Adds COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`; installs `micro`, `starship`, `wezterm`, `niri`, `dms` and its fonts; removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
+| 3 | `default-flatpaks` | `common-base.yml` | Configures Flathub (system + user), queues `org.mozilla.firefox` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM so the flatpak is the only Firefox. |
+| 4 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
+| 5 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
 
 **Rule:** when adding a module, state its ordering constraint in
 [`recipe-reference.md`](recipe-reference.md). If it has none, say so.

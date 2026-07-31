@@ -485,3 +485,50 @@ Wants=dms.service
 - Cost: a third-party COPR pair with a fast-moving upstream, now on the critical path for
   one of the two sessions. Plasma is unaffected if it breaks, which bounds the blast
   radius.
+
+---
+
+## DD-016 — One recipe per variant, composed from shared module files
+
+**Status:** Accepted
+
+**Implements:** `IMG-004`
+
+**Context.** Publishing a second image — one that differs in a single dimension, such as
+the kernel — needs a second recipe, and BlueBuild's matrix is a list of recipe files. The obvious move — copy `recipe.yml` to
+`recipe-cachyos.yml` and edit two lines — creates two files that must be kept identical
+forever, in a repository whose stated goal is a delta small enough to read in one sitting.
+The failure mode is silent: a package added to one recipe and not the other produces two
+images that differ in a way nobody notices until something is missing on one of them.
+
+BlueBuild's `from-file:` includes a module list from another file under `recipes/`, so the
+shared part can exist once.
+
+**Decision.** Split the modules into shared files and compose them per variant:
+
+| File | Contents | Included by |
+|---|---|---|
+| `recipes/common-base.yml` | `files`, `dnf`, `default-flatpaks` — everything that makes an image Qubix OS | every recipe |
+| `recipes/common-identity.yml` | The `os-release` rewrite (DD-003) | every recipe |
+| `recipes/recipe*.yml` | Identity keys, the `from-file:` composition, and whatever is variant-specific | — (built directly) |
+
+Naming is the contract: **`recipe*.yml` is built, `common-*.yml` is included.** The build
+matrix names recipe files explicitly, so a shared file can never be built by accident.
+
+**Consequences.**
+- The rendered module order for `recipe.yml` is unchanged — `files`, `dnf`,
+  `default-flatpaks`, `containerfile`, `signing`. The split is a refactor, not a
+  behaviour change.
+- A change meant for every image goes in `common-base.yml`. A change meant for one image
+  goes in that recipe. There is no third place for it to hide.
+- Ordering constraints now cross file boundaries. `common-identity.yml` is a separate file
+  from `common-base.yml` precisely because of one: it has to run after *everything* that
+  can regenerate `os-release`, which for a kernel-swapping variant means after the swap.
+  A recipe therefore composes three or four small blocks in a documented order rather than
+  including one big one.
+- Variant-specific values are not parameterised — `from-file:` takes no arguments. Where a
+  variant needs a different value (the CachyOS variant's `PRETTY_NAME`), it rewrites the
+  field again afterwards instead of the shared file growing a knob. Two writes of one
+  field, in exchange for shared files that never branch.
+- `signing` stays in each recipe rather than in a shared file, so "signing is last" remains
+  visible in the file that is actually built.

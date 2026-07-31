@@ -239,13 +239,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - Plasma is unaffected — no DankMaterialShell component runs in a Plasma session
     - `docs/desktops.md`, `.agent/context/`, and a `DD-###` record cover the change
 
----
-
-## Open
-
 ### Image variants
 
-- [ ] **IMG-004** — Split the recipe into shared module files and per-variant recipes
+- [x] **IMG-004** — Split the recipe into shared module files and per-variant recipes
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Prerequisite for publishing more than one image. BlueBuild's `from-file:`
@@ -259,6 +255,12 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       flatpaks → identity → signing
     - `docs/recipe-reference.md`, `docs/architecture.md`, `.agent/context/recipe.md`, and a
       `DD-###` record cover the new layout
+
+---
+
+## Open
+
+### Image variants
 
 - [ ] **IMG-005** — Publish a CachyOS-kernel variant of the image
   - **Category:** Image content

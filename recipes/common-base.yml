@@ -1,0 +1,95 @@
+---
+# yaml-language-server: $schema=https://schema.blue-build.org/module-list-v1.json
+#
+# Qubix OS — modules shared by EVERY variant.
+#
+# Included with `from-file: common-base.yml` from each recipe in recipes/. Everything that
+# makes an image "Qubix OS" rather than "Aurora DX" lives here; a variant recipe adds to
+# this, it does not fork it. DD-016.
+#
+# Modules still execute TOP TO BOTTOM, in the position the including recipe puts this file.
+#
+# Docs:  docs/recipe-reference.md   (what every module does)
+#        docs/variants.md           (what the variants are)
+#        docs/design-decisions.md   (why — referenced below as DD-###)
+
+modules:
+  # 1. Overlay the image root.
+  #    Copies files/system/* into / — repository path IS the image path, byte for byte.
+  #    Carries branding assets (asset → consumer map in docs/branding.md) and
+  #    system-wide desktop configuration (docs/desktops.md).
+  #    No templating here: anything needing a build-time value must use `containerfile`.
+  #    Ordering: no hard constraint; kept first so content lands before anything reads it.
+  - type: files
+    files:
+      - source: system
+        destination: / # copies files/system/* (* means everything inside it) into your image's root folder /
+
+  # 2. Package changes (layered RPMs).
+  #    Ordering: MUST precede default-flatpaks, so the Firefox RPM is gone before the
+  #    Flatpak replacing it is queued (DD-006).
+  #    NOT the place for kernels: a variant that swaps the kernel does it in its own
+  #    module file, after this one (DD-017).
+  - type: dnf
+    repos:
+      copr:
+        # starship is not in Fedora's main repos; this is the maintainer-run COPR. DD-007.
+        - atim/starship
+        # WezTerm is not packaged in Fedora at all. This is WezTerm's OWN COPR, run by
+        # its author — the only Fedora-native source. DD-012.
+        - wezfurlong/wezterm-nightly
+        # DankMaterialShell, the desktop shell for the Niri session. DD-015.
+        # BOTH of these are required: `dms` holds the shell itself, and its runtime
+        # dependencies (quickshell, dgop, matugen, the icon font) live in the companion
+        # `danklinux` repo. Enabling only the first leaves `dms` uninstallable.
+        - avengemedia/dms
+        - avengemedia/danklinux
+    install:
+      packages:
+        - micro # lightweight terminal editor
+        - starship # cross-shell prompt (from the COPR above)
+        # Default terminal for BOTH desktop sessions. Metapackage: pulls wezterm-common
+        # (the `wezterm` binary), wezterm-gui, and wezterm-mux-server. It is additive —
+        # Konsole and every other KDE component stays installed. DD-012.
+        - wezterm
+        # Second desktop session, ALONGSIDE KDE Plasma — nothing Plasma is removed.
+        # In Fedora's main repos. Ships /usr/share/wayland-sessions/niri.desktop, which
+        # is all SDDM needs to offer it as a login choice. Weak deps bring the pieces a
+        # bare compositor does not have (waybar, fuzzel, swaylock, the GTK/GNOME
+        # portals); xwayland-satellite is a hard dependency and needs no setup. DD-013.
+        - niri
+        # Desktop shell for the Niri session: panel, launcher, notifications, lock
+        # screen, power menu. Started by systemd only under Niri, never under Plasma —
+        # see files/system/usr/lib/systemd/user/niri.service.d/. DD-015.
+        - dms
+        # Fonts DankMaterialShell renders with. Not hard dependencies of the RPM, so
+        # they are named here: without material-symbols-fonts every icon in the shell
+        # is a missing-glyph box.
+        - material-symbols-fonts
+        - fira-code-fonts
+        - rsms-inter-fonts
+        # Clipboard history backend behind the shell's clipboard panel (Mod+V).
+        - cliphist
+    remove:
+      packages:
+        # Firefox is removed in favour of the Flatpak below, so browser security updates
+        # don't have to wait for a full image rebuild. DD-006.
+        - firefox
+        - firefox-langpacks # also remove firefox dependency (not required for all packages, this is a special case)
+
+  # 3. Flatpak remotes and seeded applications.
+  #    These are NOT baked into the image: a systemd unit installs them on first boot,
+  #    so the first boot needs network access.
+  #    Ordering: after the `dnf` removal above.
+  - type: default-flatpaks
+    configurations:
+      # System scope — present for every user on the machine.
+      - notify: true # Send notification after install/uninstall is finished (true/false)
+        scope: system
+        # If no repo information is specified, Flathub will be used by default
+        install: # system flatpaks we want all users to have and not remove
+          - org.mozilla.firefox # replaces the removed RPM
+          - org.gnome.Loupe # image viewer
+      # User scope — adds the Flathub user remote only, so per-user installs work
+      # out of the box without any packages being forced on anyone.
+      - scope: user # Also add Flathub user repo, but no user packages

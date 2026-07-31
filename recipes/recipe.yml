@@ -1,12 +1,17 @@
 ---
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
 #
-# Qubix OS — image definition.
+# Qubix OS — the standard image. Fedora's kernel, as shipped by Aurora DX.
 #
 # BlueBuild transpiles this file into a Containerfile and builds it in CI.
 # Modules execute TOP TO BOTTOM; the order is load-bearing (see notes per module).
 #
+# This recipe is deliberately short: everything it installs is shared with the other
+# variants and lives in recipes/common-*.yml (DD-016). A change that should apply to
+# every Qubix OS image goes in those files, not here.
+#
 # Docs:  docs/recipe-reference.md   (what every key and module does)
+#        docs/variants.md           (this image vs. the CachyOS-kernel one)
 #        docs/architecture.md       (how this becomes a bootable OS)
 #        docs/design-decisions.md   (why — referenced below as DD-###)
 
@@ -18,7 +23,7 @@ description: Customized OS Image, built with BlueBuild, based on Universal Blue 
 
 # ── Base image (FROM) ─────────────────────────────────────────────────────────
 # Aurora DX = Fedora Kinoite (KDE Plasma) + Universal Blue fixes + developer tooling,
-# which is why the package list below is so short. DD-002.
+# which is why the package list is so short. DD-002.
 base-image: ghcr.io/ublue-os/aurora-dx
 # A release CHANNEL, not a Fedora version: `beta` gets upstream changes earlier than
 # `latest`. A major Fedora jump only happens when this value is deliberately changed.
@@ -26,104 +31,11 @@ image-version: beta
 
 # ── Modules (executed in order) ───────────────────────────────────────────────
 modules:
-  # 1. Overlay the image root.
-  #    Copies files/system/* into / — repository path IS the image path, byte for byte.
-  #    Carries branding assets (asset → consumer map in docs/branding.md) and
-  #    system-wide desktop configuration (docs/desktops.md).
-  #    No templating here: anything needing a build-time value must use `containerfile`.
-  #    Ordering: no hard constraint; kept first so content lands before anything reads it.
-  - type: files
-    files:
-      - source: system
-        destination: / # copies files/system/* (* means everything inside it) into your image's root folder /
+  # 1–3. Overlay, packages, flatpaks — everything shared by every variant.
+  - from-file: common-base.yml
 
-  # 2. Package changes (layered RPMs).
-  #    Ordering: MUST precede default-flatpaks, so the Firefox RPM is gone before the
-  #    Flatpak replacing it is queued (DD-006).
-  - type: dnf
-    repos:
-      copr:
-        # starship is not in Fedora's main repos; this is the maintainer-run COPR. DD-007.
-        - atim/starship
-        # WezTerm is not packaged in Fedora at all. This is WezTerm's OWN COPR, run by
-        # its author — the only Fedora-native source. DD-012.
-        - wezfurlong/wezterm-nightly
-        # DankMaterialShell, the desktop shell for the Niri session. DD-015.
-        # BOTH of these are required: `dms` holds the shell itself, and its runtime
-        # dependencies (quickshell, dgop, matugen, the icon font) live in the companion
-        # `danklinux` repo. Enabling only the first leaves `dms` uninstallable.
-        - avengemedia/dms
-        - avengemedia/danklinux
-    install:
-      packages:
-        - micro # lightweight terminal editor
-        - starship # cross-shell prompt (from the COPR above)
-        # Default terminal for BOTH desktop sessions. Metapackage: pulls wezterm-common
-        # (the `wezterm` binary), wezterm-gui, and wezterm-mux-server. It is additive —
-        # Konsole and every other KDE component stays installed. DD-012.
-        - wezterm
-        # Second desktop session, ALONGSIDE KDE Plasma — nothing Plasma is removed.
-        # In Fedora's main repos. Ships /usr/share/wayland-sessions/niri.desktop, which
-        # is all SDDM needs to offer it as a login choice. Weak deps bring the pieces a
-        # bare compositor does not have (waybar, fuzzel, swaylock, the GTK/GNOME
-        # portals); xwayland-satellite is a hard dependency and needs no setup. DD-013.
-        - niri
-        # Desktop shell for the Niri session: panel, launcher, notifications, lock
-        # screen, power menu. Started by systemd only under Niri, never under Plasma —
-        # see files/system/usr/lib/systemd/user/niri.service.d/. DD-015.
-        - dms
-        # Fonts DankMaterialShell renders with. Not hard dependencies of the RPM, so
-        # they are named here: without material-symbols-fonts every icon in the shell
-        # is a missing-glyph box.
-        - material-symbols-fonts
-        - fira-code-fonts
-        - rsms-inter-fonts
-        # Clipboard history backend behind the shell's clipboard panel (Mod+V).
-        - cliphist
-    remove:
-      packages:
-        # Firefox is removed in favour of the Flatpak below, so browser security updates
-        # don't have to wait for a full image rebuild. DD-006.
-        - firefox
-        - firefox-langpacks # also remove firefox dependency (not required for all packages, this is a special case)
-
-  # 3. Flatpak remotes and seeded applications.
-  #    These are NOT baked into the image: a systemd unit installs them on first boot,
-  #    so the first boot needs network access.
-  #    Ordering: after the `dnf` removal above.
-  - type: default-flatpaks
-    configurations:
-      # System scope — present for every user on the machine.
-      - notify: true # Send notification after install/uninstall is finished (true/false)
-        scope: system
-        # If no repo information is specified, Flathub will be used by default
-        install: # system flatpaks we want all users to have and not remove
-          - org.mozilla.firefox # replaces the removed RPM
-          - org.gnome.Loupe # image viewer
-      # User scope — adds the Flathub user remote only, so per-user installs work
-      # out of the box without any packages being forced on anyone.
-      - scope: user # Also add Flathub user repo, but no user packages
-
-  # 4. System identity rewrite (the one piece of imperative logic in this build).
-  #    A static os-release via the `files` module would discard every field upstream sets
-  #    (VERSION_ID, VARIANT, IMAGE_VERSION, …), and PRETTY_NAME needs a build-time value.
-  #    So: patch in place, changing only the three intended fields. DD-003.
-  #
-  #    Details that matter:
-  #      - IMAGE_VERSION is captured BEFORE the rewrites, then interpolated back in, so
-  #        the upstream Aurora/Fedora build stays visible in PRETTY_NAME.
-  #      - Patterns are anchored (^ID=) so they cannot match VERSION_ID= and friends.
-  #      - The last sed uses | as its delimiter because the replacement contains /.
-  #      - Single chained RUN: one layer, fails atomically.
-  #
-  #    Ordering: MUST run after any module that can regenerate os-release.
-  - type: containerfile
-    snippets:
-      - |
-        RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-            && sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release \
-            && sed -i 's/^NAME=.*/NAME="QubixOS-BlueBuild"/' /usr/lib/os-release \
-            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+  # 4. os-release rewrite: ID, NAME, PRETTY_NAME. Late, by constraint (DD-003).
+  - from-file: common-identity.yml
 
   # 5. Client-side trust configuration.
   #    Installs the cosign public key and container policy INTO the image, so
