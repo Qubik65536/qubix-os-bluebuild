@@ -422,3 +422,64 @@ attempt to seed a per-user config.
 - The file is kept deliberately short rather than being a copy of niri's annotated
   default. Unset options keep niri's built-in defaults, so the file stays readable and
   does not silently pin behaviour that upstream later improves.
+
+---
+
+## DD-015 — DankMaterialShell as the Niri shell, started only under Niri
+
+**Status:** Accepted
+
+**Implements:** `IMG-003`
+
+**Context.** Niri is a compositor, not a desktop. On its own it has no panel, launcher,
+notification daemon, lock screen, volume OSD, or power menu. The traditional answer is to
+assemble those from separate projects — waybar, fuzzel, mako, swaylock, wlogout — each
+with its own configuration format and its own idea of theming.
+[DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) (DMS) is a single
+Quickshell-based shell that provides all of them, is built for niri specifically, and is
+packaged for Fedora by its authors.
+
+Getting it to run only in the right session is the interesting part. DMS ships
+`dms.service` with `WantedBy=graphical-session.target`. Enabling that unit in the image
+would start the shell in **every** graphical session, including KDE Plasma — producing two
+panels, two notification daemons competing for the
+`org.freedesktop.Notifications` bus name, and two lock screens.
+
+**Decision.** Install `dms` and leave its unit **disabled**. Pull it in from niri's own
+unit with a `/usr` drop-in:
+
+```ini
+# /usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf
+[Unit]
+Wants=dms.service
+```
+
+**Consequences.**
+- DMS starts with the Niri session and with nothing else. A Plasma login is byte-for-byte
+  the session it was before this change — which is the invariant DD-013 exists to protect.
+- This is the image-wide equivalent of upstream's documented per-user setup step,
+  `systemctl --user add-wants niri.service dms`. Doing it as a drop-in in `/usr` means no
+  user has to run anything, and a user who disagrees overrides it in
+  `~/.config/systemd/user/niri.service.d/`.
+- **Two COPRs are needed**, not one: `avengemedia/dms` carries the shell, and its runtime
+  dependencies (`quickshell`, `dgop`, `matugen`, `material-symbols-fonts`, `cliphist`)
+  live in the companion `avengemedia/danklinux`. Enabling only the first leaves `dms`
+  uninstallable. That coupling is declared in the COPR's own metadata and is easy to miss.
+- The fonts DMS renders with are **not** hard RPM dependencies, so they are installed
+  explicitly. Without `material-symbols-fonts` every icon in the shell is a missing-glyph
+  box — a failure that looks like a theming bug rather than a missing package.
+- `brightnessctl`, added in IMG-002 for the interim config's backlight keys, is removed
+  again: DMS handles brightness natively through logind, sysfs, and DDC, so the package no
+  longer has a consumer. DD-007 requires every package to have a reason.
+- The keybinds in `/etc/niri/config.kdl` follow upstream DMS's recommended binds
+  (`dms ipc call …`), so they stay recognisable against upstream's documentation.
+- niri's own weak dependencies (`waybar`, `fuzzel`, `swaylock`) remain installed but
+  unused by the shipped config. They are left in place as a fallback: if DMS fails to
+  start, a user can still bind them by hand. Removing them would also mean fighting the
+  `niri` RPM's dependency set for no real gain.
+- Dynamic theming: DMS's matugen writes `~/.config/niri/dms/colors.kdl`, which the shipped
+  config includes with `optional=true` at the **end** of the file. Niri includes are
+  positional and override what came before them, so the position is load-bearing.
+- Cost: a third-party COPR pair with a fast-moving upstream, now on the critical path for
+  one of the two sessions. Plasma is unaffected if it breaks, which bounds the blast
+  radius.

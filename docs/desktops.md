@@ -6,7 +6,7 @@ user account and the same home directory, and are chosen at the login screen.
 | Session | What it is | Origin | Shell / panel |
 |---|---|---|---|
 | Plasma (Wayland) | KDE Plasma | Inherited from Aurora DX | Plasma itself |
-| Niri | Scrollable-tiling Wayland compositor | Added here (`niri`, Fedora repos) | Waybar |
+| Niri | Scrollable-tiling Wayland compositor | Added here (`niri`, Fedora repos) | [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) |
 
 Nothing that comes with KDE Plasma is removed, disabled, or replaced. Niri is **added**;
 Plasma remains the full, untouched Aurora DX desktop. See
@@ -32,6 +32,55 @@ and stack vertically.
 
 If you have used i3, Sway, or Hyprland, the mental model is different enough to be worth
 five minutes with the hotkey overlay (`Mod+Shift+/`) before deciding you dislike it.
+
+## The Niri shell: DankMaterialShell
+
+Niri is a compositor, not a desktop — on its own it has no panel, launcher, notifications,
+lock screen, or power menu. **DankMaterialShell** (DMS) provides all of them as one
+Quickshell-based shell built for niri. It is installed from its authors' COPRs and started
+by systemd.
+
+| Component | Provided by DMS |
+|---|---|
+| Panel, clock, tray, workspace indicator | yes |
+| Application launcher ("spotlight") | yes |
+| Notification centre | yes |
+| Lock screen | yes |
+| Power menu | yes |
+| Volume / brightness / media OSD | yes |
+| Clipboard history | yes (backed by `cliphist`) |
+| Settings UI, task manager, notepad | yes |
+
+### It runs under Niri only
+
+DMS's unit is installed **disabled**, and niri's unit pulls it in:
+
+```ini
+# /usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf
+[Unit]
+Wants=dms.service
+```
+
+So a Plasma login is exactly the session it was before DMS existed — no second panel, no
+second notification daemon, no second lock screen. This is the image-wide equivalent of
+DMS's documented per-user step, `systemctl --user add-wants niri.service dms`. To opt out
+for your own account:
+
+```bash
+mkdir -p ~/.config/systemd/user/niri.service.d
+printf '[Unit]\nWants=\n' > ~/.config/systemd/user/niri.service.d/60-no-dms.conf
+```
+
+### Theming
+
+`dms ipc call settings focusOrToggle` (`Mod+,`) opens the shell's own settings. Enabling
+dynamic theming makes matugen generate a Material colour scheme from the wallpaper and
+write it to `~/.config/niri/dms/colors.kdl`. The shipped niri config includes that file
+with `optional=true`, so niri's focus ring, borders, and tab indicators follow the shell's
+accent colour once it exists. Until then the config's own Qubix green applies.
+
+The include sits at the **end** of the config on purpose: niri includes are positional and
+override whatever was set before them.
 
 ## Niri configuration
 
@@ -64,8 +113,13 @@ list, generated from the config actually in use.
 | Binding | Action |
 |---|---|
 | `Mod+T` | Terminal (WezTerm) |
-| `Mod+D` | Application launcher (Fuzzel) |
+| `Mod+Space` | Application launcher (DMS spotlight) |
+| `Mod+V` | Clipboard history |
+| `Mod+N` | Notification centre |
+| `Mod+,` | Shell settings |
+| `Mod+M` or `Ctrl+Alt+Del` | Task manager |
 | `Mod+Alt+L` | Lock screen |
+| `Mod+X` | Power menu |
 | `Mod+Q` | Close window |
 | `Mod+O` | Overview — every workspace on every monitor |
 | `Mod+←/→` or `Mod+H/L` | Focus the column left / right |
@@ -79,6 +133,7 @@ list, generated from the config actually in use.
 | `Mod+W` | Toggle tabbed display for the column |
 | `Mod+[` / `Mod+]` | Pull in / push out the neighbouring window |
 | `Print` | Interactive screenshot (`Ctrl` = screen, `Alt` = window) |
+| Volume / brightness / media keys | Routed through DMS, so its on-screen display appears |
 | `Mod+Shift+E` | Exit the session |
 
 ## The default terminal
@@ -106,3 +161,7 @@ not change it in the other.
 `xdg-desktop-portal-gnome` and `xdg-desktop-portal-gtk` arrive as weak dependencies of the
 `niri` RPM. They do not affect Plasma: portal selection is per-desktop, driven by
 `$XDG_CURRENT_DESKTOP` and the `*-portals.conf` files each desktop ships.
+
+Waybar, Fuzzel, and Swaylock also arrive as `niri` weak dependencies. The shipped config
+does not use them — DMS covers all three — but they are left installed as a fallback if
+you ever need to bind them by hand.

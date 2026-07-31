@@ -12,8 +12,9 @@ terms over synonyms.
 | **BlueBuild** | The build system used here. Transpiles `recipes/recipe.yml` into a `Containerfile` and builds it. <https://blue-build.org> |
 | **Branding asset** | A file under `files/system/` that replaces an upstream logo, banner, or watermark. See [`branding.md`](branding.md). |
 | **Context cache** | `.agent/context/` — one brief Markdown entry per file/module, so an agent can orient without reading the whole repo. |
-| **COPR** | Fedora's community package repository service. This project enables `atim/starship` and `wezfurlong/wezterm-nightly`. |
+| **COPR** | Fedora's community package repository service. This project enables `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, and `avengemedia/danklinux`. |
 | **cosign** | The Sigstore tool used to sign and verify published images. |
+| **DankMaterialShell** (DMS) | The desktop shell for the Niri session: panel, launcher, notifications, lock screen, power menu (DD-015). See [`desktops.md`](desktops.md). |
 | **DD-###** | A design decision record in [`design-decisions.md`](design-decisions.md). |
 | **Delta** | What this repository changes relative to Aurora DX. Kept deliberately small. |
 | **Deployment** | An `rpm-ostree` bootable instance of an image. Several coexist; the previous one is the rollback target. |
@@ -23,12 +24,14 @@ terms over synonyms.
 | **`IMAGE_VERSION`** | A field Universal Blue writes into `os-release`, identifying the upstream build. Interpolated into `PRETTY_NAME` (DD-003). |
 | **KDL** | The configuration language niri uses (<https://kdl.dev>). Braces and nodes, not YAML. |
 | **Kinoite** | Fedora's official immutable KDE Plasma variant. Aurora's base. |
-| **Niri** | A scrollable-tiling Wayland compositor. The second desktop session (DD-013). See [`desktops.md`](desktops.md). |
 | **Look-and-feel package** | A KDE Plasma theme bundle under `/usr/share/plasma/look-and-feel/`. Aurora's contains the startup splash this image overrides. |
+| **matugen** | Generates a Material colour scheme from the wallpaper. DankMaterialShell uses it to theme itself and niri. |
 | **Module** | A step in `recipe.yml` (`files`, `dnf`, `default-flatpaks`, `containerfile`, `signing`). Modules run in file order. |
+| **Niri** | A scrollable-tiling Wayland compositor. The second desktop session (DD-013). See [`desktops.md`](desktops.md). |
 | **Overlay** | The `files/system/` tree, copied verbatim into the image root. Repository path = image path. |
 | **Override** | Shipping a file at an upstream path so the upstream file is replaced in the image. The branding mechanism (DD-004). |
 | **Plymouth** | The boot splash system. Reads the watermark this image overrides. |
+| **Quickshell** | The QtQuick-based shell toolkit DankMaterialShell is written against. |
 | **Rebase** | Switching a machine to a different OS image (`rpm-ostree rebase`). How Qubix OS is installed and uninstalled. |
 | **Recipe** | `recipes/recipe.yml`. The declarative definition of the image. |
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |

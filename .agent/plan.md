@@ -226,24 +226,22 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/desktops.md` exists, is indexed in `docs/README.md`, and explains switching
     - `.agent/context/` and a `DD-###` record cover the change
 
----
-
-## Open
-
-### Desktop sessions
-
-- [ ] **IMG-003** — Use DankMaterialShell as the Niri desktop shell
+- [x] **IMG-003** — Use DankMaterialShell as the Niri desktop shell
   - **Category:** Image content
   - **Depends on:** IMG-002
   - **Notes:** <https://github.com/AvengeMedia/DankMaterialShell>. Packaged in COPR
     `avengemedia/dms`; its dependencies (`quickshell`, `dgop`, `matugen`, …) live in the
-    companion COPR `avengemedia/danklinux`.
+    companion COPR `avengemedia/danklinux`. See DD-015.
   - **Acceptance criteria:**
     - `recipe.yml` enables both COPRs and installs `dms`
     - `dms.service` starts with the Niri session and **only** with the Niri session
     - The shipped Niri config carries DankMaterialShell's keybinds
     - Plasma is unaffected — no DankMaterialShell component runs in a Plasma session
     - `docs/desktops.md`, `.agent/context/`, and a `DD-###` record cover the change
+
+---
+
+## Open
 
 ### Maintenance
 

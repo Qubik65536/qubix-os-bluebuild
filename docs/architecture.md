@@ -48,7 +48,7 @@ load-bearing.
 | # | Module | What it does | Why it is here |
 |---|---|---|---|
 | 1 | `files` | Copies `files/system/*` to `/` (branding + desktop configuration) | Content must exist before anything reads it; nothing later depends on being first, but putting content first keeps later layers small. |
-| 2 | `dnf` | Adds COPRs `atim/starship` and `wezfurlong/wezterm-nightly`; installs `micro`, `starship`, `wezterm`, `niri`, `brightnessctl`; removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
+| 2 | `dnf` | Adds COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`; installs `micro`, `starship`, `wezterm`, `niri`, `dms` and its fonts; removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
 | 3 | `default-flatpaks` | Configures Flathub (system + user), queues `org.mozilla.firefox` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM so the flatpak is the only Firefox. |
 | 4 | `containerfile` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
 | 5 | `signing` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |

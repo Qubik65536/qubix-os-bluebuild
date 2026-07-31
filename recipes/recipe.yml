@@ -48,6 +48,12 @@ modules:
         # WezTerm is not packaged in Fedora at all. This is WezTerm's OWN COPR, run by
         # its author — the only Fedora-native source. DD-012.
         - wezfurlong/wezterm-nightly
+        # DankMaterialShell, the desktop shell for the Niri session. DD-015.
+        # BOTH of these are required: `dms` holds the shell itself, and its runtime
+        # dependencies (quickshell, dgop, matugen, the icon font) live in the companion
+        # `danklinux` repo. Enabling only the first leaves `dms` uninstallable.
+        - avengemedia/dms
+        - avengemedia/danklinux
     install:
       packages:
         - micro # lightweight terminal editor
@@ -62,9 +68,18 @@ modules:
         # bare compositor does not have (waybar, fuzzel, swaylock, the GTK/GNOME
         # portals); xwayland-satellite is a hard dependency and needs no setup. DD-013.
         - niri
-        # Backlight control for niri's brightness keys. Plasma has its own power
-        # management and does not need this; a bare compositor does.
-        - brightnessctl
+        # Desktop shell for the Niri session: panel, launcher, notifications, lock
+        # screen, power menu. Started by systemd only under Niri, never under Plasma —
+        # see files/system/usr/lib/systemd/user/niri.service.d/. DD-015.
+        - dms
+        # Fonts DankMaterialShell renders with. Not hard dependencies of the RPM, so
+        # they are named here: without material-symbols-fonts every icon in the shell
+        # is a missing-glyph box.
+        - material-symbols-fonts
+        - fira-code-fonts
+        - rsms-inter-fonts
+        # Clipboard history backend behind the shell's clipboard panel (Mod+V).
+        - cliphist
     remove:
       packages:
         # Firefox is removed in favour of the Flatpak below, so browser security updates

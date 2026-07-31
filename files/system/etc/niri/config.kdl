@@ -14,15 +14,15 @@
 //   /usr/share/doc/niri/wiki/  (shipped in the image)
 //   https://github.com/YaLTeR/niri/wiki
 //
-// Ordering note: Xwayland needs no configuration. Since niri 25.08 the compositor
-// exports $DISPLAY and spawns xwayland-satellite (a hard RPM dependency) on demand.
+// The shell is DankMaterialShell (DMS). It is NOT started from here: it runs as a
+// systemd user unit pulled in by niri.service — see
+// /usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf. Everything below that mentions
+// DMS is either a keybind into its IPC or a rule about how it draws.
 //
-// See docs/desktops.md and docs/design-decisions.md DD-013, DD-014.
-
-// ── Startup ───────────────────────────────────────────────────────────────────
-// Waybar is niri's recommended panel and comes in as a weak dependency of the niri
-// RPM. Without a panel there is no clock, no tray and no workspace indicator.
-spawn-at-startup "waybar"
+// Xwayland needs no configuration: since niri 25.08 the compositor exports $DISPLAY and
+// spawns xwayland-satellite (a hard RPM dependency) on demand.
+//
+// See docs/desktops.md and docs/design-decisions.md DD-013, DD-014, DD-015.
 
 // ── Input ─────────────────────────────────────────────────────────────────────
 // The xkb block is left empty on purpose: niri then takes the keyboard layout from
@@ -46,6 +46,10 @@ input {
 layout {
     gaps 8
 
+    // DMS paints its own backdrop; leaving this transparent avoids a coloured band
+    // showing through in the overview.
+    background-color "transparent"
+
     // Widths cycled by Mod+R. Fractions of the output width.
     preset-column-widths {
         proportion 0.33333
@@ -57,7 +61,8 @@ layout {
 
     focus-ring {
         width 2
-        // Qubix OS logo green, and a muted variant for unfocused monitors.
+        // Qubix OS logo green, and a muted variant for unfocused monitors. Overridden
+        // per-user by DMS's matugen theming if it is in use — see the include below.
         active-color "#47603b"
         inactive-color "#3c3c3c"
     }
@@ -67,6 +72,15 @@ layout {
 prefer-no-csd
 
 screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
+
+// ── Layer rules ───────────────────────────────────────────────────────────────
+// DMS's panels and popups are Quickshell layer-shell surfaces. Placing them within the
+// backdrop keeps them visible behind windows in the overview instead of floating on top
+// of it.
+layer-rule {
+    match namespace="^quickshell$"
+    place-within-backdrop true
+}
 
 // ── Window rules ──────────────────────────────────────────────────────────────
 // WezTerm sizes itself from its initial configure event; an empty default-column-width
@@ -80,15 +94,25 @@ window-rule {
 
 // ── Key bindings ──────────────────────────────────────────────────────────────
 // "Mod" is Super (the Meta/Windows key) in a normal session.
+//
+// `dms ipc call …` drives the running shell. The command names follow
+// DankMaterialShell's own recommended niri binds, so they stay recognisable to anyone
+// reading upstream's documentation.
 binds {
     Mod+Shift+Slash { show-hotkey-overlay; }
 
     // Applications. WezTerm is the system default terminal — see DD-012.
     Mod+T hotkey-overlay-title="Open a Terminal" { spawn "wezterm"; }
-    Mod+D hotkey-overlay-title="Run an Application" { spawn "fuzzel"; }
-    Mod+Alt+L hotkey-overlay-title="Lock the Screen" { spawn "swaylock"; }
+    Mod+Space hotkey-overlay-title="Application Launcher" { spawn "dms" "ipc" "call" "spotlight" "toggle"; }
+    Mod+V hotkey-overlay-title="Clipboard History" { spawn "dms" "ipc" "call" "clipboard" "toggle"; }
+    Mod+N hotkey-overlay-title="Notification Centre" { spawn "dms" "ipc" "call" "notifications" "toggle"; }
+    Mod+Comma hotkey-overlay-title="Shell Settings" { spawn "dms" "ipc" "call" "settings" "focusOrToggle"; }
+    Mod+M hotkey-overlay-title="Task Manager" { spawn "dms" "ipc" "call" "processlist" "focusOrToggle"; }
+    Ctrl+Alt+Delete hotkey-overlay-title="Task Manager" { spawn "dms" "ipc" "call" "processlist" "focusOrToggle"; }
 
     // Session.
+    Mod+Alt+L hotkey-overlay-title="Lock the Screen" { spawn "dms" "ipc" "call" "lock" "lock"; }
+    Mod+X hotkey-overlay-title="Power Menu" { spawn "dms" "ipc" "call" "powermenu" "toggle"; }
     Mod+Q repeat=false { close-window; }
     Mod+Shift+E { quit; }
     Mod+Shift+P { power-off-monitors; }
@@ -171,11 +195,30 @@ binds {
     Ctrl+Print { screenshot-screen; }
     Alt+Print { screenshot-window; }
 
-    // Media and brightness keys. allow-when-locked lets them work on the lock screen.
-    XF86AudioRaiseVolume  allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
-    XF86AudioLowerVolume  allow-when-locked=true { spawn "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
-    XF86AudioMute         allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
-    XF86AudioMicMute      allow-when-locked=true { spawn "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
-    XF86MonBrightnessUp   allow-when-locked=true { spawn "brightnessctl" "set" "5%+"; }
-    XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "set" "5%-"; }
+    // Media, volume, and brightness. Routed through DMS so its on-screen display
+    // appears. allow-when-locked lets them work on the lock screen.
+    XF86AudioRaiseVolume  allow-when-locked=true { spawn "dms" "ipc" "call" "audio" "increment" "5"; }
+    XF86AudioLowerVolume  allow-when-locked=true { spawn "dms" "ipc" "call" "audio" "decrement" "5"; }
+    XF86AudioMute         allow-when-locked=true { spawn "dms" "ipc" "call" "audio" "mute"; }
+    XF86AudioMicMute      allow-when-locked=true { spawn "dms" "ipc" "call" "audio" "micmute"; }
+    XF86AudioPlay         allow-when-locked=true { spawn "dms" "ipc" "call" "mpris" "playPause"; }
+    XF86AudioPause        allow-when-locked=true { spawn "dms" "ipc" "call" "mpris" "playPause"; }
+    XF86AudioPrev         allow-when-locked=true { spawn "dms" "ipc" "call" "mpris" "previous"; }
+    XF86AudioNext         allow-when-locked=true { spawn "dms" "ipc" "call" "mpris" "next"; }
+    XF86MonBrightnessUp   allow-when-locked=true { spawn "dms" "ipc" "call" "brightness" "increment" "5" ""; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "dms" "ipc" "call" "brightness" "decrement" "5" ""; }
 }
+
+// ── DankMaterialShell theming ─────────────────────────────────────────────────
+// DMS generates a Material colour scheme from the wallpaper with matugen and writes it
+// to ~/.config/niri/dms/colors.kdl. Including it here is what makes niri's focus ring,
+// borders and tab indicators follow the shell's accent colour.
+//
+// `optional=true` means a missing file is not an error, so this is inert until the user
+// enables dynamic theming. Absolute (`~`-expanded) rather than relative, because a
+// relative include would resolve against /etc/niri/ — this file's own directory — and
+// DMS writes into the user's config directory.
+//
+// POSITION MATTERS: includes override options set *before* them, so this must stay at
+// the end of the file, after the layout block it is meant to override.
+include optional=true "~/.config/niri/dms/colors.kdl"

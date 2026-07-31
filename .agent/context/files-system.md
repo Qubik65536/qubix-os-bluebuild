@@ -14,13 +14,19 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 |---|---|---|
 | `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
-| `etc/niri/config.kdl` | niri | System-default session config (DD-014) |
+| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds (DD-014, DD-015) |
+| `usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | systemd user manager | `Wants=dms.service`, so the shell starts under Niri **only** (DD-015) |
 
 `etc/xdg/kdeglobals` is a **fragment**, not a replacement — KConfig merges every
 `kdeglobals` on `$XDG_CONFIG_DIRS` key by key. Fedora's `XDG_CONFIG_DIRS` is
 `/etc/xdg:/usr/share/kde-settings/kde-profile/default/xdg`, so `/etc/xdg` wins for the
 keys it names and inherits everything else. Do **not** add a `kdeglobals` under
 `usr/share/kde-settings/…` — that path already exists upstream and would be overwritten.
+
+`dms.service` is left **disabled** on purpose. It ships
+`WantedBy=graphical-session.target`, so enabling it would start DankMaterialShell inside
+KDE Plasma too — two panels, two notification daemons, two lock screens. The drop-in on
+`niri.service` is what scopes it to the Niri session.
 
 ## Branding
 

@@ -15,7 +15,7 @@ plus a tree of files to overlay. There is no imperative installer and no local b
 | Published to | `ghcr.io/qubik65536/qubix-os-bluebuild` |
 | Base image | `ghcr.io/ublue-os/aurora-dx` |
 | Base tag | `beta` |
-| Desktops | KDE Plasma (via Fedora Kinoite → Aurora) and Niri, switchable at login |
+| Desktops | KDE Plasma (via Fedora Kinoite → Aurora) and Niri + DankMaterialShell, switchable at login |
 | Build system | [BlueBuild](https://blue-build.org) |
 | Signing | Sigstore cosign (`cosign.pub`) |
 | Rebuild cadence | Daily, 06:00 UTC, plus on every push |
@@ -41,10 +41,11 @@ Everything Aurora DX provides is inherited for free. This repository only record
 |---|---|---|
 | Identity | `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` rewritten to Qubix OS | `recipe.yml` (containerfile snippet) |
 | Branding | Distro logos, banners, Plymouth boot watermark, KDE splash and "About this system" | `files/system/usr/share/**` |
-| Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `brightnessctl` | `recipe.yml` (`dnf`) |
+| Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `dms` + fonts + `cliphist` (Niri's shell, from COPR) | `recipe.yml` (`dnf`) |
 | Packages removed | `firefox`, `firefox-langpacks` | `recipe.yml` (`dnf`) |
 | Default terminal | WezTerm, for KDE and for the `$TERMINAL` convention | `files/system/etc/xdg/kdeglobals`, `files/system/usr/lib/environment.d/` |
 | Second session | Niri added alongside — nothing KDE removed. System config shipped | `recipe.yml` (`dnf`), `files/system/etc/niri/config.kdl` |
+| Niri shell | DankMaterialShell, started by systemd under Niri only | `files/system/usr/lib/systemd/user/niri.service.d/` |
 | Flatpaks | Flathub configured; `org.mozilla.firefox` and `org.gnome.Loupe` installed system-wide | `recipe.yml` (`default-flatpaks`) |
 | Trust | Cosign signing policy installed so signed rebases verify | `recipe.yml` (`signing`) |
 

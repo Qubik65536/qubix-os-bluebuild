@@ -20,7 +20,7 @@ described here or in `files/system/`.
   | # | Module | Effect | Ordering constraint |
   |---|---|---|---|
   | 1 | `files` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
-  | 2 | `dnf` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`; install `micro`, `starship`, `wezterm`, `niri`, `brightnessctl`; remove `firefox`, `firefox-langpacks` | before `default-flatpaks` |
+  | 2 | `dnf` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`; install `micro`, `starship`, `wezterm`, `niri`, `dms` + fonts + `cliphist`; remove `firefox`, `firefox-langpacks` | before `default-flatpaks` |
   | 3 | `default-flatpaks` | Flathub system + user; installs `org.mozilla.firefox`, `org.gnome.Loupe` | after `dnf` (DD-006) |
   | 4 | `containerfile` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
   | 5 | `signing` | Installs the client-side cosign trust policy | last, by convention |
@@ -40,8 +40,13 @@ described here or in `files/system/`.
 - `wezterm` comes from **WezTerm's own** COPR and is a *nightly* build: versions are
   datestamps, not releases. There is no Fedora package (DD-012).
 - `niri` is **additive**. Nothing KDE is removed (DD-013). Its weak dependencies (waybar,
-  fuzzel, swaylock, GTK/GNOME portals) are left enabled on purpose — without them there is
-  no usable session.
+  fuzzel, swaylock, GTK/GNOME portals) are left enabled on purpose — as a fallback, even
+  though DankMaterialShell replaces the first three.
+- `avengemedia/dms` and `avengemedia/danklinux` are a **pair**. The second holds `dms`'s
+  runtime dependencies (`quickshell`, `dgop`, `matugen`, `material-symbols-fonts`,
+  `cliphist`); enabling only the first leaves `dms` uninstallable (DD-015).
+- DMS's fonts are **not** hard RPM dependencies, so they are listed explicitly. Without
+  `material-symbols-fonts` every icon in the shell is a missing-glyph box.
 - No templating in the `files` module. Anything needing a build-time value must go through
   `containerfile`.
 - Flatpaks are seeded on first boot, not baked in.

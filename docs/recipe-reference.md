@@ -41,6 +41,7 @@ substitution.
   | `/etc/xdg/kdeglobals` | KDE cascade fragment: default terminal (DD-012) |
   | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012) |
   | `/etc/niri/config.kdl` | System-default Niri configuration (DD-014) |
+  | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
 
 - **Ordering:** no hard constraint. Kept first so content lands before anything that might
   read it.
@@ -55,8 +56,12 @@ substitution.
     copr:
       - atim/starship
       - wezfurlong/wezterm-nightly
+      - avengemedia/dms
+      - avengemedia/danklinux
   install:
-    packages: [micro, starship, wezterm, niri, brightnessctl]
+    packages:
+      [micro, starship, wezterm, niri, dms,
+       material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist]
   remove:
     packages: [firefox, firefox-langpacks]
 ```
@@ -64,7 +69,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012); `niri` = the second desktop session (DD-013); `brightnessctl` = backlight control for Niri's brightness keys. |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012); `niri` = the second desktop session (DD-013); `dms` plus the three font packages and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015). |
 | `remove.packages` | Removed RPMs. `firefox` is removed in favour of the Flatpak (DD-006); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
@@ -73,6 +78,8 @@ COPR repositories in use:
 |---|---|---|---|
 | `atim/starship` | third party | `starship` | Not in Fedora's main repos (DD-007) |
 | `wezfurlong/wezterm-nightly` | WezTerm's own author | `wezterm`, `wezterm-common`, `wezterm-gui`, `wezterm-mux-server` | WezTerm is not packaged in Fedora at all (DD-012) |
+| `avengemedia/dms` | DankMaterialShell's authors | `dms`, `dms-cli` | Not in Fedora (DD-015) |
+| `avengemedia/danklinux` | DankMaterialShell's authors | `quickshell`, `dgop`, `matugen`, `material-symbols-fonts`, `cliphist`, … | `dms`'s runtime dependencies. **Required together with `avengemedia/dms`** — without it `dms` is uninstallable |
 
 - **Ordering:** must precede `default-flatpaks` so the Firefox RPM is gone before the
   Flatpak is queued.
