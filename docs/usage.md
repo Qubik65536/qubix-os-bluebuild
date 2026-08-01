@@ -117,7 +117,7 @@ hosting. Generate one locally on a Fedora Atomic host when you need installation
 Rebase back to whatever you came from, e.g.:
 
 ```bash
-rpm-ostree rebase ostree-image-signed:docker://ghcr.io/ublue-os/aurora-dx:beta
+rpm-ostree rebase ostree-image-signed:docker://ghcr.io/ublue-os/aurora-dx:latest
 systemctl reboot
 ```
 

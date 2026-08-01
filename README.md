@@ -6,7 +6,7 @@ on top of [Universal Blue](https://universal-blue.org)'s Aurora DX.
 | | |
 |---|---|
 | **Image** | `ghcr.io/qubik65536/qubix-os-bluebuild` |
-| **Base** | `ghcr.io/ublue-os/aurora-dx:beta` (Fedora Kinoite → Aurora → Aurora DX) |
+| **Base** | `ghcr.io/ublue-os/aurora-dx:latest` (Fedora Kinoite → Aurora → Aurora DX) |
 | **Desktop** | KDE Plasma, plus a Niri session |
 | **Signed** | Sigstore cosign — `cosign.pub` |
 | **Rebuilt** | Daily at 06:00 UTC, and on every push |

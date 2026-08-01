@@ -15,7 +15,7 @@ tree of files to overlay. There is no imperative installer and no local build st
 | Published to | `ghcr.io/qubik65536/qubix-os-bluebuild` |
 | Variants | Standard, plus `qubix-os-bluebuild-cachyos` (CachyOS kernel) — see [`variants.md`](variants.md) |
 | Base image | `ghcr.io/ublue-os/aurora-dx` |
-| Base tag | `beta` |
+| Base tag | `latest` |
 | Desktops | KDE Plasma (via Fedora Kinoite → Aurora) and Niri + DankMaterialShell, switchable at login |
 | Build system | [BlueBuild](https://blue-build.org) |
 | Signing | Sigstore cosign (`cosign.pub`) |

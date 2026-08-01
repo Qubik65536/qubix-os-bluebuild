@@ -32,7 +32,7 @@ Only recipes carry these; a `common-*.yml` file contains nothing but `modules:`.
 | `name` | `qubix-os-bluebuild` (`qubix-os-bluebuild-cachyos` in the variant) | Image name. Published as `ghcr.io/<owner>/<name>`. Changing it changes the published image path and breaks existing rebases. **Each variant needs its own.** |
 | `description` | *(see file)* | Written into the image's OCI metadata. |
 | `base-image` | `ghcr.io/ublue-os/aurora-dx` | The `FROM`. See DD-002. |
-| `image-version` | `beta` | Tag of the base image. A **channel**, not a Fedora version. `latest` is the alternative. |
+| `image-version` | `latest` | Tag of the base image. A **channel**, not a Fedora version. Tracks the current stable Fedora; `beta` is the alternative and tracks the next one. Was `beta` until DD-018. |
 
 ## Composition
 

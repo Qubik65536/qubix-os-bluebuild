@@ -23,7 +23,7 @@ terms over synonyms.
 | **Flatpak seeding** | Flatpaks are not baked into the image; a systemd unit installs them on first boot. Hence first boot needs network. |
 | **`from-file:`** | The recipe key that splices a shared `recipes/common-*.yml` module list into a recipe at that position (DD-016). |
 | **GHCR** | GitHub Container Registry — where the image is published. |
-| **`image-version`** | The base image *tag* (`beta` here). A channel, not a Fedora version number. |
+| **`image-version`** | The base image *tag* (`latest` here). A channel, not a Fedora version number. See DD-018. |
 | **`IMAGE_VERSION`** | A field Universal Blue writes into `os-release`, identifying the upstream build. Interpolated into `PRETTY_NAME` (DD-003). |
 | **initramfs** | The RAM filesystem the kernel boots into before mounting the real root. Regenerated at build time by the `initramfs` module, which the kernel-swapping variant requires. |
 | **KDL** | The configuration language niri uses (<https://kdl.dev>). Braces and nodes, not YAML. |

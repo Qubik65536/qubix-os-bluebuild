@@ -25,7 +25,7 @@ using [BlueBuild](https://blue-build.org). It is a *declarative image definition
 application: there is no application code, no test suite, and nothing to run locally.
 The "program" is `recipes/recipe.yml`, and the "compiler" is the BlueBuild GitHub Action.
 
-- **Base image:** `ghcr.io/ublue-os/aurora-dx:beta` (Universal Blue Aurora DX = Fedora
+- **Base image:** `ghcr.io/ublue-os/aurora-dx:latest` (Universal Blue Aurora DX = Fedora
   Kinoite / KDE Plasma + developer tooling)
 - **Published to:** `ghcr.io/qubik65536/qubix-os-bluebuild`
 - **Signed with:** Sigstore cosign (`cosign.pub` in repo root)

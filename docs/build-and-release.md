@@ -122,8 +122,10 @@ installation failing verification until it rebases.
 | PR tags | Pull-request builds are tagged separately via `pr_event_number` and are not `latest`. |
 
 `latest` tracks builds, not Fedora versions. The Fedora base is pinned by
-`image-version: beta` in the recipe, so a major Fedora jump only happens when that value
-is deliberately changed.
+`image-version: latest` in the recipe, so a major Fedora jump only happens when that value
+is deliberately changed. Note the two unrelated meanings of `latest` here: this project's
+own `latest` tag is the newest successful build, while the base image's `latest` channel is
+the current *stable* Fedora (DD-018).
 
 ## Dependency updates
 

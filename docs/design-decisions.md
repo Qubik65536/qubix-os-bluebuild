@@ -43,7 +43,8 @@ BlueBuild GitHub Action render and build it.
 
 ## DD-002 — Base on `ublue-os/aurora-dx`, tag `beta`
 
-**Status:** Accepted
+**Status:** Superseded by [DD-018](#dd-018--track-the-latest-channel-not-beta) *(the tag
+only — the choice of `aurora-dx` as the base still stands)*
 
 **Context.** The base image determines the desktop, the driver/codec situation, and how
 much work this repo has to do. Candidates: stock `fedora-kinoite` (clean but missing
@@ -644,3 +645,54 @@ followed by `depmod` and BlueBuild's `initramfs` module.
   `ananicy-cpp`, `uksmd`) is **not** enabled. The kernel is one change to evaluate; system
   tuning that overlaps Aurora's own is another. Tracked as `IMG-006`.
 - CI cost roughly doubles: two images, built on every push and every night.
+
+---
+
+## DD-018 — Track the `latest` channel, not `beta`
+
+**Status:** Accepted — supersedes the tag half of [DD-002](#dd-002--base-on-ublue-osaurora-dx-tag-beta)
+
+**Context.** DD-002 chose the `beta` tag of `aurora-dx`, accepting "occasional upstream
+breakage in exchange for earlier fixes" on the grounds that the daily rebuild and
+`rpm-ostree` rollback made the risk acceptable.
+
+That reasoning did not survive contact with hardware. On an AMD ThinkPad T14 the standard
+image reached the Plymouth spinner and then went blank, with no login screen, having booted
+to a working desktop a month earlier. What the machine showed:
+
+- The kernel and console are fine. From a text console, `systemctl start
+  plasmalogin.service` blanks the screen on demand, and stopping the service does not give
+  the console back. The greeter's compositor **hangs holding the DRM master** instead of
+  crashing — which is why nothing is logged, `Ctrl+Alt+F2` does nothing, and
+  `Ctrl+Alt+Del` still reboots.
+- Nothing in this repository is implicated. It configures no display manager, no PAM stack,
+  no Plymouth theme beyond a watermark image, and no graphics settings. `dms` was the one
+  plausible route, because `plasmalogin` runs its greeter as a systemd *user* session and a
+  globally enabled `dms.service` would start inside it — but the unit is `disabled` on the
+  machine, exactly as DD-015 intends.
+
+`beta` tracks the *next* Fedora, so the machine was running a pre-release kernel and Mesa
+that most AMD users are not. An `amdgpu` hang on a compositor's first frame is precisely
+the class of regression that channel carries.
+
+The rollback argument in DD-002 also assumed the wrong failure mode. Rollback works when a
+bad update is *noticed*; it does not help when the failure is a black screen with no
+console, no SSH, and no journal — the failing boots died before `systemd-journal-flush`
+persisted anything, so the evidence needed to diagnose them was destroyed by the failure
+itself.
+
+**Decision.** Set `image-version: latest` in both recipes.
+
+**Consequences.**
+- The image tracks the current *stable* Fedora. Upstream fixes arrive later; so do
+  upstream regressions, after a wider set of machines has hit them first.
+- Both variants must keep the same channel. They are meant to differ **only** in the
+  kernel, so `recipe.yml` and `recipe-cachyos.yml` change together.
+- The daily rebuild (DD-009) is unchanged and still picks up stable updates within a day.
+- Moving *back* to `beta` remains a one-line change if this project ever wants early access
+  again — ideally on a variant, so the machine that needs to boot is not the machine
+  testing the pre-release stack.
+- **This fix is probable, not proven.** No kernel log was recovered, for the reason above.
+  If the blank screen survives the rebase, the base image is exonerated and the fault is
+  the hardware or a regression already in stable; the next step is then to bisect against
+  `ghcr.io/ublue-os/aurora-dx:latest` directly, with this repository out of the picture.

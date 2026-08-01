@@ -25,9 +25,12 @@ description: Customized OS Image, built with BlueBuild, based on Universal Blue 
 # Aurora DX = Fedora Kinoite (KDE Plasma) + Universal Blue fixes + developer tooling,
 # which is why the package list is so short. DD-002.
 base-image: ghcr.io/ublue-os/aurora-dx
-# A release CHANNEL, not a Fedora version: `beta` gets upstream changes earlier than
-# `latest`. A major Fedora jump only happens when this value is deliberately changed.
-image-version: beta
+# A release CHANNEL, not a Fedora version. `latest` tracks the CURRENT STABLE Fedora;
+# `beta` tracks the next one and gets upstream changes earlier. A major Fedora jump only
+# happens when this value is deliberately changed.
+# Was `beta` until a pre-release amdgpu/Mesa regression hung the login compositor on real
+# hardware. DD-018 supersedes DD-002.
+image-version: latest
 
 # ── Modules (executed in order) ───────────────────────────────────────────────
 modules:

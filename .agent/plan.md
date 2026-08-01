@@ -326,6 +326,39 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
 
 ## Open
 
+### Boot regressions
+
+- [ ] **IMG-011** — Move the base image from the `beta` channel to `latest`
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Reported 2026-07-31: on an AMD ThinkPad T14, the standard image reaches the
+    Plymouth spinner and then goes blank, with no login screen.
+    Diagnosed as far as the hardware allows. Established on the machine:
+    - The kernel and console are fine — from a text console,
+      `systemctl start plasmalogin.service` blanks the screen on demand, and stopping it
+      does not give the console back. The greeter's compositor **hangs holding the DRM
+      master** rather than crashing, which is why nothing is logged, `Ctrl+Alt+F2` does
+      nothing, and `Ctrl+Alt+Del` still reboots.
+    - The same image booted to a working desktop a month earlier and ran for ~50 minutes,
+      so this is a regression that arrived with an update, not a broken recipe.
+    - Nothing in this repository is implicated. It configures no display manager, no PAM,
+      no Plymouth theme beyond a watermark, and no graphics settings. `dms` was the one
+      plausible route — `plasmalogin` runs its greeter as a systemd user session, so a
+      globally enabled `dms.service` would start inside it — and
+      `systemctl --user --global is-enabled dms.service` returns `disabled` on the machine.
+    That leaves the base image. `beta` tracks the *next* Fedora, so the machine is running a
+    pre-release kernel and Mesa that most AMD users are not, and an `amdgpu` display hang on
+    a compositor's first frame is exactly the class of regression that channel carries.
+    **This is a probable fix, not a proven one** — no kernel log was recovered, because the
+    failing boots die before the journal is flushed. It is one line, and rebasing is
+    reversible, which is why it is worth trying before anything more invasive.
+  - **Acceptance criteria:**
+    - Both recipes build from `image-version: latest`
+    - DD-002 is superseded, not rewritten, by a record explaining the trade that changed
+    - `docs/`, `README.md`, `AGENTS.md`, and `.agent/context/recipe.md` no longer describe
+      the project as tracking `beta`
+    - The user confirms the rebased image reaches a login screen *(open — needs hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

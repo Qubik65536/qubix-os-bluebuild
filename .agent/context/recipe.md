@@ -32,8 +32,11 @@ described here or in `files/system/`.
 
 - **Identity:** `name: qubix-os-bluebuild` → published as
   `ghcr.io/qubik65536/qubix-os-bluebuild`. Changing it breaks existing rebases.
-- **Base:** `ghcr.io/ublue-os/aurora-dx`, `image-version: beta`. `beta` is a *channel*, not
-  a Fedora version (DD-002).
+- **Base:** `ghcr.io/ublue-os/aurora-dx`, `image-version: latest`. A *channel*, not a Fedora
+  version: `latest` is the current stable Fedora, `beta` the next one. Was `beta` until a
+  pre-release amdgpu/Mesa regression hung the login compositor on real hardware
+  (DD-002, superseded by DD-018). **Both recipes must carry the same channel** — the
+  variants are meant to differ only in the kernel.
 - **Composition:** `from-file: common-base.yml` → `from-file: common-identity.yml` →
   `type: signing`. Rendered module order, unchanged by the split:
 

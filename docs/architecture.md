@@ -19,7 +19,7 @@ How a commit in this repository becomes a bootable operating system.
  │  + recipes/common-*.yml (shared modules) │
  │  BlueBuild renders each to a Containerfile│
  └──────────────────────────────────────────┘
-              │  FROM ghcr.io/ublue-os/aurora-dx:beta
+              │  FROM ghcr.io/ublue-os/aurora-dx:latest
               ▼
  ┌──────────────────────────────────────────┐
  │ Modules execute in order (see below)     │
