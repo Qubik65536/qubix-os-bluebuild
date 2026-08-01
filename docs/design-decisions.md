@@ -696,3 +696,55 @@ itself.
   If the blank screen survives the rebase, the base image is exonerated and the fault is
   the hardware or a regression already in stable; the next step is then to bisect against
   `ghcr.io/ublue-os/aurora-dx:latest` directly, with this repository out of the picture.
+
+---
+
+## DD-019 — Hide the Xwayland Video Bridge in Niri, rather than stopping it
+
+**Status:** Accepted
+
+**Implements:** `IMG-012`
+
+**Context.** A fresh Niri login showed an empty desktop: no wallpaper, no
+DankMaterialShell bar, and no application windows. Niri itself was healthy throughout —
+keybinds worked, DMS's IPC answered, and hammering a keybind or switching workspaces
+eventually brought the whole session up, correct and functional from then on.
+
+The cause is `xwaylandvideobridge` — the "Wayland to X Recording bridge", an Aurora/KDE
+component that republishes a Wayland screen capture as an X11 window so X11 applications
+(Discord, Zoom, OBS) can record the screen. It ships an XDG autostart entry, and
+`niri.service` pulls in `xdg-desktop-autostart.target`, so it starts under Niri as well as
+under Plasma.
+
+The bridge is **designed to be invisible** and delegates that to the compositor: KDE ships
+a KWin rule that hides it. Niri has no equivalent, so the window simply opens
+([niri#2367](https://github.com/niri-wm/niri/issues/2367)). It takes focus at login and
+covers the session, which is why the desktop looked dead rather than merely cluttered.
+
+Three options:
+
+| Option | Cost |
+|---|---|
+| Remove the package | Breaks X11 screen sharing in **both** sessions, and violates DD-013 |
+| Mask its autostart entry under Niri | Breaks X11 screen sharing in the Niri session only; a `/etc/xdg/autostart/` override that has to track the upstream file |
+| Hide the window with a niri window rule | The bridge keeps working; the rule lives in a file this project already owns |
+
+**Decision.** Add a `window-rule` to `/etc/niri/config.kdl` matching
+`app-id=^xwaylandvideobridge$` that opens the window floating, unfocused, non-fullscreen,
+one logical pixel across, in a corner, at zero opacity. This is niri's equivalent of the
+KWin rule KDE ships, and it is what upstream's design expects a compositor to provide.
+
+**Consequences.**
+- X11 screen sharing keeps working in the Niri session. Nothing is removed or disabled, so
+  DD-013 holds.
+- `open-fullscreen false` is deliberate belt-and-braces: a fullscreen window in niri
+  renders *above* the top layer, which would hide the DMS bar as well as other windows.
+- The rule is keyed on an app-id owned by an upstream KDE component. If that app-id ever
+  changes, the rule silently stops matching and the blank window returns. It is worth
+  re-checking when Aurora makes a major Plasma jump.
+- This is the general shape of the problem, not a one-off: anything KDE that XDG-autostarts
+  and expects a KWin rule to tidy it up will misbehave under Niri. Where that recurs, the
+  answer is another window rule in the same file, not pruning KDE packages.
+- **Fix is reasoned, not yet verified on hardware.** There is no local build; it is
+  confirmed when a Niri login on the rebased image comes up clean. `IMG-012` stays open
+  until then.

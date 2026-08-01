@@ -14,7 +14,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 |---|---|---|
 | `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
-| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds (DD-014, DD-015) |
+| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; window rule hiding the Xwayland Video Bridge (DD-014, DD-015, DD-019) |
 | `usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | systemd user manager | `Wants=dms.service`, so the shell starts under Niri **only** (DD-015) |
 
 `etc/xdg/kdeglobals` is a **fragment**, not a replacement — KConfig merges every
@@ -22,6 +22,14 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 `/etc/xdg:/usr/share/kde-settings/kde-profile/default/xdg`, so `/etc/xdg` wins for the
 keys it names and inherits everything else. Do **not** add a `kdeglobals` under
 `usr/share/kde-settings/…` — that path already exists upstream and would be overwritten.
+
+`xwaylandvideobridge` XDG-autostarts and `niri.service` pulls in
+`xdg-desktop-autostart.target`, so KDE components reach the Niri session. The bridge
+expects the compositor to hide it — KDE ships a KWin rule; niri does not — so without the
+window rule in `etc/niri/config.kdl` it opens a blank window over a fresh session and the
+desktop looks dead (DD-019). **Anything else KDE that autostarts and relies on a KWin rule
+will do the same**; the answer is another window rule in that file, never removing a KDE
+package.
 
 `dms.service` is left **disabled** on purpose. It ships
 `WantedBy=graphical-session.target`, so enabling it would start DankMaterialShell inside

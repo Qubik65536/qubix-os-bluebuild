@@ -82,6 +82,114 @@ accent colour once it exists. Until then the config's own Qubix green applies.
 The include sits at the **end** of the config on purpose: niri includes are positional and
 override whatever was set before them.
 
+### When the Niri session shows nothing
+
+Niri comes up and the keybinds work, but the screen stays empty — no wallpaper, no top
+bar, and nothing when you open an application. Tracked as **IMG-012** in
+[`../.agent/plan.md`](../.agent/plan.md).
+
+#### Known cause: the Xwayland Video Bridge
+
+**Images built before IMG-012 land with a blank Niri desktop.** `xwaylandvideobridge` —
+"Wayland to X Recording bridge" — is a KDE component that republishes a Wayland screen
+capture as an X11 window, so Discord, Zoom, and OBS can record the screen. It XDG-autostarts
+and niri pulls in `xdg-desktop-autostart.target`, so it runs here too.
+
+It is meant to be invisible and leaves that to the compositor. KDE ships a KWin rule that
+hides it; niri has no equivalent, so it just opens ([niri#2367]). It takes focus at login
+and covers the session, which is why the desktop looks dead rather than merely cluttered.
+
+The symptoms are distinctive, and none of them are display faults:
+
+- The session starts by showing niri's "Important Hotkeys" cheatsheet, so niri is
+  compositing and presenting fine.
+- Keybinds, DMS's IPC, and every client work throughout.
+- Hammering a keybind, or switching workspaces, brings the whole session up at once —
+  correct, and functional from then on.
+
+Confirm it in one command:
+
+```bash
+niri msg windows        # look for app-id `xwaylandvideobridge`
+```
+
+The image now ships a window rule in `/etc/niri/config.kdl` that hides it, the same way
+KDE's KWin rule does — see DD-019. Rebase to pick it up. If you keep a personal
+`~/.config/niri/config.kdl`, that file wins and you need to copy the rule across yourself.
+
+[niri#2367]: https://github.com/niri-wm/niri/issues/2367
+
+#### Something else is covering the session
+
+The same shape — niri healthy, screen apparently dead — happens with anything that
+XDG-autostarts and expects a KWin rule to tidy it up. `niri msg windows` names it. The fix
+is another window rule in `/etc/niri/config.kdl` alongside the bridge's, not removing the
+KDE package; DD-013 and DD-019 both apply.
+
+#### Nothing renders at all
+
+If nothing is covering the session and the display really is dead, run these in a terminal
+inside the failing session. If `Mod+T` gives you no window, switch
+to a text console with `Ctrl+Alt+F3`, log in, and prefix each command with
+`XDG_RUNTIME_DIR=/run/user/$(id -u)`.
+
+**1. Does niri know the windows exist?** This is the decisive question.
+
+```bash
+niri msg windows
+niri msg layers
+niri msg outputs
+```
+
+- **Windows are listed but nothing is on screen** — the compositor is tracking them and
+  the frames are not reaching the display. Check `niri msg outputs` in the same breath:
+  content drawn onto a second, logically-enabled output is indistinguishable from content
+  never drawn at all. If the panel holds a stale image only when the screen is idle, that is
+  Panel Self Refresh; `rpm-ostree kargs --append=amdgpu.dcdebugmask=0x10` disables it on AMD
+  laptops, at some battery cost, and `--delete=` backs it out.
+- **Nothing is listed** — clients are not reaching niri's Wayland socket, and the process
+  that briefly drew the top bar is the only one that got through.
+- **A surface on the `overlay` layer covers the output** — DMS's lock screen is drawn
+  there. A lock surface that has engaged but rendered blank hides windows and shell alike
+  while leaving niri's binds working.
+
+**2. Read niri's own log.** More often than not it names the fault outright — a GL or DRM
+error, a config parse failure, or a spawned command that could not be executed.
+
+```bash
+journalctl --user -u niri.service -b --no-pager
+```
+
+**3. Is it niri, or is it the machine?** Log out and log in to **Plasma**. The greeter and
+the Plasma session are both Wayland compositors on the same GPU; if they render and niri
+does not, the graphics stack is fine and the fault is niri-specific. If Plasma is also
+broken, see the boot notes on IMG-011 — this hardware has hung a compositor before.
+
+#### Only the shell is missing
+
+If applications open normally and just the bar and wallpaper are absent:
+
+```bash
+systemctl --user status dms.service
+tr '\0' '\n' < /proc/"$(pgrep -nf 'qs -p')"/environ | grep -E 'QT_QPA|WAYLAND_DISPLAY'
+dms doctor
+```
+
+`inactive` means niri's drop-in was not applied — check that
+`/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` exists and that nothing in
+`~/.config/systemd/user/niri.service.d/` overrides it. A start-timeout means the unit ran
+but systemd never saw it claim `org.freedesktop.Notifications`, the D-Bus name it declares
+as its `Type=dbus` name.
+
+`QT_QPA_PLATFORM` matters because DMS sets `wayland;xcb` **only when the variable is
+unset** — a fallback chain. If the Wayland plugin cannot connect, Qt silently falls back to
+`xcb` and runs the shell through niri's Xwayland, where there is no layer-shell protocol at
+all: the bar and wallpaper can never map, while ordinary windows and the whole IPC surface
+keep working normally.
+
+Report what you find to IMG-012. The fix belongs in the image, not in your home directory —
+please do not paper over it with per-user config before it is recorded.
+
 ## Niri configuration
 
 | Path | Role |

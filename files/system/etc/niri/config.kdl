@@ -92,6 +92,37 @@ window-rule {
     draw-border-with-background false
 }
 
+// Xwayland Video Bridge — hide it, do not remove it.
+//
+// The bridge (`xwaylandvideobridge`, "Wayland to X Recording bridge") is an Aurora/KDE
+// component that republishes a Wayland screen capture as an X11 window, so X11 apps —
+// Discord, Zoom, OBS — can record the screen. It XDG-autostarts, and niri's unit pulls in
+// xdg-desktop-autostart.target, so it starts in this session too.
+//
+// It is designed to be INVISIBLE and relies on the compositor to make it so: KDE ships a
+// KWin rule for exactly that. Niri has no such rule, so the bridge opens as a blank window
+// over a fresh session — see https://github.com/niri-wm/niri/issues/2367. This rule is
+// niri's equivalent of the KWin one. The bridge keeps working; it just stops being drawn.
+//
+// The window is NOT removed or disabled, per DD-013: nothing that ships with Plasma is
+// taken away from the Niri session. See DD-019.
+window-rule {
+    match app-id=r#"^xwaylandvideobridge$"#
+
+    // Out of the tiling layout, so it cannot take a column and push windows aside.
+    open-floating true
+    // It must not steal focus at login — that is what made the session look dead.
+    open-focused false
+    // Belt and braces: a fullscreen window renders ABOVE the top layer in niri, which
+    // would hide the DankMaterialShell bar as well as every other window.
+    open-fullscreen false
+    // One logical pixel, parked in the corner, fully transparent.
+    default-column-width { fixed 1; }
+    default-window-height { fixed 1; }
+    default-floating-position x=0 y=0 relative-to="bottom-right"
+    opacity 0.0
+}
+
 // ── Key bindings ──────────────────────────────────────────────────────────────
 // "Mod" is Super (the Meta/Windows key) in a normal session.
 //

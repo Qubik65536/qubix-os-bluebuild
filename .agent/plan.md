@@ -322,13 +322,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       layer
     - DD-017 records why the kernel is unsigned and what the durable alternative is
 
----
-
-## Open
-
 ### Boot regressions
 
-- [ ] **IMG-011** — Move the base image from the `beta` channel to `latest`
+- [x] **IMG-011** — Move the base image from the `beta` channel to `latest`
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Reported 2026-07-31: on an AMD ThinkPad T14, the standard image reaches the
@@ -357,7 +353,66 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - DD-002 is superseded, not rewritten, by a record explaining the trade that changed
     - `docs/`, `README.md`, `AGENTS.md`, and `.agent/context/recipe.md` no longer describe
       the project as tracking `beta`
-    - The user confirms the rebased image reaches a login screen *(open — needs hardware)*
+    - The user confirms the rebased image reaches a login screen — **confirmed 2026-08-01**,
+      the machine now boots to the greeter and logs in
+
+---
+
+## Open
+
+### Desktop sessions
+
+- [ ] **IMG-012** — Hide the Xwayland Video Bridge in the Niri session
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Reported 2026-08-01 against the `latest`-based standard image: a Niri login
+    showed an empty desktop — no wallpaper, no DankMaterialShell bar, no application
+    windows — while niri itself stayed healthy the whole time.
+    **Cause, identified by the user on the machine:** `xwaylandvideobridge`, the "Wayland
+    to X Recording bridge". It XDG-autostarts, `niri.service` pulls in
+    `xdg-desktop-autostart.target`, and the bridge is designed to be invisible but leaves
+    that to the compositor — KDE ships a KWin rule, niri has none, so the window just opens
+    and takes the session (<https://github.com/niri-wm/niri/issues/2367>).
+    Every symptom follows from that, and none of them were display faults: the session
+    opened on niri's hotkey-overlay cheatsheet (so niri composited *and* presented), binds
+    and DMS's IPC answered throughout, and hammering a keybind or switching workspaces
+    brought everything up at once and correct.
+    **Fixed by** a `window-rule` in `files/system/etc/niri/config.kdl` matching
+    `app-id=^xwaylandvideobridge$` — floating, unfocused, non-fullscreen, one pixel, corner,
+    zero opacity. DD-019 records why hiding beats removing or masking the autostart.
+    Dead ends, recorded so they are not re-proposed:
+    - **Panel Self Refresh — tested and refuted on the machine.** A window running
+      `watch -n0.1 date` updated smoothly; after quitting it and letting the screen go
+      quiet, `Mod+T` showed a new WezTerm normally. The panel takes frames from an idle
+      screen. **`amdgpu.dcdebugmask=0x10` is not the fix and must not be shipped.**
+    - **Quickshell falling back to the `xcb` QPA platform.** `dankgo/shellapp/env.go` sets
+      `QT_QPA_PLATFORM=wayland;xcb` only when unset, so it is a real possibility — but it
+      costs layer-shell and nothing else, and would not have hidden application windows.
+    - **`dms.service` failing to claim `org.freedesktop.Notifications`** (it is `Type=dbus`
+      on that name). Same objection: it explains a missing shell, not a missing desktop.
+    Established by inspection and still true, worth keeping if the *shell alone* ever goes
+    missing:
+    - **The layer rule does not hide the bar.** niri's `place_within_backdrop()`
+      (`src/layer/mapped.rs`) returns false unless the surface is on the **Background**
+      layer *and* ignores the exclusive zone. DMS's bar is `dms:bar` on Top/Overlay, so it
+      never matches `^quickshell$`.
+    - **The backdrop does not swallow the wallpaper.** `src/niri.rs` renders backdrop layer
+      surfaces in the normal path too, beneath the workspaces, so with
+      `background-color "transparent"` the wallpaper shows outside the overview. Rule plus
+      transparent background is upstream DMS's own documented setup.
+    - **The unit wiring is sound.** Fedora's `niri.desktop` runs `niri-session`, which does
+      `systemctl --user --wait start niri.service`, so the `/usr/lib/systemd/user/` drop-in
+      is evaluated; `Wants=` pulls a *disabled* unit in regardless, and the order resolves
+      to niri → `graphical-session.target` → dms.
+    - **No environment race.** `niri --session` runs `systemctl --user import-environment`
+      and **waits for it** before sending `READY=1`.
+  - **Acceptance criteria:**
+    - `/etc/niri/config.kdl` carries a window rule that hides `xwaylandvideobridge`, with a
+      comment explaining what the bridge is and why it is hidden rather than removed
+    - Nothing KDE is removed or disabled to achieve it (DD-013 holds)
+    - `DD-019`, `docs/desktops.md`, and `.agent/context/files-system.md` cover the change
+    - A Niri login on the rebased image comes up with wallpaper, bar, and working windows,
+      on a fresh account, with no per-user setup *(open — needs a build and hardware)*
 
 ### Image variants
 
