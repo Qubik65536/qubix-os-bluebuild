@@ -40,6 +40,7 @@ Run the standard image unless you specifically want the CachyOS kernel.
 | [Design decisions](docs/design-decisions.md) | Why the project is built this way (`DD-001`…) |
 | [Recipe reference](docs/recipe-reference.md) | Every file and module in `recipes/` |
 | [Variants](docs/variants.md) | The published images, how they differ, how to switch |
+| [Shell](docs/shell.md) | The terminal environment: prompt, shell, history, editor |
 | [Branding](docs/branding.md) | Which asset overrides which upstream path |
 | [Build & release](docs/build-and-release.md) | CI, signing, tags, failure triage |
 | [Usage](docs/usage.md) | Install, update, roll back, verify |

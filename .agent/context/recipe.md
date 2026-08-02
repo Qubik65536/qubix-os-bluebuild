@@ -20,9 +20,9 @@ described here or in `files/system/`.
 - **Headers:** `yaml-language-server` schema comments — `recipe-v1` for recipes,
   `module-list-v1` for shared module lists. Keep them.
 - **Shared files (DD-016):**
-  - `common-base.yml` — modules 1–3: `files`, `dnf`, `default-flatpaks`. Everything that
-    makes an image "Qubix OS".
-  - `common-identity.yml` — module 4: the `os-release` rewrite. Split out because of its
+  - `common-base.yml` — modules 1–4: `files`, `dnf`, `default-flatpaks`, `containerfile`
+    (zsh completions + login-shell check). Everything that makes an image "Qubix OS".
+  - `common-identity.yml` — module 5: the `os-release` rewrite. Split out because of its
     ordering constraint (must run late).
   - `common-kernel-cachyos.yml` — the kernel swap. **`recipe-cachyos.yml` only.**
 - **`from-file:` takes no arguments.** A variant needing a different value re-does the work
@@ -43,10 +43,11 @@ described here or in `files/system/`.
   | # | Module | From | Effect | Ordering constraint |
   |---|---|---|---|---|
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
-  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`; install `micro`, `starship`, `wezterm`, `niri`, `dms` + fonts + `cliphist`; remove `firefox`, `firefox-langpacks` | before `default-flatpaks` |
+  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `lazygit`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
-  | 4 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
-  | 5 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
+  | 4 | `containerfile` | `common-base.yml` | Installs `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; asserts `/usr/bin/zsh` is in `/etc/shells` | after `dnf` (needs `zsh`, `git`) — DD-026, DD-028 |
+  | 5 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
+  | 6 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
 
 - **`os-release` result:** `ID=qubix_os_bluebuild`, `NAME="QubixOS-BlueBuild"`,
   `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)"`. All other upstream
@@ -115,6 +116,21 @@ described here or in `files/system/`.
   `cliphist`); enabling only the first leaves `dms` uninstallable (DD-015).
 - DMS's fonts are **not** hard RPM dependencies, so they are listed explicitly. Without
   `material-symbols-fonts` every icon in the shell is a missing-glyph box.
+- **`zsh-completions` is a build step, not a package.** Fedora does not ship it and the
+  `@zsh-users/zsh-completions` COPR has **no chroots at all** — verified against the COPR
+  API, so do not "simplify" it back into the `dnf` list. The clone is pinned by tag *and*
+  asserted by commit hash: bumping it means changing **both**, and a moved tag fails the
+  build on purpose (DD-026).
+- `git` is in the package list on purpose: the module above it needs `git clone`, and
+  "Aurora DX surely has git" is not something a build should rest on.
+- **Installing the shell tools is half the job.** The configuration is in the overlay
+  (`files/system/etc/zshenv`, `etc/profile.d/`, `usr/share/qubix-os/shell/`). Adding a
+  package here does not put it in anyone's shell.
+- `zsh` is the intended login shell, but nothing in `recipes/` can make it so:
+  `/etc/passwd` is per machine. `files/system/etc/default/useradd` covers accounts created
+  from now on; an existing one takes one `chsh` (DD-030). The second `containerfile`
+  snippet asserts that zsh registered itself in `/etc/shells`, which is exactly what `chsh`
+  validates against.
 - No templating in the `files` module. Anything needing a build-time value must go through
   `containerfile`.
 - Flatpaks are seeded on first boot, not baked in.

@@ -44,6 +44,12 @@ modules:
         # `danklinux` repo. Enabling only the first leaves `dms` uninstallable.
         - avengemedia/dms
         - avengemedia/danklinux
+        # yazi is not packaged by Fedora. This COPR builds it for the current and next
+        # Fedora, and is the one yazi's own installation docs point Fedora users at. DD-026.
+        - lihaohong/yazi
+        # lazygit is not packaged by Fedora either. Same maintainer as atim/starship above,
+        # so this adds a package rather than a party to trust. DD-026.
+        - atim/lazygit
     install:
       packages:
         - micro # lightweight terminal editor
@@ -70,6 +76,43 @@ modules:
         - rsms-inter-fonts
         # Clipboard history backend behind the shell's clipboard panel (Mod+V).
         - cliphist
+        # ── Terminal environment ──────────────────────────────────────────────
+        # The shell, its editor, and the tools they call. Configuration for all of it is
+        # in the overlay — files/system/etc/zshenv, etc/profile.d/ and
+        # usr/share/qubix-os/shell/ — so installing these packages is only half the job.
+        # DD-026, DD-030.
+        #
+        # zsh is the intended login shell, but nothing in this file can make it so: that
+        # lives in /etc/passwd, per account, and an image cannot write another machine's
+        # /etc/passwd. files/system/etc/default/useradd covers accounts created from now
+        # on; one that already exists takes a single `chsh -s /usr/bin/zsh`. DD-030.
+        # Bash stays fully configured regardless — moving back is `chsh -s /bin/bash`.
+        - zsh
+        - zsh-autosuggestions # the greyed-out suggestion from history
+        - zsh-syntax-highlighting # command colouring as you type
+        # Shell history in a local SQLite database, searchable from every terminal.
+        # Wired into zsh only — its bash integration needs bash-preexec, which Fedora does
+        # not package. See files/system/usr/share/qubix-os/shell/qubix.bash.
+        - atuin
+        - bat # cat with syntax highlighting; aliased over `cat` interactively
+        - yazi # terminal file browser (from the COPR above)
+        # The editor. Its CONFIG is deliberately not shipped: ~/.config/nvim is the
+        # user's, from a documented `git clone` of LazyVim's starter, which is also what
+        # makes `git pull` update it later. DD-030.
+        - neovim
+        # What LazyVim's default keymaps shell out to, present so that the config the
+        # user clones works on the first run. Without these the keys exist and do nothing:
+        # ripgrep and fd-find back the pickers, fzf backs fuzzy selection, lazygit is
+        # <leader>gg, and git is how lazy.nvim installs every plugin on first launch.
+        - ripgrep
+        - fd-find
+        - fzf
+        - lazygit
+        - git
+        # A Nerd Font, for the prompt's glyphs and LazyVim's icons. WezTerm bundles a
+        # symbols fallback of its own (DD-012), so this is for every OTHER consumer —
+        # fontconfig resolves the glyphs from here for Konsole, DMS, and anything else.
+        - cascadia-mono-nf-fonts
     remove:
       packages:
         # Aurora layers Firefox as an RPM. It goes, for two reasons: a layered browser can
@@ -99,3 +142,47 @@ modules:
       # User scope — adds the Flathub user remote only, so per-user installs work
       # out of the box without any packages being forced on anyone.
       - scope: user # Also add Flathub user repo, but no user packages
+
+  # 4. zsh — completions, and a check that zsh is a usable login shell.
+  #
+  #    4a. zsh-completions: completion functions for tools zsh does not cover itself.
+  #    A raw build step because there is nothing to install FROM: Fedora does not package
+  #    zsh-completions, and the @zsh-users/zsh-completions COPR has no chroots at all —
+  #    not for the current Fedora, not for any. Verified against the COPR API, not assumed.
+  #
+  #    So: a pinned upstream tag, and the clone is only trusted after `rev-parse` matches
+  #    the commit that tag pointed at when this was written. A tag can be moved; a commit
+  #    hash cannot. If upstream ever re-points 0.36.0, the build FAILS here rather than
+  #    silently shipping something else — which is the intended behaviour.
+  #
+  #    /usr/share/zsh/site-functions is already on zsh's default $fpath, so nothing in the
+  #    shell configuration has to add it. `git` is installed by the module above rather
+  #    than assumed present on Aurora DX.
+  #
+  #    To bump: change BOTH the tag and the hash, from
+  #    https://github.com/zsh-users/zsh-completions/releases.
+  #
+  #    Ordering: after `dnf`, which installs zsh and git. DD-026.
+  - type: containerfile
+    snippets:
+      - |
+        RUN set -eu; \
+            tmp="$(mktemp -d)"; \
+            git clone --quiet --depth 1 --branch 0.36.0 \
+                https://github.com/zsh-users/zsh-completions.git "$tmp"; \
+            test "$(git -C "$tmp" rev-parse HEAD)" = "28c5bdcaf81bb89e56d0df8267d822c3b8aed9e0"; \
+            install -d -m 0755 /usr/share/zsh/site-functions; \
+            install -m 0644 "$tmp"/src/_* /usr/share/zsh/site-functions/; \
+            rm -rf "$tmp"; \
+            ls /usr/share/zsh/site-functions | wc -l
+
+      #    4b. Assert that zsh registered itself as a valid login shell.
+      #        zsh's %post appends /usr/bin/zsh and /bin/zsh to /etc/shells on first
+      #        install, and scriptlets DO run in this build — unlike the CachyOS kernel
+      #        install, which disables them on purpose (DD-017).
+      #        This matters because `chsh` — the one command every existing account runs
+      #        to move to zsh — validates against /etc/shells. Without the entry it fails
+      #        with "chsh: /usr/bin/zsh is not a valid shell" and nothing explains why.
+      #        Cheap, and it fails the build instead of the user. DD-028, DD-030.
+      - |
+        RUN grep -qx '/usr/bin/zsh' /etc/shells

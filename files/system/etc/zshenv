@@ -1,0 +1,26 @@
+# Read by: zsh, on every invocation, before anything else.
+#
+# REPLACES Fedora's /etc/zshenv, which contains nothing but comments — so nothing upstream
+# is lost here. That is exactly why this file was chosen over /etc/zshrc, which carries
+# real behaviour (the /etc/profile.d loop) that would have to be reproduced and kept in
+# step forever.
+#
+# WHY NOT /etc/profile.d, where the bash half lives: zsh sources those files from inside a
+# function that has run `emulate -L ksh`, so KSH_ARRAYS and SH_WORD_SPLIT are in force —
+# not the language zsh plugin scripts are written in.
+#
+# ORDERING. This runs BEFORE ~/.zshrc, which has one good consequence and one cost:
+#   + a user's own ~/.zshrc always wins, with nothing here to undo;
+#   - zsh-syntax-highlighting only wraps the ZLE widgets that exist when it is sourced, so
+#     widgets a user defines in their ~/.zshrc are not highlighted. Sourcing it from the
+#     end of ~/.zshrc would fix that and would mean writing into each user's home
+#     directory, which is not worth it. See docs/shell.md.
+#
+# See docs/design-decisions.md DD-030.
+
+# Interactive shells only — this file is read by every zsh, including every script.
+# `rcs` is unset by `zsh -f`: someone starting a deliberately bare shell gets one. (zsh
+# reads /etc/zshenv even with -f, which is why the check has to be explicit.)
+if [[ -o interactive && -o rcs && -r /usr/share/qubix-os/shell/qubix.zsh ]]; then
+    source /usr/share/qubix-os/shell/qubix.zsh
+fi

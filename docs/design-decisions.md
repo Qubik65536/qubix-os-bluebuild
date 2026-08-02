@@ -1105,3 +1105,343 @@ literal `"custom"`, and `customThemeFile` — and nothing else.
 - The niri config is now two files where it was one. That is the cost of letting a personal
   config track the theme, and it is worth it: the alternative is telling users not to
   customise their compositor.
+
+---
+
+## DD-026 — Wire the shell from a one-line pointer in each user's rc file
+
+**Status:** Accepted
+
+**Status (delivery):** the pointer-seeding mechanism below is **superseded by**
+[DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder). The
+three-layer split, and every reason given here for what may not go in `/etc/profile.d`,
+still stand.
+
+**Amended by:** [DD-028](#dd-028--make-zsh-the-login-shell-once-per-account) *(the "zsh is
+not made the default shell" consequence below only)*, itself superseded by DD-030.
+
+**Implements:** `IMG-015`
+
+**Context.** `starship` has been installed since DD-007 and was never initialised — no
+shell in the image ever ran `starship init`, so the prompt was dead weight for as long as
+it has been in the package list. Fixing that, and adding atuin, the zsh plugins, bat and
+yazi around it, all reduce to one question: **where does an image put interactive shell
+configuration?**
+
+There are four hooks, and three of them are traps.
+
+**`/etc/profile.d/*.sh`** is the obvious one, and it cannot carry the zsh half. Fedora's
+`/etc/zshrc` sources those files from inside `_src_etc_profile_d()`, which runs
+`emulate -L ksh`. Anything sourced from there sees `KSH_ARRAYS` and `SH_WORD_SPLIT` — zero-
+based arrays and word splitting — which is not the language zsh plugin scripts are written
+in. Verified against Fedora's `zshrc.rhs`, not assumed.
+
+**Replacing `/etc/zshrc`** puts us in charge of that `profile.d` loop, and of the rest of
+Fedora's file, forever. The failure mode of getting it subtly wrong is that every
+`profile.d` script silently stops running under zsh, which is the kind of bug that takes a
+week to find.
+
+**Replacing `/etc/zshenv`** is safe in itself — Fedora's is comments only — but it is
+ordered wrong. It runs before `~/.zshrc`, and zsh-syntax-highlighting wraps the ZLE widgets
+that exist when it is sourced; upstream's `INSTALL.md` says it "must be the last plugin
+sourced".
+
+**The end of `~/.zshrc`** is where both plugin upstreams say to put this, and it is the
+only hook that is after `compinit` and after a user's own `zle -N` calls. It is not a
+system path, so it has to be *written* — which is the decision.
+
+**Decision.** Split the configuration in three, and seed only the pointer.
+
+| Layer | Where | Contains |
+|---|---|---|
+| Environment | `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`. Variables only — it is sourced under ksh emulation |
+| Content | `/usr/share/qubix-os/shell/` | The prompt, the plugin loading, the aliases |
+| Pointer | `~/.zshrc`, `~/.bashrc.d/50-qubix-shell.sh` | One `source` line, written once by `qubix-seed-home.service` |
+
+Bash needs no edit to `~/.bashrc`: Fedora's skeleton copy already loops over
+`~/.bashrc.d/`, so the seeder drops a file in.
+
+`STARSHIP_CONFIG` follows the same pointer discipline by a different mechanism: it is set
+to the image's config **only when `~/.config/starship.toml` does not exist**, so starship's
+own documented override keeps working and the image's prompt is never copied into `$HOME`.
+
+**Consequences.**
+- **A rebase changes the shell environment with nothing re-run.** The per-user state is one
+  line containing a path, and paths do not go stale. Same reasoning as DD-025.
+- **Seeded once, ever, per item, stamped in `~/.local/state/qubix-os/seeded/`.** Delete
+  what was seeded — including the `source` line — and it stays deleted. This is the
+  opposite of `qubix-dms-theme.service`, which re-asserts its pointer every session, and
+  the difference is deliberate: these are the user's own dotfiles. An image that restores a
+  line somebody removed on purpose is an image its owner ends up fighting.
+- **The seeder is enabled globally**, not scoped to a session like `dms.service` (DD-015).
+  A shell is a shell in Plasma, in Niri, and over SSH.
+- **zsh is not made the default shell.** The login shell is a per-account field in
+  `/etc/passwd`, which an image cannot set for an account that already exists; changing
+  `/etc/default/useradd` would only affect accounts created later, which on a personal
+  machine is none. So `chsh -s /usr/bin/zsh` is one documented command, and bash is
+  configured too so that not running it costs the four zsh-only tools and nothing else.
+- **atuin is wired into zsh only.** Its bash integration requires `bash-preexec`, which
+  Fedora does not package. Shipping a vendored copy of a second history-hooking layer for
+  the non-default shell is not worth it; the asymmetry is documented in
+  [`shell.md`](shell.md) instead of being left to be discovered.
+- **Anything a user adds below the loader line in `~/.zshrc` is not syntax-highlighted.**
+  That is inherent to "highlighting goes last" and is stated in the seeded block itself.
+- `zsh-completions` needed a build step rather than a package: Fedora does not ship it, and
+  the `@zsh-users/zsh-completions` COPR has no chroots for any current Fedora — checked
+  against the COPR API. It is installed from a pinned tag whose commit hash is asserted, so
+  a moved tag fails the build loudly instead of shipping something else quietly. Its
+  functions shadow zsh's own where both exist, which is what using zsh-completions means.
+- Two COPRs are added: `lihaohong/yazi` and `atim/lazygit`. Neither tool is in Fedora. The
+  second is run by the maintainer of `atim/starship`, already trusted since DD-007.
+- Cost: the terminal environment is now spread over six files. They are small, each names
+  its consumer in a header, and [`shell.md`](shell.md) maps all of them.
+
+---
+
+## DD-027 — Neovim's configuration belongs to the user, seeded once
+
+**Status:** Superseded by
+[DD-029](#dd-029--seed-the-neovim-config-as-a-git-clone-so-it-can-be-updated) *(the seeding
+mechanism only — the user's ownership of `~/.config/nvim` still stands)*, and in turn by
+[DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder), which stops
+the image seeding it at all
+
+**Implements:** `IMG-016`
+
+**Context.** The image ships Neovim configured with LazyVim, and the requirement attached
+to it was explicit: **edits to that configuration must persist.** On an image-based system
+that is not the default outcome, and the obvious placements all fail it.
+
+Neovim does read a system-wide config — `$XDG_CONFIG_DIRS/nvim`, i.e. `/etc/xdg/nvim` —
+which is how every other system-wide default in this repository works. It does not work
+here. LazyVim writes into its *config* directory: `lazy-lock.json` is the pinned plugin
+set, and `:Lazy update` rewrites it. A config directory in `/usr` or in a
+rebase-overwritten `/etc` is therefore broken from the first update, and a user editing it
+would lose their work at the next rebase regardless.
+
+**Decision.** `~/.config/nvim` is the user's. The LazyVim starter is vendored into the
+overlay at `/usr/share/qubix-os/nvim/` and copied there **once**, by
+`qubix-seed-home.service`, on the first login after a rebase. Nothing in the image ever
+writes to it again.
+
+This is the one place in this repository where seeding *contents* rather than a pointer is
+correct — the entire point is that the contents get edited. DD-026 covers the same seeder
+and the general rule it is an exception to.
+
+**Consequences.**
+- The config survives updates, rebases, and rollbacks, because nothing in the image has any
+  opinion about it after the first write.
+- A user who deletes `~/.config/nvim` gets vanilla Neovim, not the starter again. The stamp
+  in `~/.local/state/qubix-os/seeded/nvim` is what makes that true; deleting the stamp
+  re-seeds.
+- **Updating the vendored starter changes nothing for existing accounts.** That is the
+  price of the guarantee and it cannot be had both ways. New accounts get the new copy.
+- **First `nvim` launch needs network.** LazyVim bootstraps by cloning `lazy.nvim` and then
+  installing the plugin set. Pre-baking a plugin tree into `/usr` would defeat
+  `:Lazy update` and be reset by every rebase, so it is not done.
+- The starter is vendored, not cloned at build time, so the build does not depend on GitHub
+  being reachable and the seed is reviewable in a diff. Only `init.lua` carries a Qubix
+  header; every other file is upstream verbatim, Apache-2.0, with `LICENSE` alongside.
+- The tools LazyVim's default keymaps shell out to — `ripgrep`, `fd-find`, `fzf`,
+  `lazygit`, `git` — are installed with it. Shipping the keymaps without them would be
+  worse than not shipping the editor: the keys would exist and do nothing.
+- `$EDITOR` and `$VISUAL` become `nvim`, but only when unset, so an export in a user's own
+  rc file wins. `micro` stays installed (DD-007); this picks a default, it does not remove
+  a choice.
+
+---
+
+## DD-028 — Make zsh the login shell, once per account
+
+**Status:** Superseded by
+[DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder) *(the
+service is removed; zsh is still the intended login shell)*
+
+**Amends:** [DD-026](#dd-026--wire-the-shell-from-a-one-line-pointer-in-each-users-rc-file)
+*(its "zsh is not made the default shell" consequence)*
+
+**Implements:** `IMG-017`
+
+**Context.** DD-026 configured zsh thoroughly and then left the user in bash, on the
+grounds that the login shell is a per-account field in `/etc/passwd` and an image cannot
+write another machine's `/etc/passwd`. That reasoning is still correct; the conclusion
+drawn from it was wrong. It made the four zsh-only tools — autosuggestions, syntax
+highlighting, completions, atuin's history search — conditional on the owner reading the
+documentation and running a command, which is not what "configure zsh" means.
+
+`/etc/default/useradd` does not solve it. It sets the shell for accounts created *later*,
+and the account that matters on a personal machine was created at install time.
+
+So the change has to happen **on the machine, as root**, which means a system service —
+the only one this repository adds. `chsh` run as the user would prompt for a password,
+which a service does not have.
+
+**Decision.** `qubix-default-shell.service` runs at boot and sets `/usr/bin/zsh` as the
+login shell for human accounts, subject to three rules:
+
+| Rule | Why |
+|---|---|
+| Ordered `Before=systemd-user-sessions.service` | That unit is the gate that permits logins, so no account is logged in when `usermod` runs, and the first login of the boot is already in zsh |
+| UID 1000–60000 only | Human accounts. **`root` keeps bash**, so a broken zsh can never cost anyone their recovery shell |
+| Only replaces `/bin/bash` or `/usr/bin/bash`, once, stamped in `/var/lib/qubix-os/` | Bash is the inherited default. Anything else was a choice, and a choice is not something to overrule every boot |
+
+**Consequences.**
+- **A rebase gives you zsh at the next boot**, with no per-user action, which is what was
+  asked for.
+- **`chsh -s /bin/bash` sticks.** The account is already stamped, so nothing reverts it.
+  This is the property that makes the whole thing acceptable: the image gets one attempt at
+  each account, not a standing veto.
+- An account on fish, nushell, or anything else is stamped on the first boot and never
+  touched. Opting out ahead of time is `sudo touch
+  /var/lib/qubix-os/default-shell/<user>`.
+- **Bash stays fully configured** (DD-026), so moving back costs the four zsh-only tools
+  and nothing else. Nothing here removes bash or makes it second-class.
+- An account created *after* boot — a second user added later — gets zsh at the next boot,
+  or immediately with `sudo chsh -s /usr/bin/zsh <user>`. Shipping
+  `/etc/default/useradd` to close that window would mean replacing a `%config(noreplace)`
+  file owned by shadow-utils, for a case that happens approximately once.
+- The stamps live in `/var`, not `/etc`: machine state that must survive a rebase, and that
+  nobody should have to three-way merge.
+- The build now asserts `/usr/bin/zsh` is in `/etc/shells`. `usermod` does not care, but
+  `chsh` — the command in every one of these instructions — does, and a missing entry turns
+  the documented escape hatch into "chsh: /usr/bin/zsh is not a valid shell".
+- Cost: this repository now ships a **system** unit that modifies `/etc/passwd`. That is a
+  bigger hammer than anything else here, and it is why the once-ever stamp is not optional.
+
+---
+
+## DD-029 — Seed the Neovim config as a git clone, so it can be updated
+
+**Status:** Superseded by
+[DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder) *(the image
+no longer seeds it; the clone is now a command the user runs, and everything this record
+says about why it must be a clone is why)*
+
+**Supersedes:** [DD-027](#dd-027--neovims-configuration-belongs-to-the-user-seeded-once)
+*(the seeding mechanism only)*
+
+**Implements:** `IMG-018`
+
+**Context.** DD-027 copied the vendored LazyVim starter into `~/.config/nvim` as plain
+files. That guaranteed the config would never be overwritten — and made it impossible to
+update, because the two halves of a LazyVim installation update by completely different
+routes:
+
+| Half | Lives in | Updated by |
+|---|---|---|
+| LazyVim itself, and every plugin | `~/.local/share/nvim/lazy/` | `:Lazy update`. Already worked |
+| The starter config | `~/.config/nvim` | Nothing. It was a dead copy |
+
+Upstream does change the starter — `lua/config/lazy.lua`, the bootstrap, is where it
+happens — and a user had no way to receive that short of diffing by hand against
+`/usr/share`.
+
+**Decision.** Seed `~/.config/nvim` by **cloning `LazyVim/starter`**, so the config is a
+git repository whose `origin` is upstream. `git pull` is then the answer, and the user's
+own edits are commits on top of upstream's history.
+
+Network at first login is not a new requirement. LazyVim's own bootstrap clones `lazy.nvim`
+and the whole plugin set the first time `nvim` starts, so a config seeded offline could
+never have worked anyway. If the clone fails, nothing is stamped and the next login retries.
+
+**Consequences.**
+- **`git -C ~/.config/nvim pull` updates the config**, and `:Lazy update` updates
+  everything else. Both are documented in a `QUBIX.md` seeded alongside the config, so the
+  answer is in the directory rather than only in this repository.
+- **DD-027's guarantee is untouched.** The image still writes `~/.config/nvim` exactly
+  once and never again; what changed is what it writes.
+- The vendored copy stays as an **offline fallback**, and is now byte-identical to
+  upstream — the Qubix header that was in `init.lua` moved into `QUBIX.md`, so re-vendoring
+  is a straight copy and a diff against upstream is meaningful.
+- **The fallback's history is unrelated to upstream's**, because these are our commits of
+  the same files rather than upstream's commits. A first `git pull` there needs
+  `--allow-unrelated-histories`. That is a genuine wart; `QUBIX.md` states it, and gives
+  the one-line `git log` that tells you which path you got.
+- A failed clone removes its partial directory before falling back. A half-written config
+  is worse than none: the next login would see the directory, conclude the work was done,
+  and skip seeding forever.
+- `git commit` in the fallback runs with an identity passed on the command line, because a
+  fresh account has no `user.name` and git refuses to commit without one. Nothing is
+  written to the user's global git config to seed an editor.
+- `QUBIX.md` is added to `.git/info/exclude`, so it does not sit in `git status` as an
+  untracked file in a repository the user is about to start committing to.
+- Cost: first login now depends on GitHub being reachable, where a copy did not. The retry
+  makes it self-healing, and LazyVim already had the same dependency one step later.
+
+---
+
+## DD-030 — Configure the shell with system files, and no runtime seeder
+
+**Status:** Accepted
+
+**Supersedes:** [DD-026](#dd-026--wire-the-shell-from-a-one-line-pointer-in-each-users-rc-file)
+*(its delivery mechanism only)*,
+[DD-028](#dd-028--make-zsh-the-login-shell-once-per-account),
+[DD-029](#dd-029--seed-the-neovim-config-as-a-git-clone-so-it-can-be-updated)
+
+**Implements:** `IMG-019`
+
+**Context.** DD-026 to DD-029 delivered a shell environment, a login shell and an editor
+config using two Python scripts, two systemd units, two `.wants` symlinks, a stamp
+directory under `/var`, another under `~/.local/state`, and a clone-with-offline-fallback.
+That is a great deal of moving machinery for what is, in the end, a handful of
+configuration files. Judged not worth its complexity, and removed.
+
+The machinery grew from one true constraint and one false assumption.
+
+**The true constraint stands:** `/etc/profile.d/*.sh` cannot carry the zsh half, because
+Fedora's `/etc/zshrc` sources those files from inside a function that has run
+`emulate -L ksh`. Everything DD-026 says about that is still correct.
+
+**The false assumption** was that reaching zsh therefore meant writing into `~/.zshrc`.
+DD-026 rejected `/etc/zshenv` on ordering grounds — it runs before `~/.zshrc`, so
+zsh-syntax-highlighting cannot wrap a user's own widgets — and then paid for that ordering
+with a seeder, a systemd unit, stamps, and a block appended to a file the image does not
+own. **Fedora's `/etc/zshenv` is comments only.** Replacing it costs nothing, it is plain
+zsh at top level, and it reaches every account, including ones that already exist, with no
+per-user state at all.
+
+**Decision.** Ship files. Nothing in the image writes to `$HOME` or to `/etc/passwd` at
+runtime.
+
+| Concern | Before | Now |
+|---|---|---|
+| zsh setup | A line seeded into `~/.zshrc` | `/etc/zshenv`, which Fedora leaves empty |
+| bash setup | A file seeded into `~/.bashrc.d/` | The end of `/etc/profile.d/qubix-shell-env.sh` |
+| atuin | A config file seeded into `~/.config/atuin/` | `ATUIN_*` environment variables |
+| Login shell | A boot service running `usermod` | `/etc/default/useradd`, plus one documented `chsh` |
+| Neovim config | A clone run by the seeder, with a vendored fallback | One documented `git clone`, which is LazyVim's own install instruction |
+
+atuin turned out to need no file at all: it reads every setting from the environment —
+`Environment::with_prefix("atuin")` with `__` as the nesting separator, so `ATUIN_AUTO_SYNC`
+is the `auto_sync` key. Verified in its `settings.rs`, not assumed.
+
+**Consequences.**
+- **Six files and about four hundred lines of Python and unit definitions are gone.** What
+  remains is four configuration files in the overlay, all of which are read by something
+  that already exists.
+- **A rebase still updates everything**, and now more simply: there is no per-user copy to
+  go stale, because there is no per-user copy.
+- **zsh-syntax-highlighting does not wrap widgets defined in a user's own `~/.zshrc`.**
+  That is the cost DD-026 was avoiding. Anyone who defines widgets can re-source
+  `/usr/share/qubix-os/shell/qubix.zsh` at the end of their `~/.zshrc`; it is documented,
+  and it is one line for the few people it affects.
+- **`compinit` runs twice** for an account whose `~/.zshrc` came from Fedora's skeleton —
+  once here, once there. A few milliseconds, and deleting the skeleton's two lines is safe.
+  The alternative was not running it at all and breaking completion for anyone without a
+  `~/.zshrc`.
+- **An existing account needs one `chsh -s /usr/bin/zsh`.** This is where DD-028 started,
+  and where it should have stayed: `/etc/passwd` is per machine, and a boot service editing
+  it is a large hammer for a command the owner runs once, on one machine, ever.
+  `/etc/default/useradd` covers accounts created afterwards.
+- **Neovim is not configured until the user runs one `git clone`.** Everything DD-029
+  established about *why* it must be a clone — `git pull` is the only way the config gets
+  upstream's changes — still holds; the difference is who runs it. The vendored starter and
+  its offline fallback are gone with it.
+- Two upstream files are now replaced rather than added to: `/etc/zshenv` (empty, so
+  nothing is lost) and `/etc/default/useradd` (eight lines, of which one differs). Both are
+  `%config(noreplace)`, both are small and stable, and both say in a header comment what
+  upstream's version contains. That is the residual cost of the simpler design.
+- The build-time assertion that `/usr/bin/zsh` is in `/etc/shells` (DD-028) is kept, and
+  matters more now: `chsh` is the documented path for every existing account, and `usermod`
+  — which ignored `/etc/shells` — is no longer involved at all.

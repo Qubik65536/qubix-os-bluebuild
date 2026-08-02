@@ -32,7 +32,7 @@ image-version: latest
 
 # ── Modules (executed in order) ───────────────────────────────────────────────
 modules:
-  # Overlay, packages, flatpaks — shared with every variant, byte for byte.
+  # Overlay, packages, flatpaks, zsh-completions — shared with every variant, byte for byte.
   - from-file: common-base.yml
 
   # Kernel swap: Fedora's kernel out, CachyOS's in, plus the packages the removal takes

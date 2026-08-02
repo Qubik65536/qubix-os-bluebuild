@@ -43,6 +43,10 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Identity | `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` rewritten to Qubix OS | `recipe.yml` (containerfile snippet) |
 | Branding | Distro logos, banners, Plymouth boot watermark, KDE splash and "About this system" | `files/system/usr/share/**` |
 | Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `dms` + fonts + `cliphist` (Niri's shell, from COPR) | `recipe.yml` (`dnf`) |
+| Terminal environment | `zsh` + its plugins, `atuin`, `bat`, `yazi` (from COPR), `neovim` and what LazyVim calls; `zsh-completions` from a pinned upstream tag | `recipe.yml` (`dnf`, `containerfile`) |
+| Shell configuration | starship initialised at last, plugins loaded, atuin made explicitly local, `cat`→`bat`, `y`→yazi. System files only — nothing is written to `$HOME` (DD-026, DD-030) | `files/system/etc/profile.d/`, `files/system/etc/zshenv`, `files/system/usr/share/qubix-os/shell/` |
+| Editor | Neovim is `$EDITOR`. Its config is not shipped: `~/.config/nvim` is the user's, from a one-line `git clone` (DD-030) | `files/system/etc/profile.d/qubix-shell-env.sh` |
+| Login shell | zsh for accounts created from now on; one `chsh` for one that already exists (DD-030) | `files/system/etc/default/useradd` |
 | Packages removed | `firefox`, `firefox-langpacks` — no Firefox in either form (DD-023) | `recipe.yml` (`dnf`) |
 | Default terminal | WezTerm, for KDE and for the `$TERMINAL` convention | `files/system/etc/xdg/kdeglobals`, `files/system/usr/lib/environment.d/` |
 | Default browser | Ungoogled Chromium, claimed for the web MIME types in both sessions | `files/system/etc/xdg/mimeapps.list`, `files/system/etc/xdg/kdeglobals` |

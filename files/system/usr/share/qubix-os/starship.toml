@@ -1,0 +1,411 @@
+# Read by: starship, as $STARSHIP_CONFIG.
+#
+# The image's prompt. /etc/profile.d/qubix-shell-env.sh points starship here ONLY when the
+# user has no ~/.config/starship.toml of their own, so creating that file overrides all of
+# this and nothing has to be undone. This copy is never copied into $HOME: it lives in
+# /usr, and a rebase changes the prompt with nothing to re-run (DD-026).
+#
+# Four rows: context and time, system, toolchain, then the prompt character. The palette
+# is oxocarbon; the spine and every bracket are purple, each chip's content carries its
+# own accent.
+#
+# NERD FONT GLYPHS THROUGHOUT. WezTerm — the default terminal (DD-012) — bundles a
+# symbols fallback, and cascadia-mono-nf-fonts is installed so fontconfig can resolve them
+# for every other consumer. A terminal configured with a font that has neither shows
+# boxes; that is a font problem, not a config problem.
+#
+# See docs/shell.md.
+
+add_newline = false
+continuation_prompt = '[▸▹ ](fg:purple)'
+
+# ── oxocarbon · Nerd Font · multi-row chips (│ spine) ─────────────────────────
+# Row 1 context + status/time (right) · Row 2 system · Row 3 toolchain · Row 4 prompt.
+# Structure/brackets/spine = purple; each chip's content = its accent. No gray text.
+format = """
+[╭─ ](fg:purple)\
+$os\
+$username\
+$hostname\
+$localip\
+$shlvl\
+$sudo\
+$jobs\
+$directory\
+$git_branch\
+$git_state\
+$git_status\
+$git_commit\
+$git_metrics\
+$fill\
+$status\
+$time\
+$line_break\
+[│  ](fg:purple)\
+$cmd_duration\
+${custom.load}\
+$memory_usage\
+${custom.disk}\
+$battery\
+$container\
+$line_break\
+[│  ](fg:purple)\
+$package\
+$c\
+$rust\
+$golang\
+$nodejs\
+$php\
+$java\
+$kotlin\
+$lua\
+$ruby\
+$haskell\
+$python\
+$conda\
+$docker_context\
+$kubernetes\
+$shell\
+$line_break\
+[╰─ ](fg:purple)\
+$character\
+"""
+
+right_format = """
+"""
+
+palette = 'oxocarbon'
+
+[palettes.oxocarbon]
+base    = "#161616"
+gray    = "#525252"
+teal    = "#08bdba"
+cyan    = "#3ddbd9"
+blue    = "#78a9ff"
+ltblue  = "#33b1ff"
+sky     = "#82cfff"
+magenta = "#ee5396"
+pink    = "#ff7eb6"
+green   = "#42be65"
+purple  = "#be95ff"
+
+[os]
+format = "[$symbol]($style)"
+style = "fg:sky"
+disabled = false
+
+[os.symbols]
+AIX = "AIX "
+Alpaquita = ' '
+AlmaLinux = ' '
+Alpine = ' '
+Amazon = ' '
+Android = ' '
+Arch = ' '
+Artix = ' '
+CentOS = ' '
+Debian = ' '
+DragonFly = ' '
+Emscripten = '⚡ '
+EndeavourOS = ' '
+Fedora = ' '
+FreeBSD = ' '
+Garuda = ' '
+Gentoo = ' '
+HardenedBSD = ' '
+Illumos = ' '
+Kali = ' '
+Linux = ' '
+Mabox = ' '
+Macos = ' '
+Manjaro = ' '
+Mariner = ' '
+MidnightBSD = ' '
+Mint = ' '
+NetBSD = '⚑ '
+NixOS = ' '
+OpenBSD = ' '
+OpenCloudOS = ' '
+openEuler = '∈ '
+openSUSE = ' '
+OracleLinux = '℺ '
+Pop = ' '
+Raspbian = ' '
+Redhat = ' '
+RedHatEnterprise = ' '
+RockyLinux = ' '
+Redox = ' '
+Solus = ' '
+SUSE = ' '
+Ubuntu = ' '
+Ultramarine = '󱙳 '
+Unknown = ' '
+Void = ' '
+Windows = ' '
+
+[username]
+show_always = true
+style_user = "bold fg:blue"
+style_root = "bold fg:magenta"
+format = '[\[ ](fg:purple)[ $user]($style)'
+
+[hostname]
+format = '[ · ](fg:purple)[ $hostname](italic fg:teal)[ \] ](fg:purple)'
+ssh_only = false
+disabled = false
+
+[localip]
+ssh_only = true
+disabled = false
+format = '[\[ ](fg:purple)[ $localipv4](fg:cyan)[ \] ](fg:purple)'
+
+[shlvl]
+disabled = false
+threshold = 2
+symbol = ''
+repeat = false
+style = "fg:purple"
+format = '[\[ ](fg:purple)[$symbol $shlvl]($style)[ \] ](fg:purple)'
+
+[sudo]
+disabled = false
+symbol = ''
+style = "fg:magenta"
+format = '[\[ ](fg:purple)[$symbol]($style)[ \] ](fg:purple)'
+
+[jobs]
+symbol = ''
+number_threshold = 1
+symbol_threshold = 1
+style = "fg:ltblue"
+format = '[\[ ](fg:purple)[$symbol $number]($style)[ \] ](fg:purple)'
+
+[directory]
+truncation_length = 3
+truncation_symbol = "…/"
+home_symbol = "~"
+read_only = ' '
+read_only_style = 'fg:magenta'
+format = '[\[ ](fg:purple)[ $path](italic fg:sky)[$read_only](fg:magenta)[ \] ](fg:purple)'
+
+[git_branch]
+symbol = ""
+format = '[\[ ](fg:purple)[ $branch](italic fg:green)[ \] ](fg:purple)'
+truncation_symbol = "⋯"
+truncation_length = 16
+
+[git_state]
+format = '([\[ ](fg:purple)[$state( $progress_current/$progress_total)](bold fg:magenta)[ \] ](fg:purple))'
+rebase = "REBASE"
+merge = "MERGE"
+revert = "REVERT"
+cherry_pick = "CHERRY"
+bisect = "BISECT"
+am = "AM"
+am_or_rebase = "AM/REBASE"
+
+[git_status]
+format = '([\[ ](fg:purple)[$all_status$ahead_behind](fg:pink)[ \] ](fg:purple))'
+conflicted = "◪$count"
+ahead = "▴$count"
+behind = "▿$count"
+diverged = "◇▴${ahead_count}▿${behind_count}"
+untracked = "◌$count"
+stashed = "◃$count"
+modified = "●$count"
+staged = "▪$count"
+renamed = "◎$count"
+deleted = "✕$count"
+
+[git_commit]
+format = '[\[ ](fg:purple)[ $hash$tag](fg:purple)[ \] ](fg:purple)'
+commit_hash_length = 7
+tag_symbol = "   "
+tag_disabled = false
+disabled = false
+
+[git_metrics]
+format = '([\[ ](fg:purple)([+$added ](fg:green))([-$deleted ](fg:magenta))[\] ](fg:purple))'
+only_nonzero_diffs = true
+disabled = false
+
+[fill]
+symbol = ' '
+style = 'fg:gray'
+
+[status]
+symbol = ''
+success_symbol = ''
+style = 'fg:magenta'
+format = '[\[ ](fg:purple)[ Exit Code $status]($style)[ \] ](fg:purple)'
+disabled = false
+map_symbol = false
+
+[cmd_duration]
+show_milliseconds = false
+min_time = 500
+format = '[\[ ](fg:purple)[ $duration](italic fg:purple)[ \] ](fg:purple)'
+disabled = false
+show_notifications = false
+min_time_to_notify = 45000
+
+[custom.load]
+description = "CPU model + 1-min load average (Linux + macOS)"
+shell = ["sh"]
+command = '''
+# CPU model is static -> detect once and cache; only load is fetched live
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/starship_cpu_model"
+if [ ! -s "$cache" ]; then
+  model=$(sysctl -n machdep.cpu.brand_string 2>/dev/null)
+  [ -z "$model" ] && model=$(awk -F: '/model name/{print $2; exit}' /proc/cpuinfo 2>/dev/null)
+  [ -z "$model" ] && model=$(lscpu 2>/dev/null | awk -F: '/Model name/{print $2; exit}')
+  [ -z "$model" ] && model=$(uname -m)
+  model=$(printf '%s' "$model" | sed -e 's/(R)//g; s/(TM)//g; s/(r)//g; s/ CPU.*//; s/ @.*//; s/  */ /g; s/^ *//; s/ *$//')
+  mkdir -p "$(dirname "$cache")" && printf '%s' "$model" > "$cache"
+fi
+model=$(cat "$cache")
+load=$(cut -d" " -f1 /proc/loadavg 2>/dev/null); [ -z "$load" ] && load=$(sysctl -n vm.loadavg | awk '{print $2}')
+printf '%s · %s' "$model" "$load"
+'''
+when = "true"
+format = '[\[ ](fg:purple)[ $output](fg:cyan)[ \] ](fg:purple)'
+
+[memory_usage]
+disabled = false
+threshold = 0
+symbol = '󰍛'
+style = "fg:pink"
+format = '[\[ ](fg:purple)[$symbol $ram_pct]($style)[ \] ](fg:purple)'
+
+[custom.disk]
+description = "Disk usage % of current filesystem (Linux + macOS)"
+shell = ["sh"]
+command = "df -Ph . | awk 'NR==2{print $5}'"
+when = "true"
+format = '[\[ ](fg:purple)[ $output](fg:sky)[ \] ](fg:purple)'
+
+[battery]
+full_symbol = ' '
+charging_symbol = ' '
+discharging_symbol = ' '
+unknown_symbol = ' '
+empty_symbol = ' '
+disabled = false
+format = '[\[ ](fg:purple)[$symbol$percentage]($style)[ \] ](fg:purple)'
+
+[[battery.display]]
+threshold = 15
+style = 'fg:magenta'
+
+[[battery.display]]
+threshold = 50
+style = 'fg:pink'
+
+[[battery.display]]
+threshold = 100
+style = 'fg:green'
+
+[container]
+disabled = false
+format = '[\[ ](fg:purple)[ $name](fg:blue)[ \] ](fg:purple)'
+
+[time]
+disabled = false
+time_format = "%B %d, %Y, %H:%M:%S"
+format = '[\[ ](fg:purple)[ $time](italic fg:blue)[ \] ](fg:purple)'
+
+[package]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:pink)[ \] ](fg:purple)'
+
+[nodejs]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:green)[ \] ](fg:purple)'
+
+[c]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:blue)[ \] ](fg:purple)'
+
+[rust]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:pink)[ \] ](fg:purple)'
+
+[golang]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:cyan)[ \] ](fg:purple)'
+
+[php]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:purple)[ \] ](fg:purple)'
+
+[java]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:magenta)[ \] ](fg:purple)'
+
+[kotlin]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:purple)[ \] ](fg:purple)'
+
+[lua]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:blue)[ \] ](fg:purple)'
+
+[ruby]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:magenta)[ \] ](fg:purple)'
+
+[haskell]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version](fg:purple)[ \] ](fg:purple)'
+
+[python]
+disabled = false
+version_format = "${raw}"
+format = '[\[ ](fg:purple)[ $version(·$virtualenv)](fg:ltblue)[ \] ](fg:purple)'
+
+[conda]
+symbol = ''
+style = "fg:green"
+format = '[\[ ](fg:purple)[$symbol $environment]($style)[ \] ](fg:purple)'
+ignore_base = true
+
+[docker_context]
+symbol = ''
+style = "fg:blue"
+detect_files = ['docker-compose.yml', 'docker-compose.yaml', 'Dockerfile']
+only_with_files = true
+format = '[\[ ](fg:purple)[$symbol $context]($style)[ \] ](fg:purple)'
+disabled = false
+
+[kubernetes]
+disabled = false
+format = '[\[ ](fg:purple)[󱃾 $context(·$namespace)](fg:blue)[ \] ](fg:purple)'
+
+[shell]
+disabled = false
+zsh_indicator = "zsh"
+bash_indicator = "bash"
+fish_indicator = "fish"
+powershell_indicator = "pwsh"
+unknown_indicator = "sh"
+format = '[\[ ](fg:purple)[ $indicator](fg:cyan)[ \] ](fg:purple)'
+
+[character]
+disabled = false
+success_symbol = '[◎](bold fg:green)'
+error_symbol = '[○](bold fg:magenta)'
+vimcmd_symbol = '[■](bold fg:cyan)'
+vimcmd_replace_one_symbol = '[□](bold fg:purple)'
+vimcmd_replace_symbol = '[□](bold fg:purple)'
+vimcmd_visual_symbol = '[▼](bold fg:pink)'

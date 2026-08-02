@@ -16,6 +16,7 @@ additional, mandatory working rules in [`../AGENTS.md`](../AGENTS.md).
 | [`recipe-reference.md`](recipe-reference.md) | Every file and module in `recipes/`, explained. |
 | [`variants.md`](variants.md) | The published images, how they differ, and how to switch between them. |
 | [`desktops.md`](desktops.md) | The two desktop sessions, switching between them, and Niri's configuration. |
+| [`shell.md`](shell.md) | What runs inside a terminal: the prompt, the shell, history, and the editor. |
 | [`branding.md`](branding.md) | The branding asset map — which file overrides what. |
 | [`build-and-release.md`](build-and-release.md) | CI, tagging, signing, and the release cadence. |
 | [`usage.md`](usage.md) | Installing, rebasing, verifying, and building an ISO. |

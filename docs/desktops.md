@@ -377,6 +377,9 @@ COPR because Fedora does not package it — see DD-012.
 Konsole is still installed and still works. To go back to it in Plasma: *System Settings →
 Default Applications → Terminal Emulator*.
 
+What runs *inside* the terminal — the prompt, zsh and its plugins, history search, and the
+editor — is [`shell.md`](shell.md).
+
 ## The default browser
 
 **Ungoogled Chromium** is the default browser in both sessions, installed as a Flatpak from

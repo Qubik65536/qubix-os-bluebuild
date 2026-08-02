@@ -91,6 +91,21 @@ else, install it and pick it in *System Settings → Default Applications* (Plas
 `~/.config/mimeapps.list`, which is searched **before** the image's copy, so your choice
 wins and survives updates.
 
+**The terminal environment is already there** — the prompt, the aliases and the zsh
+plugins are files in the image, not anything seeded into your home directory. Two things
+are worth doing once:
+
+- **Switch your login shell to zsh:** `chsh -s /usr/bin/zsh`, then log out and back in.
+  `/etc/passwd` is per machine, so this is the one thing the image cannot do for an account
+  that already exists. Accounts created afterwards get zsh automatically. Bash keeps the
+  prompt and the aliases either way.
+- **Install the Neovim config:** `git clone https://github.com/LazyVim/starter ~/.config/nvim`,
+  then run `nvim` once with a network connection so LazyVim can bootstrap. Keeping it as a
+  clone is what makes `git -C ~/.config/nvim pull` work later; `:Lazy update` handles the
+  plugins.
+
+All of it, including how to remove any part, is in [`shell.md`](shell.md).
+
 ### If you are rebasing from an older Qubix OS
 
 Earlier images seeded `org.mozilla.firefox`. The Flatpak module only ever installs, so the

@@ -12,7 +12,7 @@ Upstream module documentation: <https://blue-build.org/reference/module/>
 |---|---|---|
 | [`recipe.yml`](../recipes/recipe.yml) | Recipe (built) | The standard image: identity keys + composition |
 | [`recipe-cachyos.yml`](../recipes/recipe-cachyos.yml) | Recipe (built) | The CachyOS-kernel image ([`variants.md`](variants.md)) |
-| [`common-base.yml`](../recipes/common-base.yml) | Module list (included) | Overlay, packages, flatpaks — shared by every image |
+| [`common-base.yml`](../recipes/common-base.yml) | Module list (included) | Overlay, packages, flatpaks, zsh-completions — shared by every image |
 | [`common-identity.yml`](../recipes/common-identity.yml) | Module list (included) | The `os-release` rewrite — shared by every image |
 | [`common-kernel-cachyos.yml`](../recipes/common-kernel-cachyos.yml) | Module list (included) | The kernel swap — `recipe-cachyos.yml` only |
 
@@ -78,6 +78,11 @@ substitution.
   | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012) |
   | `/etc/niri/config.kdl` | System-default Niri configuration (DD-014) |
   | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
+  | `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's interactive setup (DD-026, DD-030) |
+  | `/etc/zshenv` | Sources zsh's half. **Replaces** Fedora's, which is comments only (DD-030) |
+  | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on. **Replaces** shadow-utils' copy (DD-030) |
+  | `/usr/share/qubix-os/shell/` | The interactive shell configuration itself (DD-026) |
+  | `/usr/share/qubix-os/starship.toml` | The prompt, used unless the user has their own (DD-026) |
 
 - **Ordering:** no hard constraint. Kept first so content lands before anything that might
   read it.
@@ -96,10 +101,14 @@ substitution.
       - wezfurlong/wezterm-nightly
       - avengemedia/dms
       - avengemedia/danklinux
+      - lihaohong/yazi
+      - atim/lazygit
   install:
     packages:
       [micro, starship, wezterm, niri, dms,
-       material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist]
+       material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist,
+       zsh, zsh-autosuggestions, zsh-syntax-highlighting, atuin, bat, yazi,
+       neovim, ripgrep, fd-find, fzf, lazygit, git, cascadia-mono-nf-fonts]
   remove:
     packages: [firefox, firefox-langpacks]
 ```
@@ -107,7 +116,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012); `niri` = the second desktop session (DD-013); `dms` plus the three font packages and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015). |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012); `niri` = the second desktop session (DD-013); `dms` plus the three font packages and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
 | `remove.packages` | Removed RPMs. `firefox` goes because a browser belongs in a Flatpak (DD-006) and because the browser here is Ungoogled Chromium (DD-023); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
@@ -118,9 +127,25 @@ COPR repositories in use:
 | `wezfurlong/wezterm-nightly` | WezTerm's own author | `wezterm`, `wezterm-common`, `wezterm-gui`, `wezterm-mux-server` | WezTerm is not packaged in Fedora at all (DD-012) |
 | `avengemedia/dms` | DankMaterialShell's authors | `dms`, `dms-cli` | Not in Fedora (DD-015) |
 | `avengemedia/danklinux` | DankMaterialShell's authors | `quickshell`, `dgop`, `matugen`, `material-symbols-fonts`, `cliphist`, … | `dms`'s runtime dependencies. **Required together with `avengemedia/dms`** — without it `dms` is uninstallable |
+| `lihaohong/yazi` | third party | `yazi` | Not in Fedora's main repos (DD-026) |
+| `atim/lazygit` | third party | `lazygit` | Not in Fedora's main repos. Same maintainer as `atim/starship` (DD-026) |
+
+The terminal-environment packages, and why each is there:
+
+| Package(s) | Role |
+|---|---|
+| `zsh` | The login shell. Nothing in the recipe can make it so — `/etc/passwd` is per machine — so `/etc/default/useradd` covers new accounts and an existing one takes one `chsh` (DD-030) |
+| `zsh-autosuggestions`, `zsh-syntax-highlighting` | The two interactive zsh plugins. Loaded from `/usr/share/qubix-os/shell/qubix.zsh`, highlighting last |
+| `atuin` | Local SQLite shell history. Wired into zsh only — its bash integration needs `bash-preexec`, which Fedora does not package |
+| `bat` | `cat` with highlighting; aliased over `cat` in interactive shells |
+| `yazi` | Terminal file browser, wrapped as `y` so quitting changes the shell's directory |
+| `neovim` | The editor and `$EDITOR`, configured with LazyVim (DD-027) |
+| `ripgrep`, `fd-find`, `fzf`, `lazygit`, `git` | What LazyVim's default keymaps shell out to. Without them the keys exist and do nothing |
+| `cascadia-mono-nf-fonts` | A Nerd Font, so the prompt's glyphs resolve outside WezTerm (which bundles its own fallback) |
 
 - **Ordering:** must precede `default-flatpaks` so the Firefox RPM is gone before the
-  Flatpak is queued.
+  Flatpak is queued, and precede the `containerfile` module below, which needs `zsh` and
+  `git` installed.
 - **Adding a package:** justify it. Aurora DX already includes the developer toolchain, so
   the first question is always "is this already here?" and the second is "should this be a
   Flatpak instead?"
@@ -159,7 +184,51 @@ No `repo` is specified, so Flathub is used by default.
   browser is set by `/etc/xdg/mimeapps.list` and `/etc/xdg/kdeglobals` in the overlay
   (DD-023).
 
-### 4. `containerfile` — raw build steps
+### 4. `containerfile` — zsh completions and login-shell check
+
+*Defined in `common-base.yml`. Two snippets.*
+
+```yaml
+- type: containerfile
+  snippets:
+    - |
+      RUN set -eu; \
+          tmp="$(mktemp -d)"; \
+          git clone --quiet --depth 1 --branch 0.36.0 \
+              https://github.com/zsh-users/zsh-completions.git "$tmp"; \
+          test "$(git -C "$tmp" rev-parse HEAD)" = "28c5bdcaf81bb89e56d0df8267d822c3b8aed9e0"; \
+          install -d -m 0755 /usr/share/zsh/site-functions; \
+          install -m 0644 "$tmp"/src/_* /usr/share/zsh/site-functions/; \
+          rm -rf "$tmp"; \
+          ls /usr/share/zsh/site-functions | wc -l
+    - |
+      RUN grep -qx '/usr/bin/zsh' /etc/shells
+```
+
+The second snippet is an assertion, not a change: zsh's `%post` appends itself to
+`/etc/shells` on first install, and this fails the build if it ever stops.
+`chsh` is how every account that already exists moves to zsh, and it validates against
+`/etc/shells`. Without the entry it fails with *"chsh: /usr/bin/zsh is not a valid shell"*
+and nothing explains why (DD-028, DD-030).
+
+The first is a raw build step because there is nothing to install *from*: Fedora does not package
+`zsh-completions`, and the `@zsh-users/zsh-completions` COPR has no build chroots at all —
+not for the current Fedora, not for any. Checked against the COPR API rather than assumed.
+
+- **The tag is not the pin; the commit is.** A tag can be moved, and a moved tag would
+  silently change what ships. `rev-parse HEAD` is compared against the commit `0.36.0`
+  pointed at when this was written, so that case fails the build instead. **Bumping the
+  version means changing both lines.**
+- `/usr/share/zsh/site-functions` is already on zsh's default `$fpath`, so nothing in the
+  shell configuration has to add it.
+- Its functions **shadow zsh's own** where both ship one for the same tool. That is what
+  using zsh-completions means, not a bug to fix.
+- The trailing `ls | wc -l` is there so the build log shows how many completion functions
+  landed; a clone that produced nothing would otherwise pass silently.
+- **Ordering:** after `dnf`, which installs `zsh` and `git`. Before the identity rewrite,
+  though nothing forces that.
+
+### 5. `containerfile` — raw build steps
 
 *Defined in `common-identity.yml`.*
 
@@ -193,7 +262,7 @@ Implementation notes:
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
 - **Ordering:** must run after any module that can regenerate `os-release`.
 
-### 5. `signing` — install the verification policy
+### 6. `signing` — install the verification policy
 
 *Defined in each recipe, last.*
 

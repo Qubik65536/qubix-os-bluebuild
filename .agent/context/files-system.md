@@ -25,39 +25,32 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/share/applications/qubix-video-bridge.desktop` | XDG application menu / DMS launcher | A **new** entry (upstream's is `NoDisplay=true`), `OnlyShowIn=niri;` (IMG-013) |
 | `usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | systemd user manager | `Wants=dms.service`, so the shell starts under Niri **only** (DD-015) |
 
-`etc/xdg/kdeglobals` is a **fragment**, not a replacement — KConfig merges every
-`kdeglobals` on `$XDG_CONFIG_DIRS` key by key. Fedora's `XDG_CONFIG_DIRS` is
-`/etc/xdg:/usr/share/kde-settings/kde-profile/default/xdg`, so `/etc/xdg` wins for the
-keys it names and inherits everything else. Do **not** add a `kdeglobals` under
-`usr/share/kde-settings/…` — that path already exists upstream and would be overwritten.
+## Terminal environment
 
-`etc/xdg/mimeapps.list` is a **fragment** for the same reason, by a different mechanism:
-MIME associations resolve per type, first match wins, searching `~/.config/mimeapps.list`
-→ `$XDG_CONFIG_DIRS` (`/etc/xdg` first) → `$XDG_DATA_DIRS/applications/mimeapps.list`. It
-claims the web types only, so PDFs and images keep resolving from Aurora's and Fedora's
-baseline lists — and the user's own file is searched *first*, so *Default Applications*
-still overrides it. The kdeglobals `BrowserApplication` key is not redundant with it: KIO's
-`OpenUrlJob` reads that key **before** consulting associations, so without it KDE could
-open a different browser from everything else (DD-023).
+| Path | Consumer | Effect |
+|---|---|---|
+| `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and — at the end — bash's interactive setup (DD-026, DD-030) |
+| `etc/zshenv` | zsh, on every invocation | Sources `qubix.zsh`. **Replaces** Fedora's file, which is comments only |
+| `etc/default/useradd` | `useradd(8)` | `SHELL=/usr/bin/zsh`. **Replaces** shadow-utils' copy; only one line differs |
+| `usr/share/qubix-os/shell/common.sh` | `qubix.bash`, `qubix.zsh` | The `cat`→`bat` alias and the `y` yazi wrapper |
+| `usr/share/qubix-os/shell/qubix.zsh` | zsh, from `/etc/zshenv` | Prompt, atuin, both plugins, history defaults |
+| `usr/share/qubix-os/shell/qubix.bash` | bash, from `/etc/profile.d` | Prompt and aliases. No atuin — see gotchas |
+| `usr/share/qubix-os/starship.toml` | starship, as `$STARSHIP_CONFIG` | The prompt. Never copied into `$HOME` |
 
-`xwaylandvideobridge` XDG-autostarts and `niri.service` pulls in
-`xdg-desktop-autostart.target`, so KDE components reach the Niri session. The bridge
-expects the compositor to hide it — KDE ships a KWin rule; niri does not — so it opens a
-blank window over a fresh session and the desktop looks dead (DD-019).
+**Nothing here writes to `$HOME`.** Six files, no scripts, no units (DD-030). An earlier
+design seeded a `source` line into `~/.zshrc` from a systemd user service, plus a system
+service that ran `usermod` to set the login shell, plus a vendored LazyVim starter — all
+removed as more machinery than the result justified.
 
-**Hiding it was not enough**, which is the part worth remembering: a hidden window is still
-in niri's toplevel list, so DankMaterialShell's bar kept listing it, and neither niri nor
-DMS can filter a window out of that list. Hence the autostart override (DD-021). The two
-files work together — rule for a hand-started bridge, override so it never starts by itself.
+Two constraints survive from that design and still explain the layout:
 
-**Anything else KDE that autostarts and relies on a KWin rule will behave the same way.**
-Window rule if it should still run, `NotShowIn=niri;` override if it should not. Never
-remove the KDE package.
-
-`dms.service` is left **disabled** on purpose. It ships
-`WantedBy=graphical-session.target`, so enabling it would start DankMaterialShell inside
-KDE Plasma too — two panels, two notification daemons, two lock screens. The drop-in on
-`niri.service` is what scopes it to the Niri session.
+- **`/etc/profile.d` cannot carry the zsh half.** Fedora's `/etc/zshrc` sources those files
+  from inside a function running `emulate -L ksh`, so `KSH_ARRAYS` and `SH_WORD_SPLIT` are
+  set — not the language zsh plugin scripts are written in. Environment variables and
+  bash's setup only.
+- **`/etc/zshenv` is the zsh entry point** because Fedora's copy is comments only, so
+  replacing it loses nothing, and it is plain zsh at top level. `/etc/zshrc` was rejected:
+  it carries the `profile.d` loop itself, which we would then own forever.
 
 ## Branding
 
@@ -92,8 +85,15 @@ Prefer `/usr` for configuration: `/etc` is three-way merged on updates, `/usr` i
 wholesale. Use `/etc` only where the consumer offers no `/usr` path that can be written
 without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012, DD-023),
 `etc/xdg/mimeapps.list` (DD-023; the `/usr` equivalent,
-`/usr/share/applications/mimeapps.list`, exists upstream and Aurora appends to it) and
-`etc/niri/config.kdl` (DD-014; niri's config search path has no `/usr` entry).
+`/usr/share/applications/mimeapps.list`, exists upstream and Aurora appends to it),
+`etc/niri/config.kdl` (DD-014; niri's config search path has no `/usr` entry), and the
+three terminal-environment files above — `/etc/profile.d`, `/etc/zshenv` and
+`/etc/default/useradd` all have no `/usr` equivalent at all (DD-026, DD-030).
+
+The last two are **replacements** of upstream files rather than additions, which is
+normally forbidden here. Both are justified in their own headers: Fedora's `/etc/zshenv`
+is comments only, so nothing is lost, and `/etc/default/useradd` is eight lines of which
+one differs. Both must be re-checked against upstream if either package changes them.
 
 ## Gotchas
 
@@ -105,9 +105,9 @@ without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012, 
 - macOS writes `.DS_Store` files into this tree while editing. They are gitignored and must
   stay that way, or the `files` module would copy them into `/usr/share/pixmaps/`.
 - Changing artwork means updating **every** copy in the group above.
-- **File modes carry through.** `usr/bin/qubix-video-bridge` is executable only because git
-  records mode `100755`; the `files` module copies the bit as it finds it. A rewrite that
-  drops it produces a script the keybind silently cannot run.
+- **File modes carry through.** `usr/bin/qubix-video-bridge` and `usr/bin/qubix-dms-theme`
+  are executable only because git records mode `100755`; the `files` module copies the bit
+  as it finds it. A rewrite that drops it produces a script that silently cannot run.
 - **The two palette files must change together.** `etc/niri/qubix-theme.kdl` and
   `usr/share/qubix-os/dms-theme.json` are the same colours in two formats and nothing
   enforces that. Drift is invisible until someone looks at the bar next to a focus ring.
@@ -120,6 +120,30 @@ without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012, 
   to pin the laptop panel to `scale 1` (DD-024). On a machine whose panel is called
   something else the block silently does nothing; on a genuinely HiDPI panel it makes text
   too small. Both are documented in the block itself.
+- **The overlay cannot reach `$HOME` — and the shell no longer tries.** `qubix-dms-theme`
+  is now the *only* thing that writes into a home directory, and it is a pointer it owns
+  (DD-025). Do not add a second seeder for shell or editor configuration; that was tried
+  and removed (DD-030).
+- **`/etc/zshenv` runs BEFORE `~/.zshrc`.** Two consequences, both intended: a user's own
+  file always wins, and zsh-syntax-highlighting cannot wrap widgets defined there. Do not
+  "fix" the second by writing into `~/.zshrc`.
+- **Nothing may be added below the syntax-highlighting line in `qubix.zsh`.** It wraps the
+  ZLE widgets that exist when it is sourced.
+- **atuin is configured from the environment, not a file**, because it reads every setting
+  through `Environment::with_prefix("atuin")` with `__` as the nesting separator — so
+  `ATUIN_AUTO_SYNC` is `auto_sync`. The block is **guarded on the user having no
+  `~/.config/atuin/config.toml`**, and that guard is load-bearing: atuin applies the
+  environment *after* the file, so without it the image would override the user.
+- **atuin is wired into zsh only.** `atuin init bash` needs `bash-preexec`, which Fedora
+  does not package. Do not "fix" `qubix.bash` by adding it — it fails at runtime, not at
+  build time.
+- **The Neovim config is not shipped at all.** `~/.config/nvim` is the user's, from a
+  documented `git clone` of LazyVim's starter — which is also what makes `git pull` work.
+  A vendored starter used to live here; it is gone (DD-030).
+- **The login shell needs one `chsh` on an existing account.** `/etc/default/useradd` only
+  affects accounts created afterwards, and `/etc/passwd` is per machine. This is a
+  documented limit, not an oversight — a boot service that edited `/etc/passwd` was tried
+  and removed.
 - **`pkill xwaylandvideobridge` matches nothing**, ever. `pkill`/`pgrep` compare against
   `/proc/PID/comm`, truncated by the kernel to 15 characters; that name is 19. `-f` matches
   the full command line instead — and then needs `-x`, or it also matches the shell running

@@ -6,15 +6,17 @@ terms over synonyms.
 | Term | Meaning |
 |---|---|
 | **Atomic / image-based** | A Linux system deployed as a whole image rather than as individually installed packages. Updates swap the image; rollback is built in. |
+| **atuin** | Shell history in a local SQLite database, searchable from every terminal. Configured fully local — no account, no sync (DD-026). See [`shell.md`](shell.md). |
 | **Aurora** | Universal Blue's KDE Plasma image, built on Fedora Kinoite with codecs, drivers, and quality-of-life fixes added. |
 | **Aurora DX** | Aurora plus a developer toolchain (container tooling, IDEs, virtualisation). This project's base image. |
 | **Base image** | The image named in `base-image:` — what the recipe builds `FROM`. |
+| **bat** | `cat` with syntax highlighting. Aliased over `cat` in interactive shells (DD-026). |
 | **BlueBuild** | The build system used here. Transpiles a recipe in `recipes/` into a `Containerfile` and builds it. <https://blue-build.org> |
 | **BORE** | Burst-Oriented Response Enhancer — the CPU scheduler the CachyOS kernel uses by default. |
 | **Branding asset** | A file under `files/system/` that replaces an upstream logo, banner, or watermark. See [`branding.md`](branding.md). |
 | **CachyOS** | A performance-focused Linux distribution whose patched kernel is packaged for Fedora in COPR `bieszczaders/kernel-cachyos`. Used by one [variant](variants.md) of this image (DD-017). |
 | **Context cache** | `.agent/context/` — one brief Markdown entry per file/module, so an agent can orient without reading the whole repo. |
-| **COPR** | Fedora's community package repository service. This project enables `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, and — on the CachyOS variant only — `bieszczaders/kernel-cachyos`. |
+| **COPR** | Fedora's community package repository service. This project enables `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`, and — on the CachyOS variant only — `bieszczaders/kernel-cachyos`. |
 | **cosign** | The Sigstore tool used to sign and verify published images. |
 | **DankMaterialShell** (DMS) | The desktop shell for the Niri session: panel, launcher, notifications, lock screen, power menu (DD-015). See [`desktops.md`](desktops.md). |
 | **DD-###** | A design decision record in [`design-decisions.md`](design-decisions.md). |
@@ -29,11 +31,13 @@ terms over synonyms.
 | **initramfs** | The RAM filesystem the kernel boots into before mounting the real root. Regenerated at build time by the `initramfs` module, which the kernel-swapping variant requires. |
 | **KDL** | The configuration language niri uses (<https://kdl.dev>). Braces and nodes, not YAML. |
 | **Kinoite** | Fedora's official immutable KDE Plasma variant. Aurora's base. |
+| **LazyVim** | A Neovim configuration distribution. Not shipped: `~/.config/nvim` is the user's, cloned from upstream's starter by hand, so `:Lazy update` updates the plugins and `git pull` the config (DD-030). See [`shell.md`](shell.md). |
 | **Look-and-feel package** | A KDE Plasma theme bundle under `/usr/share/plasma/look-and-feel/`. Aurora's contains the startup splash this image overrides. |
 | **matugen** | Generates a Material colour scheme from the wallpaper. DankMaterialShell uses it to theme itself and niri. |
 | **MIME association** | The mapping from a MIME type or URL scheme to the desktop entry that opens it. Set system-wide in `/etc/xdg/mimeapps.list`; the user's `~/.config/mimeapps.list` is searched first and wins. How the default browser is declared (DD-023). |
 | **Module** | A build step (`files`, `dnf`, `default-flatpaks`, `containerfile`, `initramfs`, `signing`). Modules run in the order the recipe composes them. |
 | **MOK** | Machine Owner Key — an X.509 key enrolled with shim via `mokutil`, letting a machine's owner trust binaries their vendor did not sign. How Secure Boot stays on with the CachyOS kernel ([`variants.md`](variants.md)). |
+| **Nerd Font** | A font patched with an extra set of icon glyphs. The prompt and the editor use them; `cascadia-mono-nf-fonts` provides them for consumers that do not bundle their own, as WezTerm does. |
 | **Niri** | A scrollable-tiling Wayland compositor. The second desktop session (DD-013). See [`desktops.md`](desktops.md). |
 | **Overlay** | The `files/system/` tree, copied verbatim into the image root. Repository path = image path. |
 | **Override** | Shipping a file at an upstream path so the upstream file is replaced in the image. The branding mechanism (DD-004). |
@@ -44,12 +48,16 @@ terms over synonyms.
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |
 | **SDDM** | The display manager (login screen). Lists sessions from `/usr/share/wayland-sessions/`, which is how Niri appears as a login choice. |
 | **Secure Boot** | UEFI feature where firmware only loads signed boot binaries. Fedora's kernel is signed; the CachyOS one is not, so this variant needs it off or a [MOK](variants.md#secure-boot) enrolled. |
+| **Seeder** | A user service that writes into `$HOME` what the image cannot ship there. Only one remains: `qubix-dms-theme`, which writes the theme pointer every Niri session (DD-025). The shell and editor once had seeders too; they were replaced by plain system files (DD-030). |
 | **Session** | One desktop environment as offered at the login screen. This image has two: Plasma (Wayland) and Niri. |
 | **shim** | The Fedora-signed first-stage bootloader that chains to GRUB and checks the kernel against firmware `db` plus the MOK list. |
 | **Signing policy** | Client-side configuration, installed into the image by the `signing` module, that lets `ostree-image-signed:` rebases verify against `cosign.pub`. |
+| **starship** | The shell prompt, configured in `/usr/share/qubix-os/starship.toml` and used unless the user has a `~/.config/starship.toml` of their own (DD-007, DD-026). |
 | **Task** | An entry in [`../.agent/plan.md`](../.agent/plan.md) with an ID, category, dependencies, and acceptance criteria. |
 | **Ungoogled Chromium** | Chromium with Google's web-service integration and binary blobs removed. The default browser, installed as a Flatpak from Flathub (DD-023). See [`desktops.md`](desktops.md). |
 | **Universal Blue** | The project producing the `ublue-os` images, including Aurora. |
 | **Variant** | One of the images this repository publishes. They share every module except the one dimension that distinguishes them. See [`variants.md`](variants.md). |
 | **WezTerm** | The GPU-accelerated terminal emulator set as the default in every session (DD-012). Not packaged in Fedora; layered from WezTerm's own COPR. |
 | **x86-64-v3** | A microarchitecture level (AVX2-era CPUs and newer). The default CachyOS kernel is built for it and will not boot on older hardware. |
+| **yazi** | A terminal file browser. Wrapped as `y`, so quitting leaves the shell in the directory it was last in (DD-026). |
+| **zsh plugins** | `zsh-autosuggestions`, `zsh-syntax-highlighting` and `zsh-completions`. Loaded from `/usr/share/qubix-os/shell/qubix.zsh`, highlighting **last** (DD-026). See [`shell.md`](shell.md). |

@@ -14,6 +14,8 @@ What you *can* do locally:
 | Composed module order | Expand every `from-file:` and check the rendered list against [`architecture.md`](architecture.md). |
 | Asset paths | Confirm the path under `files/system/` matches the intended image path. |
 | Asset sync | `shasum -a 256` across the branding groups — see [`branding.md`](branding.md). |
+| Shell syntax | `bash -n` on the `.sh`/`.bash` files in the overlay, `zsh -n` on `qubix.zsh`. Parsing only — it proves nothing about whether a plugin loads. |
+| Python syntax | `python3 -m py_compile files/system/usr/bin/qubix-*`. Same caveat. |
 
 What you cannot do locally: confirm a package exists, confirm a COPR resolves, confirm the
 `sed` patterns match upstream's `os-release`, confirm the kernel swap leaves a bootable
@@ -156,6 +158,10 @@ BlueBuild action's changelog before merging — a major bump can change module s
    - **A package vanished from the CachyOS variant** → check the "Packages the kernel
      removal took with it" list in that build's log against the reinstall line in
      `common-kernel-cachyos.yml`.
+   - **`test "$(git -C … rev-parse HEAD)" = …` failed** (both variants) → the
+     `zsh-completions` tag no longer points at the pinned commit, or the clone failed. The
+     assertion is doing its job: check the tag upstream, then update **both** the tag and
+     the hash in `common-base.yml`. Do not remove the check. See DD-026.
    - **Disk space** → confirm `maximize_build_space: true` is still set. Two images per
      run makes this likelier, but each job gets its own runner.
    - **Signing failure** → `SIGNING_SECRET` missing, malformed, or rotated.

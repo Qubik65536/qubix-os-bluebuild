@@ -86,10 +86,11 @@ image layer. Order is load-bearing. For `recipe.yml`:
 | # | Module | From | What it does | Why it is here |
 |---|---|---|---|---|
 | 1 | `files` | `common-base.yml` | Copies `files/system/*` to `/` (branding + desktop configuration) | Content must exist before anything reads it; nothing later depends on being first, but putting content first keeps later layers small. |
-| 2 | `dnf` | `common-base.yml` | Adds COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`; installs `micro`, `starship`, `wezterm`, `niri`, `dms` and its fonts; removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
+| 2 | `dnf` | `common-base.yml` | Adds COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; installs `micro`, `starship`, `wezterm`, `niri`, `dms` and its fonts, and the terminal environment (`zsh` and its plugins, `atuin`, `bat`, `yazi`, `neovim` and what LazyVim calls); removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
 | 3 | `default-flatpaks` | `common-base.yml` | Configures Flathub (system + user), queues `io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM, so the Flatpak browser is the only browser (DD-023). |
-| 4 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
-| 5 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
+| 4 | `containerfile` | `common-base.yml` | Installs `zsh-completions` from a pinned upstream tag into `/usr/share/zsh/site-functions`, and asserts `/usr/bin/zsh` reached `/etc/shells` | Needs `zsh` and `git` from the `dnf` module. No package exists to install zsh-completions from — Fedora has none and the upstream COPR has no chroots (DD-026, DD-028). |
+| 5 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
+| 6 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
 
 `recipe-cachyos.yml` composes the same blocks plus three, in a fixed order:
 
@@ -123,9 +124,17 @@ Consequences worth remembering:
   whenever the consumer supports it, so updates always win. `files/system/etc/` is used
   only where the consumer's search path offers no `/usr` entry that can be written without
   overwriting an upstream file — currently `etc/xdg/kdeglobals` (DD-012, DD-023),
-  `etc/xdg/mimeapps.list` (DD-023) and `etc/niri/config.kdl` (DD-014).
+  `etc/xdg/mimeapps.list` (DD-023), `etc/niri/config.kdl` (DD-014) and
+  `etc/profile.d/qubix-shell-env.sh` (DD-026; `/etc/profile.d` has no `/usr` equivalent).
 - **Not only branding any more.** The overlay also carries the desktop-session
-  configuration described in [`desktops.md`](desktops.md).
+  configuration described in [`desktops.md`](desktops.md) and the terminal environment
+  described in [`shell.md`](shell.md).
+- **The overlay cannot reach `$HOME`, and it cannot reach `/etc/passwd`.** Anything that
+  has to live in a user's home directory — a zsh rc line, an editor config — is *seeded*
+  from `/usr` by a user unit at login (DD-026, DD-029), and the login shell itself is set
+  by a system unit at boot (DD-028). DD-025 is the same problem in the desktop theme.
+  These are the only things in the image that write outside `/usr` at runtime, and each is
+  stamped so it happens once.
 
 ## Identity rewrite
 

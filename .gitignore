@@ -3,3 +3,7 @@ cosign.private
 /Containerfile
 
 .DS_Store
+
+# Byte-compiled Python. `python3 -m py_compile` on the overlay's scripts drops a
+# __pycache__ next to them, and the `files` module would copy it into /usr/bin.
+__pycache__/
