@@ -16,6 +16,8 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
 | `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; window rule hiding the Xwayland Video Bridge (DD-014, DD-015, DD-019) |
 | `etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` | XDG autostart / `systemd-xdg-autostart-generator` | **Replaces** the package's entry, adding `NotShowIn=niri;` so the bridge does not autostart under Niri (DD-021) |
+| `usr/bin/qubix-video-bridge` | `Mod+Shift+B` and the launcher entry below | Toggles the bridge, with a notification. **Only executable in the overlay** — the git mode bit is what makes it runnable (IMG-013) |
+| `usr/share/applications/qubix-video-bridge.desktop` | XDG application menu / DMS launcher | A **new** entry (upstream's is `NoDisplay=true`), `OnlyShowIn=niri;` (IMG-013) |
 | `usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | systemd user manager | `Wants=dms.service`, so the shell starts under Niri **only** (DD-015) |
 
 `etc/xdg/kdeglobals` is a **fragment**, not a replacement — KConfig merges every
@@ -84,6 +86,13 @@ without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012) 
 - macOS writes `.DS_Store` files into this tree while editing. They are gitignored and must
   stay that way, or the `files` module would copy them into `/usr/share/pixmaps/`.
 - Changing artwork means updating **every** copy in the group above.
+- **File modes carry through.** `usr/bin/qubix-video-bridge` is executable only because git
+  records mode `100755`; the `files` module copies the bit as it finds it. A rewrite that
+  drops it produces a script the keybind silently cannot run.
+- **`pkill xwaylandvideobridge` matches nothing**, ever. `pkill`/`pgrep` compare against
+  `/proc/PID/comm`, truncated by the kernel to 15 characters; that name is 19. `-f` matches
+  the full command line instead — and then needs `-x`, or it also matches the shell running
+  the `pkill`. `qubix-video-bridge` documents this inline; do not "simplify" it.
 
 ## Update when
 

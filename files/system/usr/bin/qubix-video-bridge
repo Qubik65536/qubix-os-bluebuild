@@ -1,0 +1,54 @@
+#!/usr/bin/bash
+#
+# qubix-video-bridge — start or stop the Xwayland Video Bridge.
+#
+# The bridge republishes a Wayland screen capture as an X11 window, so X11 applications
+# (Discord, Zoom, older OBS) can record the screen. It autostarts in a Plasma session; in
+# the Niri session it deliberately does not (DD-021), because a running bridge shows up in
+# DankMaterialShell's bar whether or not its window is drawn. This script is how you turn
+# it on for as long as you need it.
+#
+# Called from two places, which is the reason it is a script and not an inline command:
+#   - the Mod+Shift+B keybind in /etc/niri/config.kdl
+#   - /usr/share/applications/qubix-video-bridge.desktop, for the launcher
+# Both must invoke the bridge identically, or the stop half stops matching what the start
+# half launched.
+#
+# See docs/desktops.md and docs/design-decisions.md DD-019, DD-021.
+
+set -euo pipefail
+
+BRIDGE=/usr/bin/xwaylandvideobridge
+
+# ── Feedback ──────────────────────────────────────────────────────────────────
+# Invoked from a keybind there is nowhere for stdout to go, so say it in a notification
+# too. Guarded, because notify-send is not a hard dependency of anything here.
+notify() {
+	printf '%s\n' "$1"
+	if command -v notify-send >/dev/null 2>&1; then
+		notify-send --app-name='Xwayland Video Bridge' \
+			--icon=org.kde.xwaylandvideobridge \
+			'Xwayland Video Bridge' "$1" || true
+	fi
+}
+
+# ── Toggle ────────────────────────────────────────────────────────────────────
+# TWO TRAPS LIVE IN THIS ONE LINE, so read before simplifying it.
+#
+# 1. `pkill xwaylandvideobridge` never matches anything. pkill compares against
+#    /proc/PID/comm, which the kernel truncates to 15 characters; the name is 19. The
+#    match has to be -f, against the full command line.
+#
+# 2. A bare `pkill -f xwaylandvideobridge` kills THIS SHELL, whose own command line
+#    contains the string. -x anchors the pattern to the whole command line, so only the
+#    bridge itself matches.
+#
+# The alternation accepts the bridge however it was launched — bare, as the desktop entry
+# spells it, or by absolute path, as this script does.
+if pkill --exact --full '(/usr/bin/)?xwaylandvideobridge'; then
+	notify 'Stopped. X11 applications can no longer capture the screen.'
+else
+	# setsid detaches it from this script, so it survives the keybind's transient scope.
+	setsid "$BRIDGE" >/dev/null 2>&1 &
+	notify 'Started. X11 applications can now capture the screen.'
+fi

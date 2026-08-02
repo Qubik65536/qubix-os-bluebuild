@@ -845,6 +845,12 @@ started by hand.
   session. Wayland-native screen sharing through `xdg-desktop-portal` is unaffected, as is
   everything in a Plasma session. `xwaylandvideobridge` run by hand still works, and the
   window rule keeps it out of sight when it is.
+- Turning it on is deliberately cheap, so the trade above is an inconvenience rather than a
+  loss of function: `Mod+Shift+B`, or the launcher entry, runs `/usr/bin/qubix-video-bridge`
+  and toggles it with a notification either way (`IMG-013`). The logic lives in a script
+  because both entry points must launch the bridge identically — the stop half matches on
+  the command line, so a keybind and a desktop entry that spelled it differently would
+  start something the other could not stop.
 - The overlay file **replaces** a package-owned file rather than extending it. Desktop
   entries have no drop-in mechanism, and `/etc/xdg/autostart` is the highest-priority
   autostart directory available system-wide, so there is nowhere to override from. If

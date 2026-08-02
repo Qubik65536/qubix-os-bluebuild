@@ -145,6 +145,11 @@ binds {
     Mod+M hotkey-overlay-title="Task Manager" { spawn "dms" "ipc" "call" "processlist" "focusOrToggle"; }
     Ctrl+Alt+Delete hotkey-overlay-title="Task Manager" { spawn "dms" "ipc" "call" "processlist" "focusOrToggle"; }
 
+    // Screen capture for X11 applications. The Xwayland Video Bridge does not autostart
+    // in this session (DD-021), so this is how you turn it on for as long as Discord,
+    // Zoom, or an older OBS needs it. The script reports what it did in a notification.
+    Mod+Shift+B hotkey-overlay-title="X11 Screen Capture (toggle)" { spawn "qubix-video-bridge"; }
+
     // Session.
     Mod+Alt+L hotkey-overlay-title="Lock the Screen" { spawn "dms" "ipc" "call" "lock" "lock"; }
     Mod+X hotkey-overlay-title="Power Menu" { spawn "dms" "ipc" "call" "powermenu" "toggle"; }

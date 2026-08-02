@@ -443,6 +443,33 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       and **no bridge in the bar**, on a fresh account, with no per-user setup
       *(open — needs a build and hardware)*
 
+- [ ] **IMG-013** — Give the Xwayland Video Bridge a start/stop control in Niri
+  - **Category:** Image content
+  - **Depends on:** IMG-012
+  - **Notes:** IMG-012 stopped the bridge autostarting under Niri (DD-021), which leaves X11
+    screen capture available but only by typing `xwaylandvideobridge` into a terminal. That
+    is a poor trade for the person who actually wants to share their screen to Discord.
+    One gotcha decides the shape of this. **`pkill xwaylandvideobridge` never matches.**
+    `pkill`/`pgrep` match `/proc/PID/comm`, which the kernel truncates to 15 characters;
+    the name is 19, so the pattern silently finds nothing. Matching has to be `-f`, against
+    the full command line — and a bare `pkill -f xwaylandvideobridge` then matches the
+    *shell running the pkill*, because that shell's own command line contains the string.
+    `-x -f` with an anchored pattern avoids both traps.
+    That logic wants one home rather than being copy-pasted into a keybind and a desktop
+    entry, hence a script rather than an inline `spawn-sh`.
+  - **Acceptance criteria:**
+    - A toggle exists as a niri keybind, and in the application launcher for anyone who
+      does not remember keybinds
+    - Both entry points run the same command, so the stop half always matches what the
+      start half launched
+    - It reports what it did through a desktop notification — a keybind has nowhere to
+      print to
+    - Nothing is added to a Plasma session, where the bridge still autostarts
+    - `docs/desktops.md`, DD-021's consequences, and `.agent/context/files-system.md` cover it
+    - The script is executable in the built image and the toggle works from both entry
+      points *(open — needs a build and hardware; the overlay carries mode 100755, but
+      nothing here verifies what the `files` module produced)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

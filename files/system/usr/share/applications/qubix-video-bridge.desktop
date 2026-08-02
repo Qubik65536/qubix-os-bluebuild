@@ -1,0 +1,23 @@
+# Read by: the XDG application-menu machinery — DankMaterialShell's launcher (Mod+Space)
+# in the Niri session.
+#
+# A NEW entry, not a replacement: upstream's org.kde.xwaylandvideobridge.desktop carries
+# NoDisplay=true and so never appears in a launcher. This one is the discoverable half of
+# the Mod+Shift+B keybind, for anyone who does not remember keybinds.
+#
+# OnlyShowIn=niri because the bridge still autostarts under Plasma — an entry to toggle it
+# there would be noise.
+#
+# See docs/desktops.md and docs/design-decisions.md DD-021.
+
+[Desktop Entry]
+Type=Application
+Name=Xwayland Video Bridge (toggle)
+GenericName=Screen capture for X11 applications
+Comment=Start or stop screen sharing to X11 applications such as Discord, Zoom, and OBS
+Icon=org.kde.xwaylandvideobridge
+Exec=qubix-video-bridge
+Terminal=false
+Categories=Qt;KDE;Utility;
+Keywords=screen;share;sharing;record;recording;capture;x11;xwayland;discord;zoom;obs;
+OnlyShowIn=niri;

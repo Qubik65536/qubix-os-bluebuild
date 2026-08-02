@@ -124,13 +124,16 @@ still a window. It stays in niri's toplevel list, so the bar goes on listing it 
 application, and neither niri nor DankMaterialShell can filter a window out of that list.
 
 **What this costs.** X11 applications — Discord, Zoom, older OBS — cannot capture the screen
-in the Niri session. Wayland-native screen sharing through `xdg-desktop-portal` is
-unaffected, and Plasma is untouched. When an X11 application needs it, start the bridge by
-hand:
+in the Niri session *until you turn the bridge on*. Wayland-native screen sharing through
+`xdg-desktop-portal` is unaffected, and Plasma is untouched.
 
-```bash
-xwaylandvideobridge &
-```
+Turning it on is one keystroke: **`Mod+Shift+B`**, or "Xwayland Video Bridge (toggle)" in
+the launcher. The same control turns it off again, and either way you get a notification
+saying which happened. Both run `qubix-video-bridge`, so it also works from a terminal.
+
+Leave it off when you are not sharing your screen. While it runs it appears in the bar as a
+running application, which is the behaviour that made stopping the autostart necessary in
+the first place — it is only worth putting up with while you need it.
 
 [niri#2367]: https://github.com/niri-wm/niri/issues/2367
 
@@ -244,6 +247,7 @@ list, generated from the config actually in use.
 | `Mod+N` | Notification centre |
 | `Mod+,` | Shell settings |
 | `Mod+M` or `Ctrl+Alt+Del` | Task manager |
+| `Mod+Shift+B` | X11 screen capture — toggle the Xwayland Video Bridge |
 | `Mod+Alt+L` | Lock screen |
 | `Mod+X` | Power menu |
 | `Mod+Q` | Close window |
