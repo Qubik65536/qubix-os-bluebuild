@@ -113,18 +113,36 @@ Confirm it in one command:
 niri msg windows        # look for app-id `xwaylandvideobridge`
 ```
 
-The image now ships a window rule in `/etc/niri/config.kdl` that hides it, the same way
-KDE's KWin rule does — see DD-019. Rebase to pick it up. If you keep a personal
-`~/.config/niri/config.kdl`, that file wins and you need to copy the rule across yourself.
+**The image now stops the bridge from autostarting under Niri**, with an
+`/etc/xdg/autostart/` entry carrying `NotShowIn=niri;` (DD-021). Rebase to pick it up. A
+window rule in `/etc/niri/config.kdl` also keeps it out of sight if it is started by hand
+(DD-019); if you keep a personal `~/.config/niri/config.kdl`, that file wins and you need
+to copy the rule across yourself.
+
+Hiding the window alone was not enough, and the reason is worth knowing: a hidden window is
+still a window. It stays in niri's toplevel list, so the bar goes on listing it as a running
+application, and neither niri nor DankMaterialShell can filter a window out of that list.
+
+**What this costs.** X11 applications — Discord, Zoom, older OBS — cannot capture the screen
+in the Niri session. Wayland-native screen sharing through `xdg-desktop-portal` is
+unaffected, and Plasma is untouched. When an X11 application needs it, start the bridge by
+hand:
+
+```bash
+xwaylandvideobridge &
+```
 
 [niri#2367]: https://github.com/niri-wm/niri/issues/2367
 
 #### Something else is covering the session
 
 The same shape — niri healthy, screen apparently dead — happens with anything that
-XDG-autostarts and expects a KWin rule to tidy it up. `niri msg windows` names it. The fix
-is another window rule in `/etc/niri/config.kdl` alongside the bridge's, not removing the
-KDE package; DD-013 and DD-019 both apply.
+XDG-autostarts and expects a KWin rule to tidy it up. `niri msg windows` names it.
+
+There are two answers, and neither is removing the KDE package (DD-013). Add a window rule
+in `/etc/niri/config.kdl` if the thing should still run — that takes nothing away, so try it
+first. If it should not run here at all, add an `/etc/xdg/autostart/` override carrying
+`NotShowIn=niri;`, as the bridge does. DD-019 and DD-021 cover both halves.
 
 #### Nothing renders at all
 

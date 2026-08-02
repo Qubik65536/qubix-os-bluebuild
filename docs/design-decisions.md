@@ -701,7 +701,8 @@ itself.
 
 ## DD-019 — Hide the Xwayland Video Bridge in Niri, rather than stopping it
 
-**Status:** Accepted
+**Status:** Superseded by [DD-021](#dd-021--stop-the-xwayland-video-bridge-in-niri-hiding-it-was-not-enough)
+*(the window rule stays — what did not survive is the claim that hiding it is sufficient)*
 
 **Implements:** `IMG-012`
 
@@ -806,3 +807,55 @@ keyword aimed at either**. A bare number in prose is inert — GitHub autolinks 
   cross-repo mention in a PR title. Those are outside this rule's scope, but the same
   restraint applies: link to another project's thread only when the people in it would
   actually want to hear from us.
+
+---
+
+## DD-021 — Stop the Xwayland Video Bridge in Niri; hiding it was not enough
+
+**Status:** Accepted — supersedes [DD-019](#dd-019--hide-the-xwayland-video-bridge-in-niri-rather-than-stopping-it)
+
+**Implements:** `IMG-012`
+
+**Context.** DD-019 hid the bridge's window with a niri `window-rule` and rejected masking
+its autostart entry, on the grounds that hiding costs nothing while masking costs X11
+screen sharing. The rule works: the window is no longer drawn and no longer covers the
+session.
+
+It is not sufficient. **A hidden window is still a window.** It stays in niri's toplevel
+list, so DankMaterialShell's bar keeps showing the bridge as a running application, and the
+user is back to looking at something they cannot use and did not ask for.
+
+There is no configuration that fixes this at either end:
+
+- Niri has no `skip-taskbar` equivalent. Its window rules control how a window is *drawn*
+  and placed, not whether it appears in `ext-foreign-toplevel-list`, which is where a bar
+  gets its window list.
+- DMS's Running Apps widget draws every toplevel `CompositorService` reports. Its settings
+  offer app-id *substitutions* — renaming — and no exclusion list.
+
+So the option DD-019 rejected is the only one left, and its cost has to be paid.
+
+**Decision.** Ship `/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` — upstream's
+entry plus `NotShowIn=niri;` — so the bridge does not autostart in a Niri session. **Keep
+DD-019's window rule**: it costs nothing and still covers the case where the bridge is
+started by hand.
+
+**Consequences.**
+- X11 applications — Discord, Zoom, older OBS — cannot capture the screen in the Niri
+  session. Wayland-native screen sharing through `xdg-desktop-portal` is unaffected, as is
+  everything in a Plasma session. `xwaylandvideobridge` run by hand still works, and the
+  window rule keeps it out of sight when it is.
+- The overlay file **replaces** a package-owned file rather than extending it. Desktop
+  entries have no drop-in mechanism, and `/etc/xdg/autostart` is the highest-priority
+  autostart directory available system-wide, so there is nowhere to override from. If
+  upstream ever changes its `Exec` line, this copy goes stale silently — the failure mode
+  is the bridge not starting in Plasma either, which is visible.
+- The copy omits upstream's localized `Name`/`Comment`/`GenericName` entries. `NoDisplay`
+  is true, so the entry is never shown and there is nothing to translate.
+- The `NotShowIn` value is lower-case `niri`, which is what niri sets
+  `XDG_CURRENT_DESKTOP` to. Desktop-entry matching is case-sensitive, so `Niri` would
+  silently not match.
+- This is the second half of the pattern DD-019 named. A KDE component that autostarts and
+  expects a KWin rule needs *both* answers: a window rule if it should still run, and a
+  `NotShowIn=niri;` override if it should not. Reach for the window rule first — it takes
+  nothing away.

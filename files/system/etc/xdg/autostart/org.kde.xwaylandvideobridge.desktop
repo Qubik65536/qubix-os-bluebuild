@@ -1,0 +1,41 @@
+# Read by: the XDG autostart mechanism — under systemd, systemd-xdg-autostart-generator,
+# which niri pulls in through xdg-desktop-autostart.target.
+#
+# REPLACES the file of the same name shipped by the xwaylandvideobridge package. The only
+# change from upstream is the NotShowIn line at the bottom; everything above it is
+# upstream's entry, so the bridge behaves exactly as before in a Plasma session.
+#
+# WHY: the Xwayland Video Bridge republishes a Wayland screen capture as an X11 window so
+# X11 applications (Discord, Zoom, older OBS) can record the screen. It is meant to be
+# invisible and leaves that to the compositor — KDE ships a KWin rule, niri has none. A
+# window rule in /etc/niri/config.kdl keeps the window from being drawn (DD-019), but a
+# hidden window is still a window: it stays in niri's toplevel list and so keeps showing up
+# in DankMaterialShell's bar, and neither niri nor DMS can filter it out. The only way to
+# get it out of the bar is not to start it.
+#
+# COST: X11 applications cannot capture the screen in the Niri session. Wayland-native
+# screen sharing, through xdg-desktop-portal, is unaffected. Run `xwaylandvideobridge` by
+# hand when an X11 application needs it.
+#
+# The localized Name/Comment/GenericName entries upstream carries are omitted: NoDisplay
+# is true, so this entry is never shown to a user and they have nothing to translate.
+#
+# See docs/desktops.md and docs/design-decisions.md DD-019, DD-021.
+
+[Desktop Entry]
+StartupNotify=false
+X-KDE-autostart-phase=2
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
+
+Type=Application
+Name=Xwayland Video Bridge
+GenericName=Share screens and windows to XWayland applications
+Icon=org.kde.xwaylandvideobridge
+Exec=xwaylandvideobridge
+Categories=Qt;KDE;Utility;X-KDE-Utilities-Desktop;
+
+# Everything above this line is upstream's entry, verbatim.
+# niri sets XDG_CURRENT_DESKTOP=niri, which is what this matches. Lower-case, as niri
+# spells it; the match is case-sensitive.
+NotShowIn=niri;

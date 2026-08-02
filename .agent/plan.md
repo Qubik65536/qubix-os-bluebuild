@@ -378,7 +378,7 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
 
 ### Desktop sessions
 
-- [ ] **IMG-012** — Hide the Xwayland Video Bridge in the Niri session
+- [ ] **IMG-012** — Stop the Xwayland Video Bridge taking over the Niri session
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Reported 2026-08-01 against the `latest`-based standard image: a Niri login
@@ -393,9 +393,18 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     opened on niri's hotkey-overlay cheatsheet (so niri composited *and* presented), binds
     and DMS's IPC answered throughout, and hammering a keybind or switching workspaces
     brought everything up at once and correct.
-    **Fixed by** a `window-rule` in `files/system/etc/niri/config.kdl` matching
+    **First fix** was a `window-rule` in `files/system/etc/niri/config.kdl` matching
     `app-id=^xwaylandvideobridge$` — floating, unfocused, non-fullscreen, one pixel, corner,
-    zero opacity. DD-019 records why hiding beats removing or masking the autostart.
+    zero opacity (DD-019). It stopped the window covering the session, and **was not
+    enough**: a hidden window is still a window, so it stayed in niri's toplevel list and
+    went on appearing in DankMaterialShell's bar as a running application. Neither end can
+    filter it — niri has no `skip-taskbar` equivalent, and DMS's Running Apps widget offers
+    app-id substitutions but no exclusion list.
+    **Second fix, and the one that settles it:** ship
+    `files/system/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` — upstream's entry
+    plus `NotShowIn=niri;` — so the bridge does not autostart here. The window rule stays as
+    a second line of defence for a hand-started bridge. DD-021 supersedes DD-019 and records
+    the cost: X11 apps cannot capture the screen in the Niri session.
     Dead ends, recorded so they are not re-proposed:
     - **Panel Self Refresh — tested and refuted on the machine.** A window running
       `watch -n0.1 date` updated smoothly; after quitting it and letting the screen go
@@ -425,10 +434,14 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
   - **Acceptance criteria:**
     - `/etc/niri/config.kdl` carries a window rule that hides `xwaylandvideobridge`, with a
       comment explaining what the bridge is and why it is hidden rather than removed
-    - Nothing KDE is removed or disabled to achieve it (DD-013 holds)
-    - `DD-019`, `docs/desktops.md`, and `.agent/context/files-system.md` cover the change
+    - `/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` stops it autostarting under
+      Niri and **only** under Niri — a Plasma login still gets the bridge
+    - No KDE package is removed or disabled to achieve either (DD-013 holds)
+    - `DD-019`, `DD-021`, `docs/desktops.md`, and `.agent/context/files-system.md` cover the
+      change, including what the Niri session loses
     - A Niri login on the rebased image comes up with wallpaper, bar, and working windows,
-      on a fresh account, with no per-user setup *(open — needs a build and hardware)*
+      and **no bridge in the bar**, on a fresh account, with no per-user setup
+      *(open — needs a build and hardware)*
 
 ### Image variants
 
