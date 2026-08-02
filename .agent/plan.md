@@ -528,6 +528,29 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image, a link clicked in each session opens Ungoogled Chromium on a
       fresh account with no per-user setup *(open — needs a build and hardware)*
 
+- [ ] **BRD-003** — Pin the built-in panel to scale 1
+  - **Category:** Branding
+  - **Depends on:** —
+  - **Notes:** Requested 2026-08-01: the Niri session comes up at **1.25** on the laptop
+    panel and should be **1**. That 1.25 is niri's own guess — with `scale` unset it derives
+    one from the output's physical size and resolution, which on a ~14" 1920×1200 panel
+    lands on 1.25.
+    **Niri has no global scale setting.** `output` blocks match a connector name, or a
+    manufacturer/model/serial triple; there is no wildcard and no default block. So the only
+    way to say this in a shipped config is to name a connector, and the name for a laptop's
+    built-in panel is conventionally `eDP-1`.
+    That has a cost worth stating plainly: it applies to **every** machine running this
+    image, including one with a genuinely HiDPI built-in panel, where niri's guess would
+    have been right and a forced `scale 1` gives unreadably small text. External monitors
+    are untouched and keep the automatic guess.
+  - **Acceptance criteria:**
+    - `/etc/niri/config.kdl` sets `scale 1` on the built-in panel and nothing else
+    - The block says which connector it names and how to change or extend it, so a machine
+      whose panel is not `eDP-1` is a one-line fix rather than a mystery
+    - A `DD-###` records that this overrides an automatic value image-wide, and what that
+      costs on HiDPI hardware
+    - `docs/desktops.md` and `.agent/context/files-system.md` cover it
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

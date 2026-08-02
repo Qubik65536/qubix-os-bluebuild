@@ -15,7 +15,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012); `BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop` (DD-023) |
 | `etc/xdg/mimeapps.list` | `xdg-open`, GIO, KIO | Web MIME types → Ungoogled Chromium, i.e. the default browser (DD-023) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
-| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; the `#56728B` colour theme; window rule hiding the Xwayland Video Bridge (DD-014, DD-015, DD-019, DD-022) |
+| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; the `#56728B` colour theme; `eDP-1` pinned to `scale 1`; window rule hiding the Xwayland Video Bridge (DD-014, DD-015, DD-019, DD-022, DD-024) |
 | `etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` | XDG autostart / `systemd-xdg-autostart-generator` | **Replaces** the package's entry, adding `NotShowIn=niri;` so the bridge does not autostart under Niri (DD-021) |
 | `usr/bin/qubix-video-bridge` | `Mod+Shift+B` and the launcher entry below | Toggles the bridge, with a notification. **Only executable in the overlay** — the git mode bit is what makes it runnable (IMG-013) |
 | `usr/share/applications/qubix-video-bridge.desktop` | XDG application menu / DMS launcher | A **new** entry (upstream's is `NoDisplay=true`), `OnlyShowIn=niri;` (IMG-013) |
@@ -104,6 +104,11 @@ without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012, 
 - **File modes carry through.** `usr/bin/qubix-video-bridge` is executable only because git
   records mode `100755`; the `files` module copies the bit as it finds it. A rewrite that
   drops it produces a script the keybind silently cannot run.
+- **Niri has no global scale setting** and no output wildcard. `output` matches a connector
+  name or a `"manufacturer model serial"` triple, so `etc/niri/config.kdl` names `eDP-1`
+  to pin the laptop panel to `scale 1` (DD-024). On a machine whose panel is called
+  something else the block silently does nothing; on a genuinely HiDPI panel it makes text
+  too small. Both are documented in the block itself.
 - **`pkill xwaylandvideobridge` matches nothing**, ever. `pkill`/`pgrep` compare against
   `/proc/PID/comm`, truncated by the kernel to 15 characters; that name is 19. `-f` matches
   the full command line instead — and then needs `-x`, or it also matches the shell running

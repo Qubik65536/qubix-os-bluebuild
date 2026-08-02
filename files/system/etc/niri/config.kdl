@@ -129,6 +129,24 @@ overview {
     backdrop-color "#1B242C"
 }
 
+// ── Outputs ───────────────────────────────────────────────────────────────────
+// With `scale` unset, niri GUESSES a scale from the output's physical size and
+// resolution. On a ~14" 1920×1200 laptop panel that guess is 1.25. Pin it to 1.
+//
+// NIRI HAS NO GLOBAL SCALE SETTING and no wildcard: an `output` block matches a connector
+// name, or a "manufacturer model serial" triple. So the only way to say this in a shipped
+// config is to name a connector, and `eDP-1` is the conventional name for a laptop's
+// built-in panel. Run `niri msg outputs` to see what yours is actually called.
+//
+// Only this one output is pinned. External monitors are left alone and keep the automatic
+// guess, which is usually right for them.
+//
+// If your built-in panel is genuinely HiDPI, delete this block — niri's guess is better
+// than a forced 1. See DD-024.
+output "eDP-1" {
+    scale 1
+}
+
 // Ask applications to omit their own title bars so niri can draw borders around them.
 prefer-no-csd
 

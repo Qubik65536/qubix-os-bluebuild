@@ -261,6 +261,34 @@ palette is the default, not a lock. Drop the include to keep it regardless of th
 This is deliberately *not* the Qubix logo green — see DD-022 for why the session gets its own
 accent.
 
+### Display scale
+
+The built-in laptop panel is pinned to **scale 1**:
+
+```kdl
+output "eDP-1" {
+    scale 1
+}
+```
+
+Without this, niri derives a scale from the output's physical size and resolution, which on
+a ~14-inch 1920×1200 panel comes out at 1.25 — a quarter larger than the Plasma session on
+the same machine, with fractional scaling on a panel that does not need it.
+
+**Niri has no global scale setting.** An `output` block matches a connector name or a
+`"manufacturer model serial"` triple; there is no wildcard. So the shipped config has to
+name one connector, and `eDP-1` is the conventional name for a built-in panel. External
+monitors are untouched and keep the automatic guess.
+
+Two consequences worth knowing:
+
+- **If your built-in panel is genuinely HiDPI, delete that block.** Niri's guess is better
+  than a forced 1, and scale 1 on a HiDPI panel gives unreadably small text.
+- **If your panel is not called `eDP-1`, the block does nothing.** `niri msg outputs` gives
+  the real name; substitute it.
+
+See DD-024.
+
 ### Key bindings
 
 `Mod` is the Super (Meta / Windows) key. This is a summary; `Mod+Shift+/` shows the live

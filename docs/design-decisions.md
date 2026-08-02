@@ -1001,3 +1001,43 @@ fixed".
   a desktop file that does not exist yet. The association is inert until the seeding
   finishes, exactly as it was for Firefox under DD-006; the first boot needs network access
   regardless.
+
+---
+
+## DD-024 — Pin the built-in panel to `scale 1`
+
+**Status:** Accepted
+
+**Implements:** `BRD-003`
+
+**Context.** With `scale` unset, niri derives a scale from an output's physical dimensions
+and resolution. On a roughly 14-inch 1920×1200 laptop panel that derivation lands on
+**1.25**, which is not what this project wants: at 1.25 the Niri session renders everything
+a quarter larger than the Plasma session on the same machine, and fractional scaling costs
+sharpness on a panel that does not need scaling at all.
+
+The obvious fix — "set the default scale to 1" — does not exist. **Niri has no global scale
+setting.** An `output` block matches either a connector name (`eDP-1`, `HDMI-A-1`) or a
+`"manufacturer model serial"` triple. There is no wildcard and no default block, so a
+shipped configuration cannot express "every output" or "whatever the built-in panel is
+called". It can only name something.
+
+**Decision.** Name `eDP-1` — the conventional connector name for a laptop's built-in panel
+— and set `scale 1` on it. Nothing else is configured, so external monitors keep niri's
+automatic guess.
+
+**Consequences.**
+- The Niri session matches the Plasma session's geometry on the target hardware, and the
+  panel is driven at its native resolution with no fractional scaling.
+- **This applies to every machine running the image.** On hardware with a genuinely HiDPI
+  built-in panel, niri's guess would have been correct and a forced `scale 1` produces
+  unreadably small text. The config block says so and says to delete it; that is the whole
+  mitigation, and it is a real cost, not a theoretical one.
+- A machine whose built-in panel is not `eDP-1` silently keeps the automatic scale. The
+  failure is benign and visible — the session simply looks as it did before — and
+  `niri msg outputs` gives the right name.
+- This is a *system default*, so a per-user `~/.config/niri/config.kdl` overrides it like
+  everything else in the shipped config (DD-014).
+- Scope is deliberately narrow: one output, one property. Resolution, refresh rate,
+  position, and rotation stay automatic. Pinning a mode as well would break the moment the
+  hardware changed, and would buy nothing.
