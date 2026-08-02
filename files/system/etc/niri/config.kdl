@@ -40,33 +40,17 @@ input {
     }
 }
 
-// ── Palette ───────────────────────────────────────────────────────────────────
-// Every colour in this file comes from ONE hex: #56728B, which is hsl(208, 24%, 44%).
-// The rest of the ramp holds that hue and saturation and moves only lightness, so every
-// surface is visibly the same colour at a different depth. To extend it, pick a lightness
-// — do not pick a colour.
-//
-//   #1B242C   L 14%   deepest      overview backdrop, shadow
-//   #2B3945   L 22%   recessed     unfocused window
-//   #3A4E5F   L 30%   muted        inactive tab
-//   #56728B   L 44%   BASE         focused window
-//   #7490A9   L 56%   raised       active tab
-//
-//   #C67B39           urgent       hsl(28, 55%, 50%) — the hue opposite the base, the one
-//                                  colour here that is meant NOT to blend in
-//
-// This is deliberately NOT the logo green (#47603b, see docs/branding.md). DD-022.
-// DMS's matugen theming overrides all of it when enabled — see the include at the end.
-
 // ── Layout ────────────────────────────────────────────────────────────────────
 // Niri is a scrollable-tiling compositor: windows form an infinite horizontal strip
 // of columns rather than a subdivided rectangle.
+//
+// STRUCTURE ONLY — no colours. Those live in qubix-theme.kdl, included below.
 layout {
     gaps 8
 
     // DMS paints its own backdrop; leaving this transparent avoids a coloured band
     // showing through in the overview. With no wallpaper drawn, what shows through is
-    // the overview backdrop-color below, which is the palette's deepest tone.
+    // the theme's overview backdrop-color, the palette's deepest tone.
     background-color "transparent"
 
     // Widths cycled by Mod+R. Fractions of the output width.
@@ -77,57 +61,22 @@ layout {
     }
 
     default-column-width { proportion 0.5; }
-
-    // The ring around the focused window. On a single monitor you never see
-    // inactive-color — the focus ring is drawn only around the active window per output.
-    focus-ring {
-        width 2
-        active-color "#56728B"
-        inactive-color "#2B3945"
-        urgent-color "#C67B39"
-    }
-
-    // Borders are drawn around EVERY window, not just the focused one, and niri leaves
-    // them off by default. Kept off — but coloured, so `on` is the only edit needed and
-    // the result still matches.
-    border {
-        off
-        width 2
-        active-color "#56728B"
-        inactive-color "#2B3945"
-        urgent-color "#C67B39"
-    }
-
-    // Also off by default. Pre-set for the same reason; the colour is the palette's
-    // deepest tone at 60% alpha so it reads as depth rather than as a black halo.
-    shadow {
-        off
-        softness 30
-        spread 4
-        offset x=0 y=4
-        color "#1B242C99"
-    }
-
-    // Shown next to columns in tabbed display mode (Mod+W).
-    tab-indicator {
-        active-color "#7490A9"
-        inactive-color "#3A4E5F"
-        urgent-color "#C67B39"
-    }
-
-    // Where a window will land while you drag it. Half-transparent base, so the window
-    // underneath stays readable.
-    insert-hint {
-        color "#56728B80"
-    }
 }
 
-// ── Overview ──────────────────────────────────────────────────────────────────
-// The zoomed-out view behind the workspaces (Mod+O). This colour is also what fills the
-// screen wherever no wallpaper is drawn, because the layout background is transparent.
-overview {
-    backdrop-color "#1B242C"
-}
+// ── Theme ─────────────────────────────────────────────────────────────────────
+// Every colour niri draws lives in qubix-theme.kdl, next to this file. It is a separate
+// file on purpose: a personal ~/.config/niri/config.kdl replaces this one wholesale, so
+// keeping the palette separate lets you keep your own config AND go on receiving theme
+// updates, with one line:
+//
+//     include "/etc/niri/qubix-theme.kdl"
+//
+// Niri watches included files, so a rebase that changes the palette live-reloads.
+//
+// POSITION MATTERS: includes override what precedes them. This sits after the layout
+// block above, whose structure it does not touch, and before the DMS include at the
+// bottom, which is allowed to win. DD-022, DD-025.
+include "qubix-theme.kdl"
 
 // ── Outputs ───────────────────────────────────────────────────────────────────
 // With `scale` unset, niri GUESSES a scale from the output's physical size and

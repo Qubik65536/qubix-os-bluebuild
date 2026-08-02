@@ -551,6 +551,37 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       costs on HiDPI hardware
     - `docs/desktops.md` and `.agent/context/files-system.md` cover it
 
+- [ ] **BRD-004** — Make the theme apply by default and survive every rebase
+  - **Category:** Branding
+  - **Depends on:** BRD-002
+  - **Notes:** BRD-002 defined the palette; it did not make it *arrive*. Two gaps, one per
+    half of the session.
+    **niri.** Niri prefers `~/.config/niri/config.kdl` and ignores `/etc/niri/config.kdl`
+    entirely once it exists. Anyone who copied the system config to customise it — which
+    `docs/desktops.md` told them to do — silently stopped receiving every system change,
+    theme included. Niri's `include` is top-level only, but **included files are watched**,
+    so splitting the palette into `/etc/niri/qubix-theme.kdl` lets a personal config keep
+    tracking the image with one line.
+    **DankMaterialShell.** It stores settings per user in
+    `~/.config/DankMaterialShell/settings.json`, has no system-wide default, no
+    `$XDG_CONFIG_DIRS` search, and its `theme` IPC target only switches light/dark. So an
+    image cannot ship a chosen theme — only put one where a user's settings can point at
+    it. Verified in its `Theme.qml`: `currentThemeName` and `currentThemeCategory` must be
+    the literal `"custom"`, and `customThemeFile` is loaded through a **watched** FileView.
+    That last detail is what makes this durable: keep the palette in `/usr` and seed only
+    the *pointer*, and a rebase that changes the colours reloads live with nothing re-run.
+  - **Acceptance criteria:**
+    - The niri palette lives in its own file, included by the system config, and the file
+      says how a personal config should include it
+    - The DMS palette ships in `/usr` and is byte-for-byte the same colours as the niri one
+    - A user service points DMS at it before `dms.service` starts, on every Niri session,
+      and is scoped to Niri exactly as `dms.service` is
+    - The seeder preserves unrelated settings, is idempotent, and **never** overwrites a
+      `settings.json` it cannot parse
+    - There is a one-command opt-out, documented
+    - Every text pair in the DMS palette clears WCAG AA (4.5:1)
+    - `docs/desktops.md`, a `DD-###`, and `.agent/context/files-system.md` cover it
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

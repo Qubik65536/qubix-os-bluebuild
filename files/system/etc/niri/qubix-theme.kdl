@@ -1,0 +1,87 @@
+// Qubix OS — the Niri colour theme.
+//
+// Read by: niri, via `include "qubix-theme.kdl"` in /etc/niri/config.kdl.
+//
+// THIS FILE IS SPLIT OUT SO YOU CAN KEEP IT. Niri prefers ~/.config/niri/config.kdl over
+// /etc/niri/config.kdl and ignores the system file entirely once yours exists — so a
+// personal config silently stops receiving theme updates. Add this line to yours instead,
+// and the theme keeps tracking the image on every rebase:
+//
+//     include "/etc/niri/qubix-theme.kdl"
+//
+// Niri watches every included file, so a rebase that changes this file live-reloads.
+//
+// POSITION MATTERS. Includes are positional: they override whatever was set *before* them,
+// and are overridden by whatever comes after. Put this line after your own layout block.
+//
+// ── The palette ───────────────────────────────────────────────────────────────
+// Every colour here comes from ONE hex: #56728B, which is hsl(208, 24%, 44%). The rest of
+// the ramp holds that hue and saturation and moves only lightness, so every surface is
+// visibly the same colour at a different depth. To extend it, pick a lightness — do not
+// pick a colour.
+//
+//   #1B242C   L 14%   deepest      overview backdrop, shadow
+//   #2B3945   L 22%   recessed     unfocused window
+//   #3A4E5F   L 30%   muted        inactive tab
+//   #56728B   L 44%   BASE         focused window
+//   #7490A9   L 56%   raised       active tab
+//
+//   #C67B39           urgent       hsl(28, 55%, 50%) — the hue opposite the base, the one
+//                                  colour here that is meant NOT to blend in
+//
+// The DankMaterialShell half of the same palette lives in
+// /usr/share/qubix-os/dms-theme.json. Change one, change the other.
+//
+// This is deliberately NOT the logo green (#47603b, see docs/branding.md).
+// See docs/design-decisions.md DD-022 and DD-025.
+
+layout {
+    // The ring around the focused window. On a single monitor you never see
+    // inactive-color — the focus ring is drawn only around the active window per output.
+    focus-ring {
+        width 2
+        active-color "#56728B"
+        inactive-color "#2B3945"
+        urgent-color "#C67B39"
+    }
+
+    // Borders are drawn around EVERY window, not just the focused one, and niri leaves
+    // them off by default. Kept off — but coloured, so `on` is the only edit needed and
+    // the result still matches.
+    border {
+        off
+        width 2
+        active-color "#56728B"
+        inactive-color "#2B3945"
+        urgent-color "#C67B39"
+    }
+
+    // Also off by default. Pre-set for the same reason; the colour is the palette's
+    // deepest tone at 60% alpha so it reads as depth rather than as a black halo.
+    shadow {
+        off
+        softness 30
+        spread 4
+        offset x=0 y=4
+        color "#1B242C99"
+    }
+
+    // Shown next to columns in tabbed display mode (Mod+W).
+    tab-indicator {
+        active-color "#7490A9"
+        inactive-color "#3A4E5F"
+        urgent-color "#C67B39"
+    }
+
+    // Where a window will land while you drag it. Half-transparent base, so the window
+    // underneath stays readable.
+    insert-hint {
+        color "#56728B80"
+    }
+}
+
+// The zoomed-out view behind the workspaces (Mod+O). This colour is also what fills the
+// screen wherever no wallpaper is drawn, because the layout background is transparent.
+overview {
+    backdrop-color "#1B242C"
+}

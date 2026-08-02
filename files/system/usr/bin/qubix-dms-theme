@@ -1,0 +1,93 @@
+#!/usr/bin/python3
+"""Point DankMaterialShell at the Qubix Slate theme.
+
+Run by qubix-dms-theme.service before dms.service, every Niri session.
+
+WHY A SEEDER AT ALL. DMS keeps its settings per user, in
+~/.config/DankMaterialShell/settings.json. It has no system-wide default, no
+$XDG_CONFIG_DIRS search, and its `theme` IPC target only switches light/dark — so an image
+cannot ship a default theme, only put one where a user's settings can point at it.
+
+WHY THIS STAYS CORRECT ACROSS REBASES. Only the *pointer* is written here. The theme
+itself lives at THEME_PATH, in /usr, and DMS watches that file: a rebase that changes the
+palette reloads it live, with nothing to re-run. Seeding is about the pointer, never the
+colours.
+
+This enforces the pointer on every session start, which is what was asked for. To keep a
+different theme, mask the unit:
+
+    systemctl --user mask qubix-dms-theme.service
+
+See docs/desktops.md and docs/design-decisions.md DD-025.
+"""
+
+import json
+import os
+import sys
+
+THEME_PATH = "/usr/share/qubix-os/dms-theme.json"
+
+# The three keys DMS reads to resolve a custom theme. "custom" is the literal value its
+# Theme.qml compares against — see its `readonly property string custom: "custom"`.
+WANTED = {
+    "currentThemeName": "custom",
+    "currentThemeCategory": "custom",
+    "customThemeFile": THEME_PATH,
+}
+
+
+def settings_path():
+    config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(config_home, "DankMaterialShell", "settings.json")
+
+
+def main():
+    if not os.path.exists(THEME_PATH):
+        print(f"{THEME_PATH} is missing; leaving settings alone", file=sys.stderr)
+        return 0
+
+    path = settings_path()
+
+    # Read what is there. A settings file that does not parse is NOT overwritten — DMS
+    # refuses to write over one too, and clobbering a user's settings to fix a colour
+    # would be a bad trade.
+    settings = {}
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                settings = json.load(handle)
+        except (OSError, ValueError) as err:
+            print(f"{path} is unreadable ({err}); leaving it alone", file=sys.stderr)
+            return 0
+        if not isinstance(settings, dict):
+            print(f"{path} is not an object; leaving it alone", file=sys.stderr)
+            return 0
+
+    if all(settings.get(key) == value for key, value in WANTED.items()):
+        return 0
+
+    settings.update(WANTED)
+
+    # Write via a temporary file in the same directory, then rename. DMS watches this
+    # path, so a half-written file would be read as corrupt.
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".qubix-tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(settings, handle, indent=2)
+            handle.write("\n")
+        os.replace(tmp, path)
+    except OSError as err:
+        print(f"could not write {path}: {err}", file=sys.stderr)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return 1
+
+    print(f"DankMaterialShell now themed from {THEME_PATH}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

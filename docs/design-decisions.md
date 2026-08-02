@@ -1041,3 +1041,67 @@ automatic guess.
 - Scope is deliberately narrow: one output, one property. Resolution, refresh rate,
   position, and rotation stay automatic. Pinning a mode as well would break the moment the
   hardware changed, and would buy nothing.
+
+---
+
+## DD-025 — Ship the theme as watched files, and seed only the pointer
+
+**Status:** Accepted
+
+**Extends:** [DD-022](#dd-022--theme-the-niri-session-from-56728b-not-from-the-logo-green)
+
+**Implements:** `BRD-004`
+
+**Context.** DD-022 defined the palette. It did not make the palette *arrive*, and each
+half of the session failed to receive it for a different reason.
+
+**niri** prefers `~/.config/niri/config.kdl` and ignores `/etc/niri/config.kdl` entirely
+once that file exists. `docs/desktops.md` tells users to copy the system config in order to
+customise it — so following our own documentation permanently disconnects a user from every
+future system change, the theme included. That is a trap of our own making.
+
+**DankMaterialShell** keeps its settings per user in
+`~/.config/DankMaterialShell/settings.json`. It has no system-wide default, does not search
+`$XDG_CONFIG_DIRS`, and its `theme` IPC target only switches light and dark. There is no
+mechanism by which an image can choose a DMS theme. It can only put a theme somewhere a
+user's settings point at.
+
+The detail that makes this tractable is that **both consumers watch files**. Niri watches
+every included file and live-reloads. DMS loads `customThemeFile` through a watched
+`FileView`. So the palette does not have to be copied into anyone's home directory — it
+only has to be *referenced* from there.
+
+**Decision.** Split the palette into files that live in the image, and seed references
+rather than contents.
+
+| Half | File in the image | How it is referenced |
+|---|---|---|
+| niri | `/etc/niri/qubix-theme.kdl` | `include` from the system config; a personal config adds one line |
+| DMS | `/usr/share/qubix-os/dms-theme.json` | `customThemeFile` in each user's settings, written by `qubix-dms-theme.service` |
+
+The seeder writes three keys — `currentThemeName` and `currentThemeCategory` set to the
+literal `"custom"`, and `customThemeFile` — and nothing else.
+
+**Consequences.**
+- **A rebase updates the colours with nothing to re-run.** Both files are watched; changing
+  them changes a running session. The per-user state is a path, and paths do not go stale.
+- The two palettes are separate files that must be changed together. They are the same
+  colours expressed in two formats, and nothing enforces that — each file says so at the
+  top. A drift here is invisible until someone looks at the bar next to a focus ring.
+- The seeder **enforces** the pointer on every Niri session, which is what was asked for. A
+  user who picks a different theme in DMS's settings gets it reverted at next login. The
+  opt-out is one command — `systemctl --user mask qubix-dms-theme.service` — and is
+  documented next to the behaviour, because "my theme keeps coming back" is otherwise a
+  miserable thing to debug.
+- The seeder never overwrites a `settings.json` it cannot parse. DMS refuses to write over
+  one too, and clobbering a user's settings to fix a colour would be a bad trade. It also
+  writes through a temporary file and renames, because the file is being watched and a
+  half-written one reads as corrupt.
+- The unit is pulled in by `niri.service`, not enabled globally — the same scoping as
+  `dms.service` (DD-015), so a Plasma session is untouched.
+- Text contrast in the DMS palette was checked rather than assumed: every foreground /
+  background pair clears WCAG AA at 4.5:1, the tightest being `primaryText` on `primary` at
+  4.59:1. That pair is the one to re-check if the base colour ever moves.
+- The niri config is now two files where it was one. That is the cost of letting a personal
+  config track the theme, and it is worth it: the alternative is telling users not to
+  customise their compositor.

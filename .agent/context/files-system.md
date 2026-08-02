@@ -15,7 +15,11 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012); `BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop` (DD-023) |
 | `etc/xdg/mimeapps.list` | `xdg-open`, GIO, KIO | Web MIME types → Ungoogled Chromium, i.e. the default browser (DD-023) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
-| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; the `#56728B` colour theme; `eDP-1` pinned to `scale 1`; window rule hiding the Xwayland Video Bridge (DD-014, DD-015, DD-019, DD-022, DD-024) |
+| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; `eDP-1` pinned to `scale 1`; window rule hiding the Xwayland Video Bridge; `include`s the theme (DD-014, DD-015, DD-019, DD-024) |
+| `etc/niri/qubix-theme.kdl` | niri, via `include` | The `#56728B` palette for niri. **Separate so a personal config can include it** and keep tracking the image (DD-022, DD-025) |
+| `usr/share/qubix-os/dms-theme.json` | DankMaterialShell, as `customThemeFile` | The same palette for the shell. Watched by DMS, so a rebase reloads it live (DD-022, DD-025) |
+| `usr/bin/qubix-dms-theme` | `qubix-dms-theme.service` | Writes the *pointer* to the file above into `~/.config/DankMaterialShell/settings.json`. **Only executable in the overlay** (DD-025) |
+| `usr/lib/systemd/user/qubix-dms-theme.service` | systemd user manager | Runs the seeder `Before=dms.service`; pulled in by `niri.service`, never enabled globally (DD-025) |
 | `etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` | XDG autostart / `systemd-xdg-autostart-generator` | **Replaces** the package's entry, adding `NotShowIn=niri;` so the bridge does not autostart under Niri (DD-021) |
 | `usr/bin/qubix-video-bridge` | `Mod+Shift+B` and the launcher entry below | Toggles the bridge, with a notification. **Only executable in the overlay** — the git mode bit is what makes it runnable (IMG-013) |
 | `usr/share/applications/qubix-video-bridge.desktop` | XDG application menu / DMS launcher | A **new** entry (upstream's is `NoDisplay=true`), `OnlyShowIn=niri;` (IMG-013) |
@@ -104,6 +108,13 @@ without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012, 
 - **File modes carry through.** `usr/bin/qubix-video-bridge` is executable only because git
   records mode `100755`; the `files` module copies the bit as it finds it. A rewrite that
   drops it produces a script the keybind silently cannot run.
+- **The two palette files must change together.** `etc/niri/qubix-theme.kdl` and
+  `usr/share/qubix-os/dms-theme.json` are the same colours in two formats and nothing
+  enforces that. Drift is invisible until someone looks at the bar next to a focus ring.
+- **Seed pointers, never contents.** DMS has no system-wide theme default, so the only
+  lever is each user's `settings.json`. Writing the *path* there — with the palette in
+  `/usr`, which DMS watches — is what makes a rebase update the colours with nothing
+  re-run. Copying the palette into `$HOME` would freeze it at install time.
 - **Niri has no global scale setting** and no output wildcard. `output` matches a connector
   name or a `"manufacturer model serial"` triple, so `etc/niri/config.kdl` names `eDP-1`
   to pin the laptop panel to `scale 1` (DD-024). On a machine whose panel is called

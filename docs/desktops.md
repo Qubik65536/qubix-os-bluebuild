@@ -217,6 +217,7 @@ please do not paper over it with per-user config before it is recorded.
 |---|---|
 | `~/.config/niri/config.kdl` | Per-user config. Wins if it exists. |
 | `/etc/niri/config.kdl` | This image's system default. Used when the per-user file is absent. |
+| `/etc/niri/qubix-theme.kdl` | The colour theme, `include`d by the system config. |
 
 **Because `/etc/niri/config.kdl` exists, niri will not create a per-user config for you on
 first login.** To customise the session, copy it first:
@@ -225,6 +226,12 @@ first login.** To customise the session, copy it first:
 mkdir -p ~/.config/niri
 cp /etc/niri/config.kdl ~/.config/niri/config.kdl
 ```
+
+> **A copy is a fork.** Niri ignores the system file completely once yours exists, so from
+> that moment you stop receiving every change the image makes — new keybinds, the display
+> scale, the theme. Keep `include "/etc/niri/qubix-theme.kdl"` in your copy at minimum, and
+> re-read the system file after a rebase that changes the session. See *The colour theme*
+> below.
 
 The config live-reloads on save. `niri validate` parses it and reports errors. The full
 option reference ships in the image at `/usr/share/doc/niri/wiki/` and is online at
@@ -250,16 +257,51 @@ so every surface is the same colour at a different depth.
 | `#C67B39` | — | Urgent window. `hsl(28, 55%, 50%)` — the hue exactly opposite the base, and the one colour here meant *not* to blend in |
 
 To extend the palette, pick a lightness rather than a colour. Two features niri leaves off
-by default — **borders** and **shadows** — are already coloured in the shipped config, so
-enabling either is a one-word edit that still matches.
+by default — **borders** and **shadows** — are already coloured, so enabling either is a
+one-word edit that still matches.
 
-**DankMaterialShell overrides all of this if you turn on dynamic theming.** The config ends
-with an include of `~/.config/niri/dms/colors.kdl`, and niri includes override whatever came
-before them, so matugen's wallpaper-derived scheme wins. That is intentional (DD-015): this
-palette is the default, not a lock. Drop the include to keep it regardless of the wallpaper.
+The theme applies to both halves of the session, from two files that live in the image:
+
+| Half | File | How it is applied |
+|---|---|---|
+| niri | `/etc/niri/qubix-theme.kdl` | `include`d by the system config |
+| DankMaterialShell | `/usr/share/qubix-os/dms-theme.json` | `qubix-dms-theme.service` points your DMS settings at it before the shell starts |
+
+**Both are watched, so a rebase updates the colours live** — there is nothing to re-run and
+nothing copied into your home directory. Your DMS settings hold a path, not a palette.
+
+#### Keeping the theme with a personal niri config
+
+**This is the one thing that will silently cut you off.** Niri prefers
+`~/.config/niri/config.kdl` and ignores `/etc/niri/config.kdl` entirely once yours exists —
+so copying the system config to customise it stops you receiving *every* future system
+change, theme included.
+
+Add this line to your own config instead, after your own `layout` block:
+
+```kdl
+include "/etc/niri/qubix-theme.kdl"
+```
+
+Includes are positional — they override what comes before them — and niri watches included
+files, so the theme keeps tracking the image.
+
+#### Changing or keeping a different theme
+
+The DMS pointer is re-applied on **every** Niri session, so picking another theme in DMS's
+settings will not survive a logout. To keep your own choice:
+
+```bash
+systemctl --user mask qubix-dms-theme.service
+```
+
+**Dynamic theming still wins while it is on.** The niri config ends with an include of
+`~/.config/niri/dms/colors.kdl`, so matugen's wallpaper-derived scheme overrides the niri
+half. That is intentional (DD-015); drop the include to keep the palette regardless of the
+wallpaper.
 
 This is deliberately *not* the Qubix logo green — see DD-022 for why the session gets its own
-accent.
+accent, and DD-025 for how it is delivered.
 
 ### Display scale
 

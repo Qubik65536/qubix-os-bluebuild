@@ -1,0 +1,51 @@
+{
+  "_comment": [
+    "Qubix OS — the DankMaterialShell half of the Niri theme. Read by DMS as its",
+    "customThemeFile; /usr/bin/qubix-dms-theme points each user's settings at this path.",
+    "DMS watches the file, so a rebase that changes it reloads live — which is why the",
+    "path is in /usr and the per-user settings only hold a pointer.",
+    "Same palette as /etc/niri/qubix-theme.kdl: one hue, hsl(208, 24%, L), with lightness",
+    "doing all the work. error and warning are the deliberate exceptions.",
+    "Change one file, change the other. See docs/design-decisions.md DD-022, DD-025."
+  ],
+  "dark": {
+    "name": "Qubix Slate",
+    "primary": "#56728B",
+    "primaryText": "#F2F5F7",
+    "primaryContainer": "#3A4E5F",
+    "secondary": "#7490A9",
+    "surface": "#1B242C",
+    "surfaceText": "#D9E1E8",
+    "surfaceVariant": "#3A4E5F",
+    "surfaceVariantText": "#B9C8D4",
+    "surfaceTint": "#56728B",
+    "background": "#11171C",
+    "backgroundText": "#D9E1E8",
+    "outline": "#4E677E",
+    "surfaceContainer": "#232F39",
+    "surfaceContainerHigh": "#2B3945",
+    "error": "#C05959",
+    "warning": "#C67B39",
+    "info": "#7490A9"
+  },
+  "light": {
+    "name": "Qubix Slate",
+    "primary": "#56728B",
+    "primaryText": "#F2F5F7",
+    "primaryContainer": "#C6D2DC",
+    "secondary": "#4A6278",
+    "surface": "#E6EBEF",
+    "surfaceText": "#1B242C",
+    "surfaceVariant": "#D6DEE6",
+    "surfaceVariantText": "#3A4E5F",
+    "surfaceTint": "#56728B",
+    "background": "#F2F5F7",
+    "backgroundText": "#11171C",
+    "outline": "#6786A2",
+    "surfaceContainer": "#D6DEE6",
+    "surfaceContainerHigh": "#C6D2DC",
+    "error": "#A33E3E",
+    "warning": "#965D2C",
+    "info": "#4A6278"
+  }
+}
