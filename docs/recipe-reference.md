@@ -73,7 +73,8 @@ substitution.
 
   | Path in image | Purpose |
   |---|---|
-  | `/etc/xdg/kdeglobals` | KDE cascade fragment: default terminal (DD-012) |
+  | `/etc/xdg/kdeglobals` | KDE cascade fragment: default terminal (DD-012), default browser (DD-023) |
+  | `/etc/xdg/mimeapps.list` | MIME association fragment: the web types → Ungoogled Chromium (DD-023) |
   | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012) |
   | `/etc/niri/config.kdl` | System-default Niri configuration (DD-014) |
   | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
@@ -107,7 +108,7 @@ substitution.
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
 | `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012); `niri` = the second desktop session (DD-013); `dms` plus the three font packages and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015). |
-| `remove.packages` | Removed RPMs. `firefox` is removed in favour of the Flatpak (DD-006); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
+| `remove.packages` | Removed RPMs. `firefox` goes because a browser belongs in a Flatpak (DD-006) and because the browser here is Ungoogled Chromium (DD-023); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
 
@@ -133,7 +134,7 @@ COPR repositories in use:
   configurations:
     - notify: true
       scope: system
-      install: [org.mozilla.firefox, org.gnome.Loupe]
+      install: [io.github.ungoogled_software.ungoogled_chromium, org.gnome.Loupe]
     - scope: user
 ```
 
@@ -142,13 +143,21 @@ COPR repositories in use:
 | `scope: system` | Applies to all users; these applications are present for everyone. |
 | `scope: user` | Second configuration block; adds the Flathub **user** remote with no packages, so per-user installs work immediately. |
 | `notify: true` | Desktop notification when the install/uninstall pass finishes. |
-| `install` | `org.mozilla.firefox` (replaces the removed RPM), `org.gnome.Loupe` (image viewer). |
+| `install` | `io.github.ungoogled_software.ungoogled_chromium` — the default browser, replacing the removed Firefox RPM (DD-023); `org.gnome.Loupe` (image viewer). |
 
 No `repo` is specified, so Flathub is used by default.
 
 - **Ordering:** after `dnf` (DD-006).
 - **Note:** flatpaks are *seeded*, not baked into the image — they are fetched on first
   boot by a systemd unit, so first boot needs network access.
+- **`install` only.** The v2 module has no `remove:` key, so dropping an ID from this list
+  stops *new* installs getting it and leaves it in place on machines that already have it.
+  Removing it there is a manual `flatpak uninstall`.
+- **IDs are checked at build time** against Flathub, so a typo fails the build rather than
+  shipping an image missing an application.
+- **Installing is not defaulting.** This module makes no MIME associations; the default
+  browser is set by `/etc/xdg/mimeapps.list` and `/etc/xdg/kdeglobals` in the overlay
+  (DD-023).
 
 ### 4. `containerfile` — raw build steps
 

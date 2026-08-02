@@ -7,7 +7,7 @@
 # kde-settings profile for the keys named here, and changes nothing else. Fonts, icon
 # theme, colour scheme and look-and-feel keep coming from kde-settings.
 #
-# See docs/design-decisions.md DD-012.
+# See docs/design-decisions.md DD-012 and DD-023.
 
 [General]
 # Default terminal emulator for "Open Terminal Here", Dolphin, KRunner, and anything
@@ -20,3 +20,12 @@
 # parse. With TerminalApplication alone the launcher builds `wezterm -e ls`, which is
 # the supported form, and passes the working directory as the process CWD.
 TerminalApplication=wezterm
+
+# Default browser for KDE code that opens a URL through KIO's OpenUrlJob, which checks
+# this key before consulting the MIME associations. Plasma's *Default Applications* KCM
+# writes it, so this is the setting the user sees there.
+#
+# A desktop-file ID, not a command — a value starting with `!` would be run as a command
+# line instead. The real association lives in /etc/xdg/mimeapps.list; this key exists so
+# KDE agrees with it rather than quietly using its own answer. DD-023.
+BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop

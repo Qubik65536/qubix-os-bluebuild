@@ -87,7 +87,7 @@ image layer. Order is load-bearing. For `recipe.yml`:
 |---|---|---|---|---|
 | 1 | `files` | `common-base.yml` | Copies `files/system/*` to `/` (branding + desktop configuration) | Content must exist before anything reads it; nothing later depends on being first, but putting content first keeps later layers small. |
 | 2 | `dnf` | `common-base.yml` | Adds COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`; installs `micro`, `starship`, `wezterm`, `niri`, `dms` and its fonts; removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
-| 3 | `default-flatpaks` | `common-base.yml` | Configures Flathub (system + user), queues `org.mozilla.firefox` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM so the flatpak is the only Firefox. |
+| 3 | `default-flatpaks` | `common-base.yml` | Configures Flathub (system + user), queues `io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM, so the Flatpak browser is the only browser (DD-023). |
 | 4 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
 | 5 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
 
@@ -122,8 +122,8 @@ Consequences worth remembering:
   merged on updates; `/usr` is read-only and fully replaced. Ship configuration in `/usr`
   whenever the consumer supports it, so updates always win. `files/system/etc/` is used
   only where the consumer's search path offers no `/usr` entry that can be written without
-  overwriting an upstream file — currently `etc/xdg/kdeglobals` (DD-012) and
-  `etc/niri/config.kdl` (DD-014).
+  overwriting an upstream file — currently `etc/xdg/kdeglobals` (DD-012, DD-023),
+  `etc/xdg/mimeapps.list` (DD-023) and `etc/niri/config.kdl` (DD-014).
 - **Not only branding any more.** The overlay also carries the desktop-session
   configuration described in [`desktops.md`](desktops.md).
 

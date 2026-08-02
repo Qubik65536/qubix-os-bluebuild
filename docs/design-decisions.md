@@ -149,7 +149,9 @@ watermark. Symlinks would save roughly 400 KB in the repo and the image.
 
 ## DD-006 — Firefox as a Flatpak, not an RPM
 
-**Status:** Accepted
+**Status:** Superseded by [DD-023](#dd-023--ungoogled-chromium-as-the-default-browser-firefox-not-shipped)
+*(the browser only — "the browser is a Flatpak, never a layered RPM" is the part that
+survives, and the `firefox`/`firefox-langpacks` removal stays for the reason below)*
 
 **Context.** Aurora ships Firefox as a layered RPM. On an image-based system, layered
 browser RPMs are updated only when the whole image is rebased, and they cannot be updated
@@ -930,3 +932,72 @@ blend into it.
   from `hsl(208, 24%, L)` rather than choosing something that looks close.
 - This themes **niri only**. DankMaterialShell has its own theming system and is not
   covered here; matching the bar to this palette is a separate piece of work.
+
+---
+
+## DD-023 — Ungoogled Chromium as the default browser; Firefox not shipped
+
+**Status:** Accepted — supersedes the browser half of
+[DD-006](#dd-006--firefox-as-a-flatpak-not-an-rpm)
+
+**Implements:** `IMG-014`
+
+**Context.** DD-006 answered one question — *packaged how?* — and its answer stands: a
+browser is the most frequently patched thing on a desktop, and a layered RPM can only be
+updated by rebasing the whole image, so the browser is a Flatpak. It never answered *which
+browser*; Firefox was simply what Aurora already layered.
+
+That left two gaps, and the second is the one that matters:
+
+- **Firefox was installed, not chosen.** The image inherited it and re-installed it in
+  another form.
+- **Nothing made it the default.** `default-flatpaks` installs; it does not associate. With
+  the Firefox RPM removed and its Flatpak seeded on first boot, whichever handler the
+  desktop found first won `x-scheme-handler/https`, so "the default browser" was an
+  emergent property of the base image rather than a decision this repository had made. The
+  same gap would exist for any browser.
+
+**Decision.** Ship **Ungoogled Chromium**
+(`io.github.ungoogled_software.ungoogled_chromium`, Flathub) as the only browser, and make
+it the default explicitly, in three places:
+
+| File | Consumer | Why it is needed |
+|---|---|---|
+| `recipes/common-base.yml` | `default-flatpaks` | Installs the Flatpak (system scope) |
+| `/etc/xdg/mimeapps.list` | `xdg-open`, GIO, KIO | Claims `http`, `https`, `about`, `unknown`, `text/html`, `application/xhtml+xml` |
+| `/etc/xdg/kdeglobals` | KIO's `OpenUrlJob` | `BrowserApplication=` — KDE checks this key *before* the MIME associations |
+
+Firefox is not installed in either form. The `dnf` removal of `firefox` and
+`firefox-langpacks` therefore stays, and gains a second reason: not just "the RPM is the
+wrong packaging" but "a second browser competing for the default is the problem being
+fixed".
+
+**Consequences.**
+- The browser is a deliberate choice, and the association is declared rather than inherited.
+  Clicking a link in any application, in either session, opens Ungoogled Chromium.
+- Ungoogled Chromium is Chromium with Google's web services integration removed and no
+  binary blobs from Google. That is the reason for choosing it and also its cost: no
+  Sync, no Play/Widevine DRM by default (Netflix and Spotify Web need Widevine installed
+  separately), and no built-in updater — Flathub is the update channel.
+- **It is a community Flathub build, not a vendor one.** Ungoogled Chromium has no first
+  party release infrastructure for Flatpak, so the packaging is maintained by
+  `ungoogled-software` volunteers and lags upstream Chromium security releases more than
+  Mozilla's own Firefox Flatpak does. This is the sharpest edge of the decision and the
+  thing to re-examine if the lag ever grows.
+- `/etc/xdg/mimeapps.list` claims **only** the web types. `application/pdf` and the image
+  types stay with Okular and Loupe, even though the browser's desktop entry offers them.
+- **The user's own choice still wins.** `~/.config/mimeapps.list` is searched before
+  `/etc/xdg`, so *System Settings → Default Applications* keeps working, and installing
+  Firefox from Flathub by hand and selecting it there needs no change here.
+- **Nothing uninstalls the Firefox Flatpak on an existing machine.** The `default-flatpaks`
+  v2 module installs only — it has no `remove:` — so a machine rebased from an older Qubix
+  OS keeps `org.mozilla.firefox` until the user runs
+  `flatpak uninstall --system org.mozilla.firefox`. `docs/usage.md` says so. A fresh
+  install never gets it.
+- **The Flatpak ID is validated at build time.** The v2 module checks every ID in `install:`
+  against Flathub, so a typo fails the build rather than producing an image with no browser
+  and a `mimeapps.list` pointing at nothing.
+- Between the flatpak seeding on first boot and the association being read, the entry names
+  a desktop file that does not exist yet. The association is inert until the seeding
+  finishes, exactly as it was for Firefox under DD-006; the first boot needs network access
+  regardless.

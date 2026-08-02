@@ -72,7 +72,7 @@ line.
 ```yaml
 # ── Packages ────────────────────────────────────────────────
 # Aurora DX already ships the dev toolchain, so this stays small.
-# firefox is removed here and reinstalled as a Flatpak below (DD-006).
+# The browser is removed here and comes back as a Flatpak below (DD-006, DD-023).
 - type: dnf
 ```
 

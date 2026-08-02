@@ -12,7 +12,8 @@ on top of [Universal Blue](https://universal-blue.org)'s Aurora DX.
 | **Rebuilt** | Daily at 06:00 UTC, and on every push |
 
 Qubix OS is a thin, deliberately small layer over Aurora DX: Qubix branding, a rewritten
-system identity, a handful of extra packages, and Firefox moved from an RPM to a Flatpak.
+system identity, a handful of extra packages, and Ungoogled Chromium as the default
+browser in place of the layered Firefox RPM.
 Everything else is inherited upstream. The full delta is in
 [`docs/overview.md`](docs/overview.md).
 

@@ -12,7 +12,8 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 
 | Path | Consumer | Effect |
 |---|---|---|
-| `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012) |
+| `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012); `BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop` (DD-023) |
+| `etc/xdg/mimeapps.list` | `xdg-open`, GIO, KIO | Web MIME types → Ungoogled Chromium, i.e. the default browser (DD-023) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
 | `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; the `#56728B` colour theme; window rule hiding the Xwayland Video Bridge (DD-014, DD-015, DD-019, DD-022) |
 | `etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` | XDG autostart / `systemd-xdg-autostart-generator` | **Replaces** the package's entry, adding `NotShowIn=niri;` so the bridge does not autostart under Niri (DD-021) |
@@ -25,6 +26,15 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 `/etc/xdg:/usr/share/kde-settings/kde-profile/default/xdg`, so `/etc/xdg` wins for the
 keys it names and inherits everything else. Do **not** add a `kdeglobals` under
 `usr/share/kde-settings/…` — that path already exists upstream and would be overwritten.
+
+`etc/xdg/mimeapps.list` is a **fragment** for the same reason, by a different mechanism:
+MIME associations resolve per type, first match wins, searching `~/.config/mimeapps.list`
+→ `$XDG_CONFIG_DIRS` (`/etc/xdg` first) → `$XDG_DATA_DIRS/applications/mimeapps.list`. It
+claims the web types only, so PDFs and images keep resolving from Aurora's and Fedora's
+baseline lists — and the user's own file is searched *first*, so *Default Applications*
+still overrides it. The kdeglobals `BrowserApplication` key is not redundant with it: KIO's
+`OpenUrlJob` reads that key **before** consulting associations, so without it KDE could
+open a different browser from everything else (DD-023).
 
 `xwaylandvideobridge` XDG-autostarts and `niri.service` pulls in
 `xdg-desktop-autostart.target`, so KDE components reach the Niri session. The bridge
@@ -76,7 +86,9 @@ KDE Plasma too — two panels, two notification daemons, two lock screens. The d
 
 Prefer `/usr` for configuration: `/etc` is three-way merged on updates, `/usr` is replaced
 wholesale. Use `/etc` only where the consumer offers no `/usr` path that can be written
-without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012) and
+without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012, DD-023),
+`etc/xdg/mimeapps.list` (DD-023; the `/usr` equivalent,
+`/usr/share/applications/mimeapps.list`, exists upstream and Aurora appends to it) and
 `etc/niri/config.kdl` (DD-014; niri's config search path has no `/usr` entry).
 
 ## Gotchas

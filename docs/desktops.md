@@ -307,6 +307,23 @@ COPR because Fedora does not package it — see DD-012.
 Konsole is still installed and still works. To go back to it in Plasma: *System Settings →
 Default Applications → Terminal Emulator*.
 
+## The default browser
+
+**Ungoogled Chromium** is the default browser in both sessions, installed as a Flatpak from
+Flathub and seeded on first boot. Firefox is not shipped, in either form — see DD-023.
+
+Installing a browser does not make it the default, so two files claim it:
+
+| Consumer | Mechanism | File |
+|---|---|---|
+| `xdg-open`, GTK/GIO apps, KIO | `http`, `https`, `about`, `unknown`, `text/html`, `application/xhtml+xml` → `io.github.ungoogled_software.ungoogled_chromium.desktop` | `/etc/xdg/mimeapps.list` |
+| KDE's `OpenUrlJob`, which checks its own key first | `[General] BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop` | `/etc/xdg/kdeglobals` |
+
+Both are fragments: only the web types are claimed, so PDFs stay with Okular and images
+with Loupe. `~/.config/mimeapps.list` is searched first, so *System Settings → Default
+Applications* — or `xdg-settings set default-web-browser …` — still overrides all of it,
+per user.
+
 ## Things that are shared, and things that are not
 
 Both sessions run as the same user against the same home directory, so shell

@@ -76,12 +76,31 @@ HTTPS rather than from any other source.
 ## First boot
 
 Flatpaks are **seeded**, not baked in — a systemd unit installs them on first boot, so
-first boot needs network access. Expect `org.mozilla.firefox` and `org.gnome.Loupe` to
-appear shortly after login, with a desktop notification when the pass finishes
-(`notify: true`).
+first boot needs network access. Expect
+`io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` to appear shortly
+after login, with a desktop notification when the pass finishes (`notify: true`).
 
-Firefox is the Flatpak, not an RPM (DD-006), so it updates on Flathub's schedule rather
-than with the OS.
+**Ungoogled Chromium is the default browser** (DD-023), and it is the only one installed —
+Firefox is shipped in neither form. Being a Flatpak, it updates on Flathub's schedule
+rather than with the OS.
+
+Links open in it from both sessions without any setup: `/etc/xdg/mimeapps.list` claims the
+web MIME types and `/etc/xdg/kdeglobals` sets KDE's `BrowserApplication`. To use something
+else, install it and pick it in *System Settings → Default Applications* (Plasma) or run
+`xdg-settings set default-web-browser <id>.desktop` — either writes
+`~/.config/mimeapps.list`, which is searched **before** the image's copy, so your choice
+wins and survives updates.
+
+### If you are rebasing from an older Qubix OS
+
+Earlier images seeded `org.mozilla.firefox`. The Flatpak module only ever installs, so the
+rebase leaves it behind. Remove it once, by hand:
+
+```bash
+flatpak uninstall --system org.mozilla.firefox
+```
+
+A fresh installation never gets it.
 
 ## Checking what you're running
 

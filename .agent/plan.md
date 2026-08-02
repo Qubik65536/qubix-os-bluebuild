@@ -495,6 +495,39 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - A `DD-###` records the departure from the logo green, and `docs/branding.md` no longer
       implies `#47603b` is the only project colour
 
+### Applications
+
+- [ ] **IMG-014** — Make Ungoogled Chromium the default browser and drop Firefox
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Requested 2026-08-01. DD-006 chose *Flatpak over RPM* and left *which
+    browser* unanswered — Firefox was inherited from Aurora, not chosen. It also left the
+    association unset: `default-flatpaks` installs, it does not claim MIME types, so the
+    default browser was whatever the desktop resolved first.
+    Two mechanisms are needed, not one. `/etc/xdg/mimeapps.list` covers `xdg-open`, GIO and
+    KIO; KDE's `OpenUrlJob` additionally checks `kdeglobals [General] BrowserApplication`
+    **before** the associations, so KDE would otherwise be free to disagree with everything
+    else. Both are fragments — per-type resolution and per-key merging respectively — so
+    only the web types are claimed and `~/.config/mimeapps.list` still wins.
+    Flathub ID verified against the Flathub API: `io.github.ungoogled_software.ungoogled_chromium`,
+    desktop ID `io.github.ungoogled_software.ungoogled_chromium.desktop`. The v2
+    `default-flatpaks` module validates IDs at build time, so a typo fails the build.
+    **The one thing this cannot do:** v2 has no `remove:` key (v1 did), so the Firefox
+    Flatpak stays on machines that already have it. Documented as a one-line manual
+    uninstall in `docs/usage.md`; fresh installs are unaffected. See DD-023.
+  - **Acceptance criteria:**
+    - `common-base.yml` seeds `io.github.ungoogled_software.ungoogled_chromium` and no
+      Firefox in any form; the `firefox`/`firefox-langpacks` RPM removal stays
+    - `/etc/xdg/mimeapps.list` claims `http`, `https`, `about`, `unknown`, `text/html` and
+      `application/xhtml+xml`, and **only** those — PDFs and images keep their viewers
+    - `/etc/xdg/kdeglobals` sets `BrowserApplication` to the same desktop ID
+    - A user's own choice in *Default Applications* still overrides both
+    - DD-006 is superseded, not rewritten; `docs/desktops.md`, `docs/usage.md`,
+      `docs/overview.md`, `docs/architecture.md`, `docs/recipe-reference.md`, `README.md`
+      and `.agent/context/` cover the change, including the manual uninstall on rebase
+    - On the rebased image, a link clicked in each session opens Ungoogled Chromium on a
+      fresh account with no per-user setup *(open — needs a build and hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

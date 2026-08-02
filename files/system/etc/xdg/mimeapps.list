@@ -1,0 +1,35 @@
+# Read by: xdg-open, GIO (GTK apps), and KIO (KDE apps) — every user, both sessions.
+#
+# Makes Ungoogled Chromium the default browser. Installing the Flatpak is not enough:
+# something has to claim the web MIME types, or the handler is whatever the desktop
+# happens to pick first.
+#
+# This is a FRAGMENT, not a replacement. The XDG association search order is
+#   ~/.config/mimeapps.list          the user's own choice — still wins
+#   $XDG_CONFIG_DIRS/mimeapps.list   /etc/xdg (this file), then the kde-settings profile
+#   $XDG_DATA_DIRS/applications/mimeapps.list   Fedora's and Aurora's baseline
+# and each MIME type is resolved independently, first match wins. Only the types named
+# below are claimed; every other association still comes from the files further down.
+#
+# The value is a desktop-file ID. Flatpak exports it to
+# /var/lib/flatpak/exports/share/applications/, which is on $XDG_DATA_DIRS.
+#
+# See docs/design-decisions.md DD-023.
+
+[Default Applications]
+# Links clicked anywhere — chat clients, mail, the launcher, `xdg-open https://…`.
+x-scheme-handler/http=io.github.ungoogled_software.ungoogled_chromium.desktop
+x-scheme-handler/https=io.github.ungoogled_software.ungoogled_chromium.desktop
+# `about:` and unknown schemes: browsers conventionally claim both, and without them
+# some callers fall back to a chooser dialog.
+x-scheme-handler/about=io.github.ungoogled_software.ungoogled_chromium.desktop
+x-scheme-handler/unknown=io.github.ungoogled_software.ungoogled_chromium.desktop
+# Opening a local .html/.xhtml file.
+text/html=io.github.ungoogled_software.ungoogled_chromium.desktop
+application/xhtml+xml=io.github.ungoogled_software.ungoogled_chromium.desktop
+
+# Deliberately NOT claimed, although the browser's desktop entry offers them:
+# application/pdf, image/png, image/jpeg, image/gif, image/webp, application/xml.
+# Okular and Loupe (org.gnome.Loupe, installed alongside) are the better viewers, and a
+# browser stealing every image double-click is the usual complaint about Chromium
+# defaults. Those types keep resolving from the baseline lists.

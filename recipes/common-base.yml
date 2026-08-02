@@ -27,7 +27,7 @@ modules:
 
   # 2. Package changes (layered RPMs).
   #    Ordering: MUST precede default-flatpaks, so the Firefox RPM is gone before the
-  #    Flatpak replacing it is queued (DD-006).
+  #    browser Flatpak replacing it is queued (DD-006, DD-023).
   #    NOT the place for kernels: a variant that swaps the kernel does it in its own
   #    module file, after this one (DD-017).
   - type: dnf
@@ -72,8 +72,10 @@ modules:
         - cliphist
     remove:
       packages:
-        # Firefox is removed in favour of the Flatpak below, so browser security updates
-        # don't have to wait for a full image rebuild. DD-006.
+        # Aurora layers Firefox as an RPM. It goes, for two reasons: a layered browser can
+        # only be updated by rebasing the whole image, and the browser here is Ungoogled
+        # Chromium (the Flatpak below), so leaving Firefox installed would leave a second
+        # browser competing to be the default. DD-006, DD-023.
         - firefox
         - firefox-langpacks # also remove firefox dependency (not required for all packages, this is a special case)
 
@@ -88,7 +90,11 @@ modules:
         scope: system
         # If no repo information is specified, Flathub will be used by default
         install: # system flatpaks we want all users to have and not remove
-          - org.mozilla.firefox # replaces the removed RPM
+          # The default browser, replacing the removed Firefox RPM. A Flatpak, so its
+          # security updates come from Flathub instead of waiting for an image rebuild.
+          # Being installed is not the same as being the default: the handler wiring is
+          # in files/system/etc/xdg/mimeapps.list and .../kdeglobals. DD-023.
+          - io.github.ungoogled_software.ungoogled_chromium
           - org.gnome.Loupe # image viewer
       # User scope — adds the Flathub user remote only, so per-user installs work
       # out of the box without any packages being forced on anyone.

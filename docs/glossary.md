@@ -21,6 +21,7 @@ terms over synonyms.
 | **Delta** | What this repository changes relative to Aurora DX. Kept deliberately small. |
 | **Deployment** | An `rpm-ostree` bootable instance of an image. Several coexist; the previous one is the rollback target. |
 | **Flatpak seeding** | Flatpaks are not baked into the image; a systemd unit installs them on first boot. Hence first boot needs network. |
+| **Fragment (configuration)** | A file this image ships that sets only the keys it cares about, letting everything else resolve from the files upstream already ships — `/etc/xdg/kdeglobals` (merged key by key) and `/etc/xdg/mimeapps.list` (resolved type by type). Never a wholesale replacement. |
 | **`from-file:`** | The recipe key that splices a shared `recipes/common-*.yml` module list into a recipe at that position (DD-016). |
 | **GHCR** | GitHub Container Registry — where the image is published. |
 | **`image-version`** | The base image *tag* (`latest` here). A channel, not a Fedora version number. See DD-018. |
@@ -30,6 +31,7 @@ terms over synonyms.
 | **Kinoite** | Fedora's official immutable KDE Plasma variant. Aurora's base. |
 | **Look-and-feel package** | A KDE Plasma theme bundle under `/usr/share/plasma/look-and-feel/`. Aurora's contains the startup splash this image overrides. |
 | **matugen** | Generates a Material colour scheme from the wallpaper. DankMaterialShell uses it to theme itself and niri. |
+| **MIME association** | The mapping from a MIME type or URL scheme to the desktop entry that opens it. Set system-wide in `/etc/xdg/mimeapps.list`; the user's `~/.config/mimeapps.list` is searched first and wins. How the default browser is declared (DD-023). |
 | **Module** | A build step (`files`, `dnf`, `default-flatpaks`, `containerfile`, `initramfs`, `signing`). Modules run in the order the recipe composes them. |
 | **MOK** | Machine Owner Key — an X.509 key enrolled with shim via `mokutil`, letting a machine's owner trust binaries their vendor did not sign. How Secure Boot stays on with the CachyOS kernel ([`variants.md`](variants.md)). |
 | **Niri** | A scrollable-tiling Wayland compositor. The second desktop session (DD-013). See [`desktops.md`](desktops.md). |
@@ -46,6 +48,7 @@ terms over synonyms.
 | **shim** | The Fedora-signed first-stage bootloader that chains to GRUB and checks the kernel against firmware `db` plus the MOK list. |
 | **Signing policy** | Client-side configuration, installed into the image by the `signing` module, that lets `ostree-image-signed:` rebases verify against `cosign.pub`. |
 | **Task** | An entry in [`../.agent/plan.md`](../.agent/plan.md) with an ID, category, dependencies, and acceptance criteria. |
+| **Ungoogled Chromium** | Chromium with Google's web-service integration and binary blobs removed. The default browser, installed as a Flatpak from Flathub (DD-023). See [`desktops.md`](desktops.md). |
 | **Universal Blue** | The project producing the `ublue-os` images, including Aurora. |
 | **Variant** | One of the images this repository publishes. They share every module except the one dimension that distinguishes them. See [`variants.md`](variants.md). |
 | **WezTerm** | The GPU-accelerated terminal emulator set as the default in every session (DD-012). Not packaged in Fedora; layered from WezTerm's own COPR. |

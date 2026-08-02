@@ -44,7 +44,7 @@ described here or in `files/system/`.
   |---|---|---|---|---|
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
   | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`; install `micro`, `starship`, `wezterm`, `niri`, `dms` + fonts + `cliphist`; remove `firefox`, `firefox-langpacks` | before `default-flatpaks` |
-  | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `org.mozilla.firefox`, `org.gnome.Loupe` | after `dnf` (DD-006) |
+  | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
   | 4 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
   | 5 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
 
@@ -95,6 +95,16 @@ described here or in `files/system/`.
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
 - `firefox-langpacks` must be removed explicitly — dependency removal is not automatic.
   It looks redundant and is not.
+- **No Firefox in either form.** The browser is Ungoogled Chromium (DD-023). The RPM
+  removal now has two reasons — packaging *and* not shipping a second browser — so do not
+  "restore" it when reading DD-006 alone.
+- **`default-flatpaks` v2 installs; it cannot uninstall.** The `configurations:` form has no
+  `remove:` key (v1 did). Dropping an ID only affects fresh installs; existing machines keep
+  the flatpak until the user removes it by hand. Flatpak IDs *are* validated against Flathub
+  at build time, so a typo fails the build.
+- **Installing a browser does not make it the default.** The association lives in the
+  overlay — `files/system/etc/xdg/mimeapps.list` and the `BrowserApplication` key in
+  `etc/xdg/kdeglobals`. Changing the browser here means changing all three.
 - `wezterm` comes from **WezTerm's own** COPR and is a *nightly* build: versions are
   datestamps, not releases. There is no Fedora package (DD-012).
 - `niri` is **additive**. Nothing KDE is removed (DD-013). Its weak dependencies (waybar,
