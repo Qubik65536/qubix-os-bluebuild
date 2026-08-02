@@ -173,6 +173,22 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - Every task carries a checkbox, ID, category, dependencies, and acceptance criteria
     - Completed and open work are separated
 
+- [x] **AGT-005** — Forbid issue references in commit messages
+  - **Category:** Agent tooling
+  - **Depends on:** AGT-001
+  - **Notes:** `#123`, `owner/repo#123`, and issue/PR URLs in a pushed commit message post
+    a cross-reference into the referenced issue's timeline, which **notifies everyone
+    subscribed to that thread** about a commit that means nothing to their bug. The event
+    cannot be withdrawn — only a maintainer of the other project can hide it. `8a2f0ac`
+    already did it to `niri-wm/niri#2367`; history is not rewritten, so the rule applies
+    from here on. See DD-020.
+  - **Acceptance criteria:**
+    - `AGENTS.md` §7 states the rule as non-negotiable, with the forms it covers
+    - The stated reason is the notification in the other project's thread, not visibility
+    - Every page giving the rule also gives the safe way to cite an upstream issue
+    - `.agent/context/agent-files.md` carries it as a gotcha
+    - A `DD-###` record covers the mechanism and why `Closes IMG-###.` is unaffected
+
 - [x] **AGT-004** — Create the context cache
   - **Category:** Agent tooling
   - **Depends on:** AGT-001

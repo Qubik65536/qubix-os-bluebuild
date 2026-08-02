@@ -109,6 +109,37 @@ Closes IMG-007.
 Signed-off-by: ...
 ```
 
+### Never reference an issue or PR from a commit message
+
+**Strict, no exceptions.** No `#123`, no `owner/repo#123`, no `GH-123`, no
+`https://github.com/owner/repo/issues/123`, and no closing keyword (`Closes`, `Fixes`,
+`Resolves`) pointed at any of them.
+
+**Why:** each of those posts a cross-reference into the referenced issue's timeline as
+soon as the commit is pushed, which **notifies everyone subscribed to that thread** —
+maintainers and every previous commenter — about a commit in an image-build repository
+they have nothing to do with. The event cannot be withdrawn; only a maintainer of the
+other project can hide it. DD-020 records the reasoning.
+
+Cite upstream issues in **files** instead — `docs/`, `design-decisions.md`, or the task's
+notes in `.agent/plan.md`. A link in a file notifies nobody, so it can be written in full
+where a reader will look for it, and the commit body refers to it in prose:
+
+```
+fix: Hide the Xwayland Video Bridge in the Niri session
+
+The bridge expects the compositor to hide it; niri has no such rule
+(upstream niri issue 2367, linked from DD-019).
+
+Closes IMG-012.
+```
+
+The test before committing: **no `#`, no `github.com/…` URL, no closing keyword aimed at
+either.** A bare number in prose (`issue 2367`) is inert — GitHub autolinks only the
+`#`-forms and URLs.
+
+`Closes IMG-012.` is fine — `plan.md` IDs are internal and GitHub does not autolink them.
+
 ## Style
 
 | Topic | Convention |

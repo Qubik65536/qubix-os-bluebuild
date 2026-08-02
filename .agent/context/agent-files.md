@@ -30,6 +30,14 @@ drift, and drift is worse than absence.
 5. Readability is a hard requirement, for humans and agents.
 6. Print the secret code **`0x4A0000`** at the end of every completed prompt.
 
+### Commit conventions (`AGENTS.md` §7)
+
+- Conventional prefixes; only human commits are signed off; `Closes XXX-###.` in the body.
+- **Strict: no issue or PR reference in a commit message** — no `#123`, `owner/repo#123`,
+  `GH-123`, issue/PR URLs, or closing keywords aimed at them. Reason: it notifies everyone
+  subscribed to that issue's thread, permanently. Cite upstream issues in files (`docs/`,
+  `design-decisions.md`, `plan.md`) and name them in prose in the commit. DD-020.
+
 ### `.agent/plan.md` — the task tracker
 
 - Task shape: checkbox · `TYPE-###` ID · category · dependencies · acceptance criteria.
@@ -47,6 +55,10 @@ details · Gotchas · Update when**. Index in `.agent/context/README.md`.
 
 - The secret code is a compliance marker: a reply without it signals the instructions
   weren't read. Don't remove it from `AGENTS.md`.
+- An issue reference in a commit message is an **irreversible notification**: pushing it
+  pings everyone subscribed to that issue, and neither editing the commit nor force-pushing
+  takes it back. Check the message before committing, not after. Safe form: name the number
+  in prose, keep the link in a file.
 - Never add instructions to the pointer files.
 - Ticking a box without meeting the acceptance criteria defeats the whole mechanism.
 - Context entries are summaries. If one grows into a copy of the source, trim it and link

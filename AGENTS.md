@@ -175,6 +175,45 @@ these instructions. Duplicated instructions drift and drift is worse than absenc
 - Reference the task ID in the body when a commit closes a `plan.md` task, e.g.
   `Closes DOC-004.`
 
+### 7.1 NEVER reference an issue or pull request in a commit message
+
+**This rule is strict and has no exceptions.** A commit message in this repository must
+never contain an issue or PR reference, in **any** form:
+
+| Forbidden in a commit message | Why |
+|---|---|
+| `#123` | GitHub cross-references issue 123 *in this repo* |
+| `owner/repo#123`, `GH-123` | Cross-references **another project's** issue tracker |
+| `https://github.com/owner/repo/issues/123` (or `/pull/123`) | A pasted URL cross-references exactly the same way |
+| `Closes #123`, `Fixes owner/repo#123`, any closing keyword + issue | As above, and may close someone else's issue |
+
+**The reason: notifications in someone else's thread.** GitHub turns each of those forms
+into a cross-reference event posted into the referenced issue's timeline, and everyone
+watching that issue — maintainers, and every user who commented or subscribed — gets
+notified. They are told about a commit in a private image-build repository that means
+nothing to their bug. The event **cannot be withdrawn**: it outlives the commit, survives
+a force-push, and the only person who can remove it is a maintainer of the *other*
+project. Nobody should have to clean up after us to read their own issue thread. See
+DD-020.
+
+**How to cite an upstream issue without notifying anyone.** The link itself is worth
+keeping — it just belongs where it triggers nothing. Repository **files** are safe:
+Markdown in `docs/`, `docs/design-decisions.md`, or `.agent/plan.md` renders as an ordinary
+link and creates no reference and no notification, however often it is read.
+
+| Want to say | In a commit message | In a file |
+|---|---|---|
+| Upstream bug | `upstream niri issue 2367`, or `see DD-019` | `[niri#2367](https://github.com/niri-wm/niri/issues/2367)` |
+| Upstream PR | `upstream fix in niri PR 2401` | Full link, same as above |
+
+The mechanical test for a commit message: **no `#`, no `github.com/...` URL, no closing
+keyword aimed at either.** A bare number in prose (`issue 2367`) is inert — GitHub only
+autolinks `#`-forms and URLs — so nothing is lost but the click, and the click lives one
+`DD-###` away.
+
+`Closes IMG-012.` stays allowed: `plan.md` task IDs are internal, are not GitHub issues,
+and are not autolinked.
+
 ---
 
 **Remember: print `0x4A0000` at the end of every completed prompt.**

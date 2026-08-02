@@ -748,3 +748,61 @@ KWin rule KDE ships, and it is what upstream's design expects a compositor to pr
 - **Fix is reasoned, not yet verified on hardware.** There is no local build; it is
   confirmed when a Niri login on the rebased image comes up clean. `IMG-012` stays open
   until then.
+
+---
+
+## DD-020 — Commit messages never reference an issue or pull request
+
+**Status:** Accepted
+
+**Implements:** `AGT-005`
+
+**Context.** Commits here explain themselves at length, and part of that is provenance:
+the Xwayland Video Bridge fix is only understandable next to the upstream niri issue that
+describes the behaviour. The obvious way to record that is to put the issue reference in
+the commit message.
+
+But GitHub treats an issue reference as an **action, not as text**. Any `#123`,
+`owner/repo#123`, `GH-123`, or issue/PR URL in a pushed commit message posts a
+cross-reference event into that issue's timeline, and the timeline is a notification
+channel: the maintainers, and every person who commented on or subscribed to the issue,
+are told that something happened on their bug. What actually happened is a commit in a
+one-person image-build repository, which is of no use to any of them. It is an unsolicited
+ping to strangers, delivered by a project they have nothing to do with, and repeated for
+every commit that mentions the issue.
+
+The cost is one-directional and permanent. **The event cannot be withdrawn** — not by
+editing the commit, not by force-pushing, not by deleting the branch. Only a maintainer of
+the *other* repository can hide it, which makes our convenience their clean-up task.
+`8a2f0ac` did exactly this to `niri-wm/niri#2367` before the rule existed.
+
+File contents behave differently. A link written in `docs/`, in this file, or in
+`.agent/plan.md` is rendered as a link and notifies nobody, however often it is read. The
+information is identical; only the side effect differs.
+
+**Decision.** Never reference an issue or pull request from a commit message, in any form
+— `#123`, `owner/repo#123`, `GH-123`, issue/PR URLs, or any closing keyword pointed at
+them. Cite upstream issues in repository **files**, where the full link is safe, and have
+the commit body name the issue in prose (`upstream niri issue 2367`) or point at the
+`DD-###` that holds the link.
+
+The mechanical test for a commit message is **no `#`, no `github.com/…` URL, no closing
+keyword aimed at either**. A bare number in prose is inert — GitHub autolinks only the
+`#`-forms and URLs.
+
+**Consequences.**
+- Nobody outside this project is notified by anything committed here. That is the whole
+  point of the rule; every other effect is secondary.
+- Provenance is not lost, and arguably improves. A link in `docs/` or this file is
+  discoverable by a reader who was not present for the commit; a reference buried in
+  `git log` is not. The commit says *which* issue, the record says *where*.
+- The trade is one click. A reader of `git log` who wants the upstream thread has to open
+  the `DD-###` first. Acceptable — that reader is almost always already in the docs.
+- `Closes IMG-012.` is unaffected. `plan.md` task IDs are internal identifiers, are not
+  GitHub issues, and are not autolinked.
+- History is not rewritten. The reference `8a2f0ac` created upstream stands; the rule
+  applies from its adoption forward.
+- The same mechanism fires from PR and issue bodies, review comments, and even a
+  cross-repo mention in a PR title. Those are outside this rule's scope, but the same
+  restraint applies: link to another project's thread only when the people in it would
+  actually want to hear from us.
