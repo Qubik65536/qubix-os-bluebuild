@@ -35,6 +35,10 @@ There are four distinct images in the repository. Everything else is a copy.
 
 Primary colour in the logo mark: `#47603b`.
 
+It is **not** the only colour the project uses. The Niri session is themed from `#56728B`,
+a slate blue with its own derived palette — see [`desktops.md`](desktops.md) and DD-022.
+The logo green stays the logo's; it is not a system accent.
+
 ## Asset map
 
 ### Logo mark — SVG (artwork A)

@@ -40,6 +40,24 @@ input {
     }
 }
 
+// ── Palette ───────────────────────────────────────────────────────────────────
+// Every colour in this file comes from ONE hex: #56728B, which is hsl(208, 24%, 44%).
+// The rest of the ramp holds that hue and saturation and moves only lightness, so every
+// surface is visibly the same colour at a different depth. To extend it, pick a lightness
+// — do not pick a colour.
+//
+//   #1B242C   L 14%   deepest      overview backdrop, shadow
+//   #2B3945   L 22%   recessed     unfocused window
+//   #3A4E5F   L 30%   muted        inactive tab
+//   #56728B   L 44%   BASE         focused window
+//   #7490A9   L 56%   raised       active tab
+//
+//   #C67B39           urgent       hsl(28, 55%, 50%) — the hue opposite the base, the one
+//                                  colour here that is meant NOT to blend in
+//
+// This is deliberately NOT the logo green (#47603b, see docs/branding.md). DD-022.
+// DMS's matugen theming overrides all of it when enabled — see the include at the end.
+
 // ── Layout ────────────────────────────────────────────────────────────────────
 // Niri is a scrollable-tiling compositor: windows form an infinite horizontal strip
 // of columns rather than a subdivided rectangle.
@@ -47,7 +65,8 @@ layout {
     gaps 8
 
     // DMS paints its own backdrop; leaving this transparent avoids a coloured band
-    // showing through in the overview.
+    // showing through in the overview. With no wallpaper drawn, what shows through is
+    // the overview backdrop-color below, which is the palette's deepest tone.
     background-color "transparent"
 
     // Widths cycled by Mod+R. Fractions of the output width.
@@ -59,13 +78,55 @@ layout {
 
     default-column-width { proportion 0.5; }
 
+    // The ring around the focused window. On a single monitor you never see
+    // inactive-color — the focus ring is drawn only around the active window per output.
     focus-ring {
         width 2
-        // Qubix OS logo green, and a muted variant for unfocused monitors. Overridden
-        // per-user by DMS's matugen theming if it is in use — see the include below.
-        active-color "#47603b"
-        inactive-color "#3c3c3c"
+        active-color "#56728B"
+        inactive-color "#2B3945"
+        urgent-color "#C67B39"
     }
+
+    // Borders are drawn around EVERY window, not just the focused one, and niri leaves
+    // them off by default. Kept off — but coloured, so `on` is the only edit needed and
+    // the result still matches.
+    border {
+        off
+        width 2
+        active-color "#56728B"
+        inactive-color "#2B3945"
+        urgent-color "#C67B39"
+    }
+
+    // Also off by default. Pre-set for the same reason; the colour is the palette's
+    // deepest tone at 60% alpha so it reads as depth rather than as a black halo.
+    shadow {
+        off
+        softness 30
+        spread 4
+        offset x=0 y=4
+        color "#1B242C99"
+    }
+
+    // Shown next to columns in tabbed display mode (Mod+W).
+    tab-indicator {
+        active-color "#7490A9"
+        inactive-color "#3A4E5F"
+        urgent-color "#C67B39"
+    }
+
+    // Where a window will land while you drag it. Half-transparent base, so the window
+    // underneath stays readable.
+    insert-hint {
+        color "#56728B80"
+    }
+}
+
+// ── Overview ──────────────────────────────────────────────────────────────────
+// The zoomed-out view behind the workspaces (Mod+O). This colour is also what fills the
+// screen wherever no wallpaper is drawn, because the layout background is transparent.
+overview {
+    backdrop-color "#1B242C"
 }
 
 // Ask applications to omit their own title bars so niri can draw borders around them.
@@ -253,6 +314,10 @@ binds {
 // DMS generates a Material colour scheme from the wallpaper with matugen and writes it
 // to ~/.config/niri/dms/colors.kdl. Including it here is what makes niri's focus ring,
 // borders and tab indicators follow the shell's accent colour.
+//
+// It therefore REPLACES the #56728B palette above for anyone who turns dynamic theming
+// on. That is the intended trade (DD-015): the shipped palette is the default, not a
+// lock. Delete this include to keep the palette regardless of the wallpaper.
 //
 // `optional=true` means a missing file is not an error, so this is inert until the user
 // enables dynamic theming. Absolute (`~`-expanded) rather than relative, because a

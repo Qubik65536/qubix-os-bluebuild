@@ -470,6 +470,31 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       points *(open — needs a build and hardware; the overlay carries mode 100755, but
       nothing here verifies what the `files` module produced)*
 
+- [ ] **BRD-002** — Give the Niri session a theme built from `#56728B`
+  - **Category:** Branding
+  - **Depends on:** —
+  - **Notes:** Requested 2026-08-01. The Niri session currently borrows the logo green
+    `#47603b` for its focus ring and pairs it with a neutral grey `#3c3c3c`; everything else
+    niri can colour is left at its default. That is one borrowed colour, not a theme.
+    `#56728B` is `hsl(208, 24%, 44%)`. Deriving the rest of the palette by holding hue and
+    saturation and moving only lightness keeps every surface visibly the same colour, which
+    is the whole point of theming from one hex.
+    **DMS still wins where it overlaps.** `/etc/niri/config.kdl` ends with
+    `include optional=true "~/.config/niri/dms/colors.kdl"`, and niri includes override what
+    came before them (DD-015). A user who turns on DankMaterialShell's dynamic theming gets
+    matugen's wallpaper-derived colours over the top of this. That is deliberate and stays.
+  - **Acceptance criteria:**
+    - Every colour niri accepts is set from one derived palette: focus ring, border, shadow,
+      tab indicator, insert hint, and the overview backdrop
+    - `#56728B` itself is the focused-window colour, not a shade of it
+    - The palette is written down with its derivation, so the next colour can be produced
+      rather than guessed
+    - Features that are off by default — border, shadow — stay off, but are pre-coloured so
+      turning them on is one word and still matches
+    - `background-color "transparent"` is untouched; DMS's wallpaper still shows through
+    - A `DD-###` records the departure from the logo green, and `docs/branding.md` no longer
+      implies `#47603b` is the only project colour
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

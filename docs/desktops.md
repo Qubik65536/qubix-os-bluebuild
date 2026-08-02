@@ -234,6 +234,33 @@ The shipped config is deliberately short — it is not a copy of niri's 600-line
 default. Anything it does not set keeps niri's built-in default. See DD-014 for why it
 lives in `/etc` rather than `/usr`.
 
+### The colour theme
+
+Every colour niri draws comes from one hex, **`#56728B`** — `hsl(208, 24%, 44%)`, a muted
+slate blue. The rest of the palette holds that hue and saturation and moves only lightness,
+so every surface is the same colour at a different depth.
+
+| Swatch | Lightness | Where you see it |
+|---|---|---|
+| `#1B242C` | 14% | Overview backdrop; the shadow colour; the empty screen |
+| `#2B3945` | 22% | Unfocused window — ring or border |
+| `#3A4E5F` | 30% | Inactive tab in a tabbed column |
+| **`#56728B`** | **44%** | **Focused window; the insert hint, at half alpha** |
+| `#7490A9` | 56% | Active tab |
+| `#C67B39` | — | Urgent window. `hsl(28, 55%, 50%)` — the hue exactly opposite the base, and the one colour here meant *not* to blend in |
+
+To extend the palette, pick a lightness rather than a colour. Two features niri leaves off
+by default — **borders** and **shadows** — are already coloured in the shipped config, so
+enabling either is a one-word edit that still matches.
+
+**DankMaterialShell overrides all of this if you turn on dynamic theming.** The config ends
+with an include of `~/.config/niri/dms/colors.kdl`, and niri includes override whatever came
+before them, so matugen's wallpaper-derived scheme wins. That is intentional (DD-015): this
+palette is the default, not a lock. Drop the include to keep it regardless of the wallpaper.
+
+This is deliberately *not* the Qubix logo green — see DD-022 for why the session gets its own
+accent.
+
 ### Key bindings
 
 `Mod` is the Super (Meta / Windows) key. This is a summary; `Mod+Shift+/` shows the live

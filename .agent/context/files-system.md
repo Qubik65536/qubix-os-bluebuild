@@ -14,7 +14,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 |---|---|---|
 | `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
-| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; window rule hiding the Xwayland Video Bridge (DD-014, DD-015, DD-019) |
+| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; the `#56728B` colour theme; window rule hiding the Xwayland Video Bridge (DD-014, DD-015, DD-019, DD-022) |
 | `etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` | XDG autostart / `systemd-xdg-autostart-generator` | **Replaces** the package's entry, adding `NotShowIn=niri;` so the bridge does not autostart under Niri (DD-021) |
 | `usr/bin/qubix-video-bridge` | `Mod+Shift+B` and the launcher entry below | Toggles the bridge, with a notification. **Only executable in the overlay** — the git mode bit is what makes it runnable (IMG-013) |
 | `usr/share/applications/qubix-video-bridge.desktop` | XDG application menu / DMS launcher | A **new** entry (upstream's is `NoDisplay=true`), `OnlyShowIn=niri;` (IMG-013) |
@@ -67,7 +67,10 @@ KDE Plasma too — two panels, two notification daemons, two lock screens. The d
   `usr/share/kde-settings/kde-profile/default/xdg/kcm-about-distrorc` — KDE "About this
   System". Sets `Name=Qubix OS`, a `Variant` string, and
   `LogoPath=/usr/share/pixmaps/system-logo.png`.
-- Logo primary colour: `#47603b`.
+- Logo primary colour: `#47603b`. **This is the logo's colour, not the project's accent.**
+  The Niri session is themed from `#56728B` — `hsl(208, 24%, 44%)` — with every other tone
+  derived by holding hue and saturation and moving only lightness (DD-022). Extending that
+  palette means computing `hsl(208, 24%, L)`, not eyeballing something close.
 
 ## `/usr` vs `/etc`
 

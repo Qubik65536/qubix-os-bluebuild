@@ -865,3 +865,68 @@ started by hand.
   expects a KWin rule needs *both* answers: a window rule if it should still run, and a
   `NotShowIn=niri;` override if it should not. Reach for the window rule first — it takes
   nothing away.
+
+---
+
+## DD-022 — Theme the Niri session from `#56728B`, not from the logo green
+
+**Status:** Accepted
+
+**Implements:** `BRD-002`
+
+**Context.** The Niri session shipped with one borrowed colour: the logo green `#47603b`
+on the focus ring, paired with a neutral grey for unfocused windows. Everything else niri
+can colour — border, shadow, tab indicator, insert hint, overview backdrop — kept niri's
+defaults, which are its own blue. So the session was not themed; it was two colours from
+two unrelated sources with niri's defaults showing through the gaps.
+
+Two questions had to be answered together.
+
+**Which colour.** `#47603b` is the logo mark's green. A logo colour and a UI accent are
+different jobs: the logo is seen once, at high contrast, on a splash or an About page; the
+focus ring is on screen permanently, in peripheral vision, next to whatever the user is
+actually reading. `#47603b` is `hsl(100, 24%, 30%)` — dark enough that a 2px ring against a
+dark desktop is hard to pick out, and green enough to fight with terminal output and
+syntax highlighting. `#56728B` is `hsl(208, 24%, 44%)`: the same saturation, 14 points
+lighter, and in a hue that almost nothing else on a developer's screen occupies.
+
+**How to derive the rest.** Picking five more colours by eye produces a palette that drifts
+in hue and reads as several colours. Holding hue and saturation and moving only lightness
+produces one colour at five depths, which is what "themed from a hex" should mean.
+
+**Decision.** Theme the Niri session from `#56728B`, deriving every other surface by
+lightness alone:
+
+| Hex | HSL | Role |
+|---|---|---|
+| `#1B242C` | `hsl(208, 24%, 14%)` | Overview backdrop, shadow |
+| `#2B3945` | `hsl(208, 23%, 22%)` | Unfocused window |
+| `#3A4E5F` | `hsl(208, 24%, 30%)` | Inactive tab |
+| `#56728B` | `hsl(208, 24%, 44%)` | **Base — focused window** |
+| `#7490A9` | `hsl(208, 24%, 56%)` | Active tab |
+| `#C67B39` | `hsl(28, 55%, 50%)` | Urgent |
+
+The urgent colour is the single deliberate exception. It sits at hue 28°, 180° from the
+base, because a window demanding attention is the one thing in this palette that must not
+blend into it.
+
+**Consequences.**
+- Every colour niri accepts is now set, so niri's own blue no longer shows through
+  anywhere.
+- `border` and `shadow` stay **off**, as niri ships them, but are pre-coloured. Turning
+  either on is a one-word edit that still matches, rather than an edit that then needs a
+  colour picked to go with it.
+- **DankMaterialShell's dynamic theming still wins.** `/etc/niri/config.kdl` ends with an
+  include of `~/.config/niri/dms/colors.kdl` and niri includes override what precedes them
+  (DD-015). A user who enables matugen theming gets wallpaper-derived colours over the top.
+  This palette is the session default, not a lock, and the ordering is not changing.
+- The logo green is unaffected and stays the logo's. `docs/branding.md` now says so
+  explicitly, because "primary colour in the logo mark" had started to read as "the project
+  colour".
+- `background-color "transparent"` is untouched, so DMS's wallpaper still shows through.
+  Where no wallpaper is drawn, what fills the screen is the overview backdrop, which is now
+  the palette's deepest tone rather than niri's default.
+- The palette extends by lightness. Anyone adding a surface should compute the next tone
+  from `hsl(208, 24%, L)` rather than choosing something that looks close.
+- This themes **niri only**. DankMaterialShell has its own theming system and is not
+  covered here; matching the bar to this palette is a separate piece of work.
