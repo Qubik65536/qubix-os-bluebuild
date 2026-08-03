@@ -36,8 +36,11 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/share/qubix-os/shell/qubix.zsh` | zsh, from `/etc/zshenv` | Prompt, atuin, both plugins, history defaults |
 | `usr/share/qubix-os/shell/qubix.bash` | bash, from `/etc/profile.d` | Prompt and aliases. No atuin — see gotchas |
 | `usr/share/qubix-os/starship.toml` | starship, as `$STARSHIP_CONFIG` | The prompt. Never copied into `$HOME` |
+| `etc/fastfetch/config.jsonc` | fastfetch, when a user runs it | The system-wide default box. **The only system-wide path fastfetch reads** — its search path has no `/usr` entry (DD-031) |
+| `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Mode `100755` in the overlay |
 
-**Nothing here writes to `$HOME`.** Six files, no scripts, no units (DD-030). An earlier
+**Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, no units
+(DD-030, DD-031). An earlier
 design seeded a `source` line into `~/.zshrc` from a systemd user service, plus a system
 service that ran `usermod` to set the login shell, plus a vendored LazyVim starter — all
 removed as more machinery than the result justified.
@@ -86,9 +89,12 @@ wholesale. Use `/etc` only where the consumer offers no `/usr` path that can be 
 without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012, DD-023),
 `etc/xdg/mimeapps.list` (DD-023; the `/usr` equivalent,
 `/usr/share/applications/mimeapps.list`, exists upstream and Aurora appends to it),
-`etc/niri/config.kdl` (DD-014; niri's config search path has no `/usr` entry), and the
+`etc/niri/config.kdl` (DD-014; niri's config search path has no `/usr` entry), the
 three terminal-environment files above — `/etc/profile.d`, `/etc/zshenv` and
-`/etc/default/useradd` all have no `/usr` equivalent at all (DD-026, DD-030).
+`/etc/default/useradd` all have no `/usr` equivalent at all (DD-026, DD-030) — and
+`etc/fastfetch/config.jsonc` (DD-031; fastfetch's config search path is `~/.config` →
+`$HOME` → `$XDG_CONFIG_DIRS` → `/etc/xdg` → `/etc`, and `/usr/share/fastfetch/` is a
+*data* dir for presets and logos, not a config dir).
 
 The last two are **replacements** of upstream files rather than additions, which is
 normally forbidden here. Both are justified in their own headers: Fedora's `/etc/zshenv`
@@ -105,9 +111,16 @@ one differs. Both must be re-checked against upstream if either package changes 
 - macOS writes `.DS_Store` files into this tree while editing. They are gitignored and must
   stay that way, or the `files` module would copy them into `/usr/share/pixmaps/`.
 - Changing artwork means updating **every** copy in the group above.
-- **File modes carry through.** `usr/bin/qubix-video-bridge` and `usr/bin/qubix-dms-theme`
-  are executable only because git records mode `100755`; the `files` module copies the bit
-  as it finds it. A rewrite that drops it produces a script that silently cannot run.
+- **File modes carry through.** `usr/bin/qubix-video-bridge`, `usr/bin/qubix-dms-theme` and
+  `usr/share/qubix-os/fastfetch/retune.sh` are executable only because git records mode
+  `100755`; the `files` module copies the bit as it finds it. A rewrite that drops it
+  produces a script that silently cannot run.
+- **fastfetch's box is pinned to its logo, and the logo is pinned on purpose.** The four
+  columns in `etc/fastfetch/config.jsonc` (spine 23, label 29, separator 39, right 90) are
+  `gutter + 1/7/17/68`, and the gutter is `logo width + 6` of padding. Detection would give
+  a *different* logo — `ID=qubix_os_bluebuild` matches no builtin, so fastfetch falls back
+  to a 23-wide penguin — which is why `source: fedora_small` is written out. Changing the
+  logo without re-running `retune.sh` produces a box that does not close (DD-031).
 - **The two palette files must change together.** `etc/niri/qubix-theme.kdl` and
   `usr/share/qubix-os/dms-theme.json` are the same colours in two formats and nothing
   enforces that. Drift is invisible until someone looks at the bar next to a focus ring.

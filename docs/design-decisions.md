@@ -1445,3 +1445,92 @@ is the `auto_sync` key. Verified in its `settings.rs`, not assumed.
 - The build-time assertion that `/usr/bin/zsh` is in `/etc/shells` (DD-028) is kept, and
   matters more now: `chsh` is the documented path for every existing account, and `usermod`
   — which ignored `/etc/shells` — is no longer involved at all.
+
+---
+
+## DD-031 — Ship fastfetch's config in `/etc`, with the logo pinned
+
+**Status:** Accepted
+
+**Implements:** `IMG-020`
+
+**Context.** fastfetch is a system-information screen, run by hand. The configuration to
+ship already existed — the oxocarbon box the owner runs on macOS — so the decisions here
+are *where it goes* and *what it draws*, not what it looks like.
+
+**Where it goes.** Every other piece of shell configuration in this image lives in `/usr`
+and is reached by a pointer, because `/usr` is replaced wholesale on update while `/etc` is
+three-way merged (DD-030). fastfetch offers no such route. Its config search path is built
+in `FFPlatform_unix.c` and is, in order:
+
+```
+$XDG_CONFIG_HOME → ~/.config → $HOME → $XDG_CONFIG_DIRS → /etc/xdg → /etc
+```
+
+`/usr/share/fastfetch/` appears only in the *data* path, which holds presets and logos —
+`fastfetch -c <preset>` loads from it, but nothing there is a default. There is no
+environment variable for the config path either. So `/etc/fastfetch/config.jsonc` is the
+only way to set a system-wide default, and it is taken.
+
+That costs less than the `/etc` files DD-030 apologises for: this one is a pure **addition**
+— the fastfetch RPM ships nothing in `/etc` — rather than a replacement of an upstream
+file. And the search order gives the intended relationship for free, with no wiring at all:
+`~/.config/fastfetch/config.jsonc` is the first entry, so a user's own config replaces this
+one wholesale, exactly as starship's does.
+
+**What it draws.** The box is not built by counting characters. Nerd Font glyphs are not all
+one cell wide, so the config pins four absolute columns with CHA (`ESC[<n>G`) and lets the
+terminal resolve them after the glyphs are drawn. Every one of those columns is derived from
+the width of the logo, which makes the logo load-bearing rather than decorative.
+
+Auto-detection cannot supply a stable width here. fastfetch picks its logo from `ID=` in
+`os-release`, and this image rewrites that to `qubix_os_bluebuild` (DD-003) — a name no
+builtin logo matches — so detection falls through to the generic 23-column penguin. The
+logo is therefore **pinned**, and pinning it also means a future fastfetch that adds a
+`qubix` logo cannot silently move the box.
+
+Which logo is a question of terminal width. Widths were measured from fastfetch 2.66.0's
+own logo files, with `$N` colour codes stripped, and cross-checked against what the binary
+emits:
+
+| Logo | Width | Gutter (`+2` left, `+4` right) | Right spine | Terminal needed |
+|---|---|---|---|---|
+| `fedora` | 38 | 44 | 112 | 112 columns |
+| `unknown` (the fallback) | 23 | 29 | 97 | 97 columns |
+| **`fedora_small`** | **16** | **22** | **90** | **90 columns** |
+
+The box itself is 68 columns wide in every case; the logo only decides where it starts. A
+WezTerm opened into a Niri column at `proportion 0.5` on the 1920px panel is around 100
+columns, so the full Fedora mark would not fit in the window this image opens by default.
+`fedora_small` does, with room to spare, and the value field keeps all 48 of its columns.
+
+**Decision.** Install `fastfetch`; ship the config at `/etc/fastfetch/config.jsonc` with
+`source: fedora_small` pinned and the four columns tuned to its 22-column gutter; ship
+`retune.sh` at `/usr/share/qubix-os/fastfetch/retune.sh` for anyone who changes the logo.
+
+**Consequences.**
+- **Nothing runs fastfetch.** It is not a login banner and not part of shell startup; a
+  shell that starts in 30 ms does not then spend 200 ms drawing a picture. Typing
+  `fastfetch` is the whole interface.
+- **A user's own config wins with nothing to undo**, and starting from this one is
+  `cp /etc/fastfetch/config.jsonc ~/.config/fastfetch/config.jsonc`.
+- **Editing `/etc/fastfetch/config.jsonc` in place is the wrong move**, and the file says so.
+  `/etc` is three-way merged, so a locally edited copy stops receiving image changes — the
+  same trap DD-030 avoids by keeping configuration out of `/etc` wherever a `/usr` path
+  exists.
+- **Changing the logo means re-deriving four numbers**, which is what `retune.sh` is for: it
+  measures the gutter fastfetch actually emits and rewrites the columns *and* the comment
+  block that documents them. It needs `perl`, which is present because Fedora's `git` —
+  already installed for LazyVim — requires `/usr/bin/perl`.
+- **The box needs a 90-column terminal.** Narrower than that and rows overrun the right
+  spine. This is the one hard requirement the layout imposes and it is stated in the file.
+- **One row leaves the machine.** The `publicip` module asks `ipinfo.io/json` for the
+  address the machine appears as, on every run. It is in the config the owner asked for and
+  it stays, but it is called out in the block itself and in `docs/shell.md`, because "fully
+  local" is a promise this image makes elsewhere (atuin, DD-030) and this is the exception.
+  Deleting the block is the opt-out.
+- **The Fedora mark, not a Qubix one.** fastfetch's builtin logos are ASCII art compiled
+  into the binary; adding a Qubix one means either an image logo, which needs a terminal
+  graphics protocol that the console and Konsole do not share, or hand-drawn ASCII, which
+  is a branding task and not this one. The lineage is Fedora Atomic, so the Fedora mark is
+  not a lie.

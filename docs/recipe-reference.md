@@ -83,6 +83,8 @@ substitution.
   | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on. **Replaces** shadow-utils' copy (DD-030) |
   | `/usr/share/qubix-os/shell/` | The interactive shell configuration itself (DD-026) |
   | `/usr/share/qubix-os/starship.toml` | The prompt, used unless the user has their own (DD-026) |
+  | `/etc/fastfetch/config.jsonc` | The fastfetch box. fastfetch has no `/usr` config path, and `~/.config/fastfetch/` still wins (DD-031) |
+  | `/usr/share/qubix-os/fastfetch/retune.sh` | Re-derives the box's columns after a logo change. Run by hand (DD-031) |
 
 - **Ordering:** no hard constraint. Kept first so content lands before anything that might
   read it.
@@ -107,7 +109,7 @@ substitution.
     packages:
       [micro, starship, wezterm, niri, dms,
        material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist,
-       zsh, zsh-autosuggestions, zsh-syntax-highlighting, atuin, bat, yazi,
+       zsh, zsh-autosuggestions, zsh-syntax-highlighting, atuin, bat, yazi, fastfetch,
        neovim, ripgrep, fd-find, fzf, lazygit, git, cascadia-mono-nf-fonts]
   remove:
     packages: [firefox, firefox-langpacks]
@@ -139,6 +141,7 @@ The terminal-environment packages, and why each is there:
 | `atuin` | Local SQLite shell history. Wired into zsh only — its bash integration needs `bash-preexec`, which Fedora does not package |
 | `bat` | `cat` with highlighting; aliased over `cat` in interactive shells |
 | `yazi` | Terminal file browser, wrapped as `y` so quitting changes the shell's directory |
+| `fastfetch` | System information, on demand. Nothing runs it automatically; the configuration is `/etc/fastfetch/config.jsonc` in the overlay (DD-031) |
 | `neovim` | The editor and `$EDITOR`, configured with LazyVim (DD-027) |
 | `ripgrep`, `fd-find`, `fzf`, `lazygit`, `git` | What LazyVim's default keymaps shell out to. Without them the keys exist and do nothing |
 | `cascadia-mono-nf-fonts` | A Nerd Font, so the prompt's glyphs resolve outside WezTerm (which bundles its own fallback) |

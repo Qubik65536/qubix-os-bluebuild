@@ -43,7 +43,7 @@ described here or in `files/system/`.
   | # | Module | From | Effect | Ordering constraint |
   |---|---|---|---|---|
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
-  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `lazygit`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
+  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `lazygit`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
   | 4 | `containerfile` | `common-base.yml` | Installs `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; asserts `/usr/bin/zsh` is in `/etc/shells` | after `dnf` (needs `zsh`, `git`) — DD-026, DD-028 |
   | 5 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
@@ -124,8 +124,11 @@ described here or in `files/system/`.
 - `git` is in the package list on purpose: the module above it needs `git clone`, and
   "Aurora DX surely has git" is not something a build should rest on.
 - **Installing the shell tools is half the job.** The configuration is in the overlay
-  (`files/system/etc/zshenv`, `etc/profile.d/`, `usr/share/qubix-os/shell/`). Adding a
-  package here does not put it in anyone's shell.
+  (`files/system/etc/zshenv`, `etc/profile.d/`, `usr/share/qubix-os/shell/`,
+  `etc/fastfetch/`). Adding a package here does not put it in anyone's shell.
+- `fastfetch` is installed for the config that ships with it (DD-031), and **nothing runs
+  it** — not a login banner, not a shell startup hook. Do not add one; a 200 ms picture on
+  every prompt is exactly what the rest of this design avoids.
 - `zsh` is the intended login shell, but nothing in `recipes/` can make it so:
   `/etc/passwd` is per machine. `files/system/etc/default/useradd` covers accounts created
   from now on; an existing one takes one `chsh` (DD-030). The second `containerfile`

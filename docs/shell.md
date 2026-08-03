@@ -18,6 +18,7 @@ it.
 | zsh-completions | Completion functions for tools zsh does not cover itself | zsh |
 | [bat](https://github.com/sharkdp/bat) | `cat` with syntax highlighting. Aliased over `cat` | bash, zsh |
 | [yazi](https://yazi-rs.github.io) | Terminal file browser, run as `y` | bash, zsh |
+| [fastfetch](https://github.com/fastfetch-cli/fastfetch) | System information, in a box, when you ask for it | bash, zsh |
 | [Neovim](https://neovim.io) + [LazyVim](https://lazyvim.org) | The editor, and `$EDITOR` | — |
 
 **zsh is the intended login shell**, and on an account that already exists that takes one
@@ -35,6 +36,7 @@ with nothing to re-run and nothing stale left behind (DD-030).
 | `/etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings — and, at the end, bash's interactive setup |
 | `/etc/zshenv` | zsh, on every invocation | One `source` of the file below |
 | `/usr/share/qubix-os/shell/` | the two above | The prompt, the plugin loading, the aliases |
+| `/etc/fastfetch/config.jsonc` | fastfetch, when you run it | The system-information box (DD-031) |
 
 ### Why zsh is wired from `/etc/zshenv`
 
@@ -175,6 +177,55 @@ header, no pager. bat already writes plain bytes when its output is not a termin
 `yazi` works as itself. `y` is upstream's wrapper: it does the same thing, and quitting
 with `q` leaves the shell in the directory the browser was last in.
 
+### fastfetch — system information
+
+`fastfetch` prints the machine in a rounded box: system, hardware, network, toolchain,
+session, and a colour ramp. **Nothing runs it for you** — not at login, not from your shell
+startup. It costs nothing until you type it.
+
+The shipped configuration is `/etc/fastfetch/config.jsonc`, which is where the *system-wide*
+default lives, because fastfetch has no `/usr` config path — its search order is
+`~/.config` → `$HOME` → `$XDG_CONFIG_DIRS` → `/etc/xdg` → `/etc`, and `/usr/share/fastfetch`
+holds presets and logos rather than defaults (DD-031). Your own file is the first entry in
+that list, so it replaces this one wholesale:
+
+```bash
+cp /etc/fastfetch/config.jsonc ~/.config/fastfetch/config.jsonc
+```
+
+**Edit the copy, not the original.** `/etc` is three-way merged on update, so a file you
+have edited there stops receiving image changes.
+
+#### It needs a 90-column terminal
+
+The box is drawn with absolute cursor columns rather than by counting characters, because
+Nerd Font glyphs are not all one cell wide. Four columns are pinned — left spine 23, labels
+29, separator 39, right spine 90 — and all four are derived from the width of the logo.
+Below 90 columns, rows overrun the right edge.
+
+The logo is **pinned to `fedora_small`**, not detected. Detection reads `ID=` from
+`os-release`, which this image rewrites to `qubix_os_bluebuild`, so fastfetch would fall
+back to its generic penguin and every column would be wrong. `fedora_small` is 16 columns
+wide; the full `fedora` mark is 38 and would push the right spine to 112 — wider than a
+WezTerm tiled to half the laptop panel.
+
+To use a different logo, change `"source"` in your copy and then re-derive the four columns:
+
+```bash
+/usr/share/qubix-os/fastfetch/retune.sh          # tunes ~/.config/fastfetch/config.jsonc
+/usr/share/qubix-os/fastfetch/retune.sh -n       # show what it would change
+```
+
+It measures the gutter fastfetch actually emits for your logo, rewrites the columns, and
+updates the comment block that documents them. `fastfetch --list-logos` shows the choices.
+
+#### The one row that leaves the machine
+
+The `wan` row uses fastfetch's `publicip` module, which asks `ipinfo.io/json` for the
+address you appear as — **every time fastfetch runs**. Nothing else in the box touches the
+network. If you would rather it stayed entirely local, delete the `publicip` block from your
+copy of the config; the box closes up with no other change.
+
 ### Neovim and LazyVim
 
 `nvim` is `$EDITOR` and `$VISUAL`, and the tools LazyVim's default keymaps shell out to are
@@ -230,6 +281,8 @@ directory — which the image never writes to.
 | Change anything zsh does | Put it in `~/.zshrc`, which runs after all of this |
 | Change anything bash does | Put it in `~/.bashrc` |
 | Keep `cat` as `cat` | `unalias cat` in your rc file |
+| Change the fastfetch box | `cp /etc/fastfetch/config.jsonc ~/.config/fastfetch/config.jsonc` and edit that |
+| Keep fastfetch offline | Delete the `publicip` block from your copy of the config |
 | Use a different editor | `export EDITOR=…` in your rc file |
 | Switch to zsh, or back | `chsh -s /usr/bin/zsh` / `chsh -s /bin/bash` |
 | Update the Neovim config | `git -C ~/.config/nvim pull` |
@@ -245,10 +298,12 @@ directory — which the image never writes to.
 | `/usr/share/qubix-os/shell/qubix.zsh` | Prompt, atuin, plugins, history defaults |
 | `/usr/share/qubix-os/shell/qubix.bash` | Prompt and aliases |
 | `/usr/share/qubix-os/starship.toml` | The prompt configuration |
+| `/etc/fastfetch/config.jsonc` | The fastfetch box. The only system-wide path fastfetch reads (DD-031) |
+| `/usr/share/qubix-os/fastfetch/retune.sh` | Re-derives the box's four columns after a logo change. Run by hand, never automatically |
 | `/usr/share/zsh/site-functions/_*` | zsh-completions, installed at build time |
 
-Six files, no scripts, no services, and nothing under `$HOME`.
+Configuration files, one hand-run tool, no services, and nothing under `$HOME`.
 
 Why each of these lives where it does: [`design-decisions.md`](design-decisions.md),
-DD-026 and DD-030. What the recipe installs and in which module:
+DD-026, DD-030 and DD-031. What the recipe installs and in which module:
 [`recipe-reference.md`](recipe-reference.md).

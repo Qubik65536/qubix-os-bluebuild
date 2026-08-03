@@ -765,6 +765,50 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image a login gets prompt, plugins and history with nothing seeded
       *(open — needs a build and hardware)*
 
+- [ ] **IMG-020** — Ship fastfetch with the oxocarbon box config
+  - **Category:** Image content
+  - **Depends on:** IMG-015
+  - **Notes:** Requested 2026-08-02: install fastfetch and ship the config the user already
+    runs on macOS (`~/.config/fastfetch/`, config plus its `retune.sh`).
+    **Where it goes needed checking, not guessing.** fastfetch's config search path is built
+    in `FFPlatform_unix.c`: `$XDG_CONFIG_HOME` → `~/.config` → `$HOME` → `$XDG_CONFIG_DIRS`
+    → `/etc/xdg/` → `/etc/`. There is **no `/usr` entry** — `/usr/share/fastfetch/` is a
+    *data* dir, for presets and logos, not for the default config. So `/etc/fastfetch/` is
+    the only system-wide location, and it is a pure addition (the RPM ships nothing there),
+    not a replacement like `/etc/zshenv`. A user's own file still wins, first entry in the
+    list, exactly the DD-030 relationship with no wiring at all.
+    **The layout is drawn with absolute cursor columns, so the logo width is load-bearing.**
+    The config pins the four columns with CHA (`ESC[<n>G`) rather than counting characters,
+    because Nerd Font glyphs are not all one cell wide. Every column is derived from the
+    logo gutter, and auto-detection cannot supply a stable one here: `ID=qubix_os_bluebuild`
+    (DD-003) matches no builtin logo, so fastfetch falls back to its 23-column generic
+    penguin. Hence a pinned `fedora_small`.
+    Widths were measured, not assumed — from the 2.66.0 tag's logo files (with `$N` colour
+    codes stripped) and cross-checked against what fastfetch actually emits: `fedora` 38,
+    `fedora_small` 16, `unknown` 23. The full Fedora mark would put the right spine at
+    column 112; a WezTerm tiled to half of the 1920px panel (`default-column-width` is
+    `proportion 0.5`) is around 100 columns, so it would not fit. `fedora_small` gives a
+    22-column gutter and a 90-column box.
+    `retune.sh` is shipped as the tool for anyone who changes the logo, adapted to take the
+    config path as an argument instead of assuming it sits beside the script. Its `perl`
+    dependency is satisfied: Fedora's `git`, already in the package list, requires
+    `/usr/bin/perl`.
+  - **Acceptance criteria:**
+    - `fastfetch` is installed, and nothing runs it automatically — no login banner, no
+      shell startup cost
+    - The config lands at `/etc/fastfetch/config.jsonc`, and `~/.config/fastfetch/` still
+      overrides it with no per-user setup and nothing to undo
+    - The logo is pinned rather than detected, and the four box columns are derived from
+      that logo's real gutter, with the derivation written down in the file
+    - The box fits a terminal narrower than a half-tiled WezTerm on the laptop panel
+    - `retune.sh` ships, runs against a config given as an argument, and says in its header
+      to tune a copy rather than the system file
+    - The one row that makes a network request is called out where a reader will see it
+    - `docs/shell.md`, a `DD-###`, `docs/recipe-reference.md`, `docs/overview.md` and
+      `.agent/context/` cover it
+    - On the rebased image, `fastfetch` draws a square box on a fresh account
+      *(open — needs a build and hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

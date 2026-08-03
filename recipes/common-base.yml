@@ -96,6 +96,12 @@ modules:
         - atuin
         - bat # cat with syntax highlighting; aliased over `cat` interactively
         - yazi # terminal file browser (from the COPR above)
+        # System information, on demand. In Fedora's main repos. Nothing runs it for
+        # the user — the point of installing it is the config in the overlay,
+        # files/system/etc/fastfetch/config.jsonc, which is the only system-wide path
+        # fastfetch reads (its search path has no /usr entry). A user's own
+        # ~/.config/fastfetch/config.jsonc still replaces it wholesale. DD-031.
+        - fastfetch
         # The editor. Its CONFIG is deliberately not shipped: ~/.config/nvim is the
         # user's, from a documented `git clone` of LazyVim's starter, which is also what
         # makes `git pull` update it later. DD-030.
