@@ -37,7 +37,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/bin/qubix-default-shell` | `qubix-default-shell.service` | Sets zsh as the login shell for existing accounts, once each, stamped in `/var/lib/qubix-os/default-shell/` (DD-035). Mode `100755` |
 | `usr/lib/systemd/system/qubix-default-shell.service` | systemd, at boot | Runs the above `Before=systemd-user-sessions.service`. Enabled by the `systemd` module in `common-base.yml` |
 | `usr/share/qubix-os/shell/common.sh` | `qubix.bash`, `qubix.zsh` | The `cat`→`bat` alias, the `y` yazi wrapper and the `lg` lazygit wrapper |
-| `usr/share/qubix-os/shell/qubix.zsh` | zsh, from the block appended to `/etc/zshrc` | Prompt, atuin, both plugins, history defaults |
+| `usr/share/qubix-os/shell/qubix.zsh` | zsh, from the block appended to `/etc/zshrc` | Prompt, atuin, both plugins, history defaults, `setopt interactive_comments` |
 | `usr/share/qubix-os/shell/qubix.bash` | bash, from `/etc/profile.d` | Prompt and aliases. No atuin — see gotchas |
 | `usr/share/qubix-os/starship.toml` | starship, as `$STARSHIP_CONFIG` | The prompt. Never copied into `$HOME` |
 | `usr/share/qubix-os/lazygit/config.yml` | lazygit, as the **first** entry of `$LG_CONFIG_FILE` | Nerd Font icons + the `#56728B` palette. The user's config is appended after it and **merges over it key by key** (DD-032) |
@@ -179,6 +179,9 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   it means adding the package or build step that supplies it — otherwise CI fails. CJK is
   `google-noto-sans-cjk-fonts` standing in for IBM Plex Sans SC/TC/JP, and the SC → TC → JP
   order decides which regional Han form is drawn; do not reorder it (DD-034).
+- **zsh does not comment with `#` on the command line unless told to.** `INTERACTIVE_COMMENTS`
+  is off by default — in scripts `#` always comments, so this is invisible until somebody
+  pastes a command with a trailing note and `?` in it globs. `qubix.zsh` sets it (IMG-029).
 - **A guard may never test a variable the tools export.** This is the DD-037 rule and it
   broke every nested shell once already: `starship init` exports `STARSHIP_SHELL` and
   `atuin init` exports `ATUIN_SESSION`, so guarding on them asked "has any ancestor process

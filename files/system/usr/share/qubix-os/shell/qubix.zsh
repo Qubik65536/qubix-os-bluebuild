@@ -24,6 +24,18 @@
 # Interactive shells only. Nothing below has any meaning in a script.
 [[ -o interactive ]] || return 0
 
+# ── `#` starts a comment, as it does everywhere else ──────────────────────────
+# zsh does NOT honour comments on an interactive command line unless this is set — bash
+# does, sh does, and every script does, which is why the omission only ever shows up when
+# you paste something. Without it,
+#
+#     wezterm ls-fonts | grep -i scheme    # empty output means it resolved
+#
+# passes `#`, `empty`, `output` … to grep as filenames, and a `?` anywhere in the trailing
+# text becomes a glob that fails the whole line with "no matches found". Pasting a
+# commented command out of documentation is a normal thing to do; this makes it work.
+setopt interactive_comments
+
 # ── Aliases and functions shared with bash ────────────────────────────────────
 [[ -r /usr/share/qubix-os/shell/common.sh ]] &&
     source /usr/share/qubix-os/shell/common.sh

@@ -246,6 +246,12 @@ last — after atuin and starship have defined theirs. Because all of this runs 
 [Why zsh is wired from the end of `/etc/zshrc`](#why-zsh-is-wired-from-the-end-of-etczshrc)
 for the one-line fix.
 
+**`#` starts a comment**, which zsh does not do on an interactive command line unless it is
+told to (`INTERACTIVE_COMMENTS`, off by default — bash, sh and every zsh *script* all
+comment with `#`, so the omission only bites when you paste something). The image sets it,
+so a command copied out of these pages with a trailing `# note` runs as written. `unsetopt
+interactive_comments` in your `~/.zshrc` puts it back.
+
 `zsh-completions` is not a Fedora package and the `@zsh-users` COPR has no builds for any
 current Fedora, so it is installed at build time from a pinned upstream tag into
 `/usr/share/zsh/site-functions` — already on zsh's default `$fpath`. Its functions

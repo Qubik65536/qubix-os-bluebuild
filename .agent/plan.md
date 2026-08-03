@@ -1203,6 +1203,30 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image, `qubix-config niri` produces a session that loads and still
       themes *(open — needs a build and hardware)*
 
+- [ ] **IMG-029** — Make `#` start a comment on zsh's command line
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Found 2026-08-03 in a diagnostic paste, which is the only way this ever shows
+    up. **zsh does not honour comments on an interactive command line unless
+    `INTERACTIVE_COMMENTS` is set**, and it is off by default — unlike bash, unlike sh, and
+    unlike every zsh *script*, where `#` always comments. So pasting
+    `wezterm ls-fonts | grep -i scheme    # empty output means it resolved` sends `#`,
+    `empty`, `output` … to grep as filenames, and a `?` anywhere in the trailing prose
+    becomes a glob that kills the whole line with `no matches found`. Both happened, in one
+    paste, to commands copied out of this repository's own documentation.
+    Verified rather than assumed: `setopt | grep -c interactivecomments` is `0` in a bare
+    `zsh -f -i`. It cannot be reproduced with `zsh -c`, because a `-c` string is parsed as a
+    script, where `#` is always a comment — which is exactly why this is invisible until
+    somebody pastes into a real prompt.
+  - **Acceptance criteria:**
+    - `#` starts a comment in an interactive zsh, so a commented command pasted from `docs/`
+      runs as written
+    - It is set in `qubix.zsh`, before anything a user might paste, and `~/.zshrc` can still
+      `unsetopt` it
+    - `docs/shell.md` and `.agent/context/` note that the image sets it and why
+    - On the rebased image, pasting a trailing-comment command works *(open — needs a build
+      and hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time
