@@ -14,7 +14,10 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 |---|---|---|
 | `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012); `BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop` (DD-023) |
 | `etc/xdg/mimeapps.list` | `xdg-open`, GIO, KIO | Web MIME types → Ungoogled Chromium, i.e. the default browser (DD-023) |
-| `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012) |
+| `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012); `XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:-/etc/xdg}`, without which the WezTerm config below is unreachable (DD-034) |
+| `etc/xdg/wezterm/wezterm.lua` | WezTerm | System-wide config: font stack, `Oxocarbon Dark`, no title bar, 0.75 opacity. Found via `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it wholesale (DD-034) |
+| `etc/xdg/wezterm/colors/*.toml` | WezTerm | Two custom schemes. Found because `colors/` sits in a config dir, so they stay available to a user's *own* `wezterm.lua` (DD-034) |
+| `usr/share/licenses/monaspace-krypton-nf/LICENSE` | nobody — legal | The OFL text for a font the recipe installs from upstream. **Vendored because Monaspace's archive ships none** (DD-034) |
 | `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; `eDP-1` pinned to `scale 1`; window rule hiding the Xwayland Video Bridge; `include`s the theme (DD-014, DD-015, DD-019, DD-024) |
 | `etc/niri/qubix-theme.kdl` | niri, via `include` | The `#56728B` palette for niri. **Separate so a personal config can include it** and keep tracking the image (DD-022, DD-025) |
 | `usr/share/qubix-os/dms-theme.json` | DankMaterialShell, as `customThemeFile` | The same palette for the shell. Watched by DMS, so a rebase reloads it live (DD-022, DD-025) |
@@ -99,6 +102,10 @@ three terminal-environment files above — `/etc/profile.d`, `/etc/zshenv` and
 *data* dir for presets and logos, not a config dir), and `etc/zellij/config.kdl` (DD-033;
 `/etc/zellij` is zellij's `SYSTEM_DEFAULT_CONFIG_DIR` and there is no `/usr` entry).
 
+`etc/xdg/wezterm/` is a fourth `/etc` case, and an *addition* rather than a replacement:
+WezTerm's search path ends at `$XDG_CONFIG_DIRS`, which conventionally means `/etc/xdg`, and
+has no `/usr` entry (DD-034).
+
 lazygit is the counter-example worth remembering: it also has no `/usr` path, but
 `LG_CONFIG_FILE` takes a *list*, so its config stays in `/usr` and the user's file is
 appended after it (DD-032). Check for an environment variable before reaching for `/etc`.
@@ -137,6 +144,23 @@ one differs. Both must be re-checked against upstream if either package changes 
   the same hues at L68**, not L50, because there every accent is text on a dark surface and
   L50 misses WCAG AA (magenta 3.6:1). That deviation is stated in the file with the ratios;
   do not "correct" it back.
+- **`WEZTERM_CONFIG_FILE` must never be set by this image.** It looks like the natural twin
+  of `STARSHIP_CONFIG` and `LG_CONFIG_FILE` and it is the opposite: WezTerm inserts it at the
+  **front** of its search list, so setting it would make the image beat the user instead of
+  losing to them. `/etc/xdg/wezterm/` is reached from the *back* of the list, which is the
+  point (DD-034).
+- **`XDG_CONFIG_DIRS` is load-bearing for the WezTerm config.** WezTerm reads the variable
+  and does **not** fall back to the spec's `/etc/xdg` default when it is unset, so
+  `usr/lib/environment.d/50-qubix-terminal.conf` states it. Plasma sets it; niri does not.
+  Deleting that line silently removes the whole WezTerm configuration in the Niri session.
+- **A WezTerm colour scheme's name is its `[metadata] name`, not its filename.** That string
+  is what `color_scheme` in `wezterm.lua` has to match; renaming the `.toml` changes nothing
+  and editing the metadata breaks the reference. The build catches the second case
+  (`scheme was not found`), not the first.
+- **The WezTerm font stack is asserted at build time**, family by family, so adding a name to
+  it means adding the package or build step that supplies it — otherwise CI fails. CJK is
+  `google-noto-sans-cjk-fonts` standing in for IBM Plex Sans SC/TC/JP, and the SC → TC → JP
+  order decides which regional Han form is drawn; do not reorder it (DD-034).
 - **`LG_CONFIG_FILE` must not name a file that does not exist.** lazygit errors out on a
   missing path in that list rather than skipping it, which is why the block in
   `etc/profile.d/qubix-shell-env.sh` tests for the user's config before appending it. Do not

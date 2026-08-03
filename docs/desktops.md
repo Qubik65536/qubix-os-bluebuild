@@ -383,6 +383,61 @@ COPR because Fedora does not package it — see DD-012.
 Konsole is still installed and still works. To go back to it in Plasma: *System Settings →
 Default Applications → Terminal Emulator*.
 
+### How WezTerm is configured
+
+The image ships a system-wide WezTerm configuration. **Nothing points WezTerm at it** — it
+is found by WezTerm's own search path, and a config of your own shadows it wholesale
+(DD-034).
+
+| Path in image | What it holds |
+|---|---|
+| `/etc/xdg/wezterm/wezterm.lua` | Font stack, colour scheme, window and tab-bar settings |
+| `/etc/xdg/wezterm/colors/oxocarbon-dark.toml` | The scheme it selects, *Oxocarbon Dark* |
+| `/etc/xdg/wezterm/colors/KAMSuperuser.toml` | An alternative scheme, on a commented line |
+
+WezTerm takes the first of these that exists, so anything you create wins:
+
+1. `$WEZTERM_CONFIG_FILE` — **not set by this image**, deliberately: it would come *before*
+   your own files rather than after them
+2. `~/.wezterm.lua`
+3. `~/.config/wezterm/wezterm.lua`
+4. `/etc/xdg/wezterm/wezterm.lua` ← this image, via `$XDG_CONFIG_DIRS`
+
+To take it over, start from the shipped copy and edit freely:
+
+```bash
+mkdir -p ~/.config/wezterm
+cp /etc/xdg/wezterm/wezterm.lua ~/.config/wezterm/
+```
+
+Delete that file and you are back on the image's, including whatever a later rebase changed
+in it. The colour schemes keep working either way: WezTerm looks for `colors/` in *every*
+config directory, so `/etc/xdg/wezterm/colors/` stays available to your own `wezterm.lua`.
+Note that a scheme's name is the `[metadata] name` inside the file, not its filename.
+
+**The fonts.** The font stack is a fallback chain — each glyph is drawn from the first
+family that has it:
+
+| Order | Family | Installed by |
+|---|---|---|
+| 1 | Monaspace Krypton NF | Upstream release, pinned and hash-checked at build time |
+| 2 | IBM Plex Math | Upstream release, pinned and hash-checked at build time |
+| 3 | IBM Plex Mono | `ibm-plex-mono-fonts` |
+| 4 | IBM Plex Sans | `ibm-plex-sans-fonts` |
+| 5–7 | Noto Sans CJK SC, TC, JP | `google-noto-sans-cjk-fonts` |
+| last | Symbols Nerd Font Mono | Built into WezTerm — which is why no Nerd Font is named above |
+
+CJK is Noto rather than IBM Plex Sans SC/TC/JP: those are published only as ~1.2 GB of
+release archives and Fedora packages no CJK Plex at all. The order is kept, because it is
+what decides which regional form a shared Han character is drawn in. The build **asserts**
+that WezTerm resolves all seven, so a font that stops being installed fails CI rather than
+turning into boxes on your screen.
+
+**The window is transparent and not blurred.** `window_background_opacity = 0.75` is
+carried over, but WezTerm never asks for a blurred background region on Wayland — KWin's
+blur effect does not apply to it, and niri has no blur at all. What is behind the window
+shows through at full detail. For an opaque window, set that to `1.0` in your own config.
+
 What runs *inside* the terminal — the prompt, zsh and its plugins, history search, and the
 editor — is [`shell.md`](shell.md).
 

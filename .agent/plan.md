@@ -914,6 +914,67 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image, `zellij` starts with the Qubix theme on a fresh account
       *(open — needs a build and hardware)*
 
+- [ ] **IMG-023** — Ship the WezTerm configuration, and the fonts it names
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Requested 2026-08-02: take the WezTerm config the user already runs on macOS
+    (`~/.config/wezterm/`, `wezterm.lua` plus two colour schemes) and make it the image's
+    default. DD-012 installed WezTerm and made it the default terminal; it left WezTerm
+    running on its own built-in defaults.
+    **Where it goes was the whole design problem, and the obvious answer is a trap.**
+    WezTerm resolves its config from `$WEZTERM_CONFIG_FILE` → `~/.wezterm.lua` →
+    `$XDG_CONFIG_HOME/wezterm/wezterm.lua` → each `$XDG_CONFIG_DIRS` entry
+    (`config/src/config.rs`, `load_with_overrides`). `WEZTERM_CONFIG_FILE` is the shape
+    `STARSHIP_CONFIG` (DD-026) and `LG_CONFIG_FILE` (DD-032) established here — and it is
+    inserted at the **front** of that list, so it would beat the user rather than lose to
+    them. `/etc/xdg/wezterm/` is reached from the *back*, which is the DD-031/DD-033
+    relationship with no wiring at all. Colour schemes resolve the same way
+    (`compute_color_scheme_dirs()` appends `colors/` to each config dir), so they stay
+    available even to someone whose own `wezterm.lua` has replaced the file above them; a
+    scheme's name is its `[metadata] name`, not its filename.
+    **`$XDG_CONFIG_DIRS` has to be stated, not assumed.** WezTerm reads the variable
+    literally and does **not** apply the XDG spec's `/etc/xdg` default when it is unset, so
+    without it this config does not exist. Plasma sets it, niri does not. It goes in the
+    existing `environment.d` file as `${XDG_CONFIG_DIRS:-/etc/xdg}` — the `:-` form is
+    supported there, and the man page's own example is this exact shape.
+    **The fonts had to become real**, or the config would be a list of names WezTerm silently
+    drops. Availability was checked against the f43 repositories and the upstream releases,
+    not assumed: Fedora packages **no** `monaspace-fonts` in any form, and `ibm-plex-fonts`
+    6.4.0 has **no `math` subpackage**. Those two come from upstream, pinned and hash-asserted
+    (the DD-026/DD-033 pattern); IBM Plex Mono and Sans are ordinary RPMs. **CJK is a
+    substitution:** IBM publishes Plex Sans SC/TC/JP only as 523/367/317 MB release archives
+    and Fedora packages no CJK Plex at all, so `google-noto-sans-cjk-fonts` stands in — the
+    *static* package, whose `.ttc` files expose `Noto Sans CJK SC`/`TC`/`JP` as plain family
+    names. The SC → TC → JP order is preserved because it decides which regional form a
+    shared Han character is drawn in.
+    The Nerd-Font-patched Monaspace is taken even though WezTerm bundles Symbols Nerd Font
+    Mono and plain Monaspace would draw the same glyphs, because only the patched build
+    answers to `Monaspace Krypton NF` — the name the config asks for everywhere else. Only
+    the normal widths are installed; the archive carries every weight three times over.
+    Three macOS-only settings are dropped (`macos_window_background_blur` and the two
+    `send_composed_key_when_*_alt_is_pressed`, of which the left-alt one was assigned twice).
+    `window_background_opacity` is kept and behaves differently: WezTerm never requests a
+    blurred background region on Wayland, so KWin's blur does not apply and niri has none.
+  - **Acceptance criteria:**
+    - The config lands at `/etc/xdg/wezterm/wezterm.lua` with its schemes in
+      `colors/` beside it, and `~/.config/wezterm/` still shadows it with no per-user setup
+    - `WEZTERM_CONFIG_FILE` is **not** set by the image, and the file says why
+    - `XDG_CONFIG_DIRS` is guaranteed to contain `/etc/xdg` without clobbering an inherited
+      value
+    - Every family the font stack names is installed by the image — no entry resolves to a
+      fallback — and the two Fedora does not package are pinned by version and asserted by
+      SHA-256, so a changed artifact fails the build
+    - The build asserts that WezTerm **resolves** `/etc/xdg/wezterm/wezterm.lua` by its real
+      search path, parses it, finds the colour scheme, and loads all seven families
+    - Redistribution licences ship for both upstream fonts
+    - What the macOS config loses, and what `window_background_opacity` does here, are
+      written down rather than silently changed
+    - `docs/desktops.md`, a `DD-###`, `docs/recipe-reference.md`, `docs/overview.md`,
+      `docs/architecture.md`, `docs/glossary.md` and `.agent/context/` cover it
+    - On the rebased image, a WezTerm opened in either session comes up with the Monaspace
+      stack and the Oxocarbon scheme on a fresh account
+      *(open — needs a build and hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

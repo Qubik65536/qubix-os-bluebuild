@@ -57,7 +57,24 @@ modules:
         # Default terminal for BOTH desktop sessions. Metapackage: pulls wezterm-common
         # (the `wezterm` binary), wezterm-gui, and wezterm-mux-server. It is additive —
         # Konsole and every other KDE component stays installed. DD-012.
+        #
+        # Its CONFIGURATION is in the overlay, files/system/etc/xdg/wezterm/ — the only
+        # system-wide location WezTerm reads, reached through $XDG_CONFIG_DIRS. DD-034.
         - wezterm
+        # The half of WezTerm's font stack Fedora does package. Monaspace Krypton NF (the
+        # primary face) and IBM Plex Math are not packaged by anyone and are installed from
+        # upstream in module 4d below.
+        - ibm-plex-mono-fonts
+        - ibm-plex-sans-fonts
+        # CJK coverage, in place of IBM Plex Sans SC/TC/JP: those exist only as ~1.2 GB of
+        # GitHub release archives, and Fedora's ibm-plex-fonts carries no CJK subpackage at
+        # all. The STATIC package, not google-noto-sans-cjk-vf-fonts, because the .ttc files
+        # expose "Noto Sans CJK SC" / "TC" / "JP" as plain family names — which is what the
+        # config asks for by name. Both may be installed; this one is additive. DD-034.
+        - google-noto-sans-cjk-fonts
+        # Needed by module 4d, which unpacks two upstream font archives. Not assumed to be
+        # on Aurora DX already, for the same reason `git` is listed further down.
+        - unzip
         # Second desktop session, ALONGSIDE KDE Plasma — nothing Plasma is removed.
         # In Fedora's main repos. Ships /usr/share/wayland-sessions/niri.desktop, which
         # is all SDDM needs to offer it as a login choice. Weak deps bring the pieces a
@@ -249,4 +266,99 @@ modules:
             HOME="$tmp" zellij setup --check > "$tmp/check" 2>&1; \
             grep -qF '[LOOKING FOR CONFIG FILE FROM]: "/etc/zellij/config.kdl"' "$tmp/check"; \
             grep -qF '[CONFIG FILE]: Well defined.' "$tmp/check"; \
+            rm -rf "$tmp"
+
+      #    4d. The two fonts WezTerm's config names that no repository packages.
+      #
+      #        Monaspace Krypton NF is the primary face in /etc/xdg/wezterm/wezterm.lua and
+      #        IBM Plex Math is the fallback right behind it. Fedora packages neither —
+      #        there is no monaspace-fonts at all, and ibm-plex-fonts 6.4.0 has no `math`
+      #        subpackage (its co-packages are mono, sans, serif, arabic, devanagari,
+      #        hebrew and the two thai). So both come from upstream's own release, pinned by
+      #        version and asserted by SHA-256, exactly as 4a and 4c do. DD-034.
+      #
+      #        THE NERD FONT BUILD, on purpose. WezTerm bundles Symbols Nerd Font Mono as a
+      #        built-in fallback (DD-012), so the plain build would have rendered the same
+      #        glyphs — but "Monaspace Krypton NF" is the family name the user's own config
+      #        asks for on every other machine, and only the NF build answers to it.
+      #
+      #        ONLY THE NORMAL-WIDTH FACES. The archive carries each weight three times
+      #        over, at Normal, SemiWide and Wide; `-x '*Wide*'` drops the latter two, which
+      #        a terminal never asks for and which only give font matching a chance to pick
+      #        the wrong one. 14 faces remain, and the count is asserted so a reorganised
+      #        archive fails here rather than shipping a partial family.
+      #
+      #        The download is 315 MB and the temp dir is removed in the same layer, so what
+      #        lands in the image is 31 MB of OTF. Monaspace's archive contains no licence
+      #        file — the OFL text is vendored in the overlay at
+      #        /usr/share/licenses/monaspace-krypton-nf/LICENSE — whereas IBM's ships one
+      #        beside the font, so that copy is installed from the archive.
+      #
+      #        To bump: change BOTH the version and the hash, from
+      #        https://github.com/githubnext/monaspace/releases and
+      #        https://github.com/IBM/plex/releases. Then re-check the OFL text in the
+      #        overlay against the new tag.
+      #
+      #        Ordering: after `dnf`, which installs `unzip`. `fc-cache` comes from
+      #        fontconfig, which every graphical base already has.
+      - |
+        RUN set -eu; \
+            mono_ver=1.400; \
+            mono_sha=9b7f9505d977601d8819dfdb57fa4b49bdab61132b6d1131c2e8d092066edc5a; \
+            plex_ver=1.1.0; \
+            plex_sha=d85ed404394ced3a79a519af24611acdee9cc0483363c07cd5ac0656c06db42a; \
+            tmp="$(mktemp -d)"; \
+            curl -fsSL -o "$tmp/monaspace.zip" \
+                "https://github.com/githubnext/monaspace/releases/download/v${mono_ver}/monaspace-nerdfonts-v${mono_ver}.zip"; \
+            echo "${mono_sha}  ${tmp}/monaspace.zip" | sha256sum -c -; \
+            install -d -m 0755 /usr/share/fonts/monaspace-krypton-nf; \
+            unzip -q -j "$tmp/monaspace.zip" 'NerdFonts/Monaspace Krypton/*.otf' \
+                -x '*Wide*' -d /usr/share/fonts/monaspace-krypton-nf; \
+            chmod 0644 /usr/share/fonts/monaspace-krypton-nf/*.otf; \
+            test "$(ls /usr/share/fonts/monaspace-krypton-nf/*.otf | wc -l)" -eq 14; \
+            curl -fsSL -o "$tmp/plex-math.zip" \
+                "https://github.com/IBM/plex/releases/download/%40ibm%2Fplex-math%40${plex_ver}/ibm-plex-math.zip"; \
+            echo "${plex_sha}  ${tmp}/plex-math.zip" | sha256sum -c -; \
+            unzip -q -j "$tmp/plex-math.zip" 'ibm-plex-math/fonts/complete/otf/*' -d "$tmp/plex"; \
+            install -D -m 0644 "$tmp/plex/IBMPlexMath-Regular.otf" \
+                /usr/share/fonts/ibm-plex-math/IBMPlexMath-Regular.otf; \
+            install -D -m 0644 "$tmp/plex/license.txt" \
+                /usr/share/licenses/ibm-plex-math/LICENSE.txt; \
+            rm -rf "$tmp"; \
+            fc-cache -f /usr/share/fonts/monaspace-krypton-nf /usr/share/fonts/ibm-plex-math
+
+      #    4e. Assert that WezTerm resolves its system config AND every font it names.
+      #
+      #        `wezterm ls-fonts` prints the family it picked for each entry of the fallback
+      #        chain, with the file it came from. It EXITS 0 REGARDLESS — a Lua syntax
+      #        error, an unknown colour scheme and a missing font are all logged and then
+      #        shrugged off, exactly like `zellij setup --check` in 4c. So the greps are the
+      #        assertion, not the exit status.
+      #
+      #        HOME points at an empty temp dir and XDG_CONFIG_DIRS at /etc/xdg, which is
+      #        what makes this a test of RESOLUTION and not just of the file: with no
+      #        ~/.wezterm.lua and no ~/.config/wezterm, the only way "Monaspace Krypton NF"
+      #        can be the primary font is if /etc/xdg/wezterm/wezterm.lua was found, parsed,
+      #        and its fonts located. A family that fails to load is dropped from the list,
+      #        so its grep fails.
+      #
+      #        The last grep catches the colour scheme, the one failure the font loop cannot
+      #        see: WezTerm logs `color_scheme="…" but that scheme was not found` and then
+      #        carries on with its default, so a renamed colors/*.toml would ship silently.
+      #        It matches that message and not a bare "ERROR", which a container with no
+      #        session bus has other reasons to print.
+      #
+      #        Ordering: after `files` (ships the config), after `dnf` (installs wezterm and
+      #        the packaged fonts), and after 4d (installs the other two).
+      - |
+        RUN set -eu; \
+            tmp="$(mktemp -d)"; \
+            HOME="$tmp" XDG_CONFIG_DIRS=/etc/xdg wezterm ls-fonts > "$tmp/fonts" 2>&1; \
+            for family in 'Monaspace Krypton NF' 'IBM Plex Math' 'IBM Plex Mono' \
+                          'IBM Plex Sans' 'Noto Sans CJK SC' 'Noto Sans CJK TC' \
+                          'Noto Sans CJK JP'; do \
+                grep -qF "\"$family\"" "$tmp/fonts" \
+                    || { echo "wezterm did not resolve font: $family"; exit 1; }; \
+            done; \
+            ! grep -q 'scheme was not found' "$tmp/fonts"; \
             rm -rf "$tmp"

@@ -40,12 +40,14 @@ terms over synonyms.
 | **Module** | A build step (`files`, `dnf`, `default-flatpaks`, `containerfile`, `initramfs`, `signing`). Modules run in the order the recipe composes them. |
 | **MOK** | Machine Owner Key — an X.509 key enrolled with shim via `mokutil`, letting a machine's owner trust binaries their vendor did not sign. How Secure Boot stays on with the CachyOS kernel ([`variants.md`](variants.md)). |
 | **Nerd Font** | A font patched with an extra set of icon glyphs. The prompt and the editor use them; `cascadia-mono-nf-fonts` provides them for consumers that do not bundle their own, as WezTerm does. |
+| **Monaspace** | GitHub's monospace type family. *Krypton* is the variant WezTerm's shipped config uses; the Nerd-Font-patched build is installed from a pinned upstream release because Fedora packages none of it (DD-034). |
 | **Niri** | A scrollable-tiling Wayland compositor. The second desktop session (DD-013). See [`desktops.md`](desktops.md). |
 | **Overlay** | The `files/system/` tree, copied verbatim into the image root. Repository path = image path. |
 | **Override** | Shipping a file at an upstream path so the upstream file is replaced in the image. The branding mechanism (DD-004). |
 | **Plymouth** | The boot splash system. Reads the watermark this image overrides. |
 | **Quickshell** | The QtQuick-based shell toolkit DankMaterialShell is written against. |
 | **Rebase** | Switching a machine to a different OS image (`rpm-ostree rebase`). How Qubix OS is installed and uninstalled. |
+| **`XDG_CONFIG_DIRS`** | The colon-separated list of *system* configuration directories, searched after the user's own. How WezTerm finds `/etc/xdg/wezterm/wezterm.lua`. WezTerm does not apply the spec's `/etc/xdg` default when the variable is unset, so this image states it (DD-034). |
 | **Recipe** | A `recipes/recipe*.yml` file: the declarative definition of one published image. Shared parts live in `recipes/common-*.yml`. |
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |
 | **SDDM** | The display manager (login screen). Lists sessions from `/usr/share/wayland-sessions/`, which is how Niri appears as a login choice. |

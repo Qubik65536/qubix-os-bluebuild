@@ -75,7 +75,10 @@ substitution.
   |---|---|
   | `/etc/xdg/kdeglobals` | KDE cascade fragment: default terminal (DD-012), default browser (DD-023) |
   | `/etc/xdg/mimeapps.list` | MIME association fragment: the web types → Ungoogled Chromium (DD-023) |
-  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012) |
+  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012), and `XDG_CONFIG_DIRS` defaulted to `/etc/xdg` so the file below is reachable (DD-034) |
+  | `/etc/xdg/wezterm/wezterm.lua` | WezTerm's system-wide config. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it (DD-034) |
+  | `/etc/xdg/wezterm/colors/*.toml` | The colour schemes it selects. Available to a user's own `wezterm.lua` too (DD-034) |
+  | `/usr/share/licenses/monaspace-krypton-nf/LICENSE` | The OFL text for a font installed in module 4d. Vendored because Monaspace's archive carries none (DD-034) |
   | `/etc/niri/config.kdl` | System-default Niri configuration (DD-014) |
   | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
   | `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's interactive setup (DD-026, DD-030) |
@@ -109,7 +112,9 @@ substitution.
       - atim/lazygit
   install:
     packages:
-      [micro, starship, wezterm, niri, dms,
+      [micro, starship, wezterm,
+       ibm-plex-mono-fonts, ibm-plex-sans-fonts, google-noto-sans-cjk-fonts, unzip,
+       niri, dms,
        material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist,
        zsh, zsh-autosuggestions, zsh-syntax-highlighting, atuin, bat, yazi, fastfetch,
        neovim, ripgrep, fd-find, fzf, git, lazygit, cascadia-mono-nf-fonts]
@@ -120,7 +125,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012); `niri` = the second desktop session (DD-013); `dms` plus the three font packages and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
 | `remove.packages` | Removed RPMs. `firefox` goes because a browser belongs in a Flatpak (DD-006) and because the browser here is Ungoogled Chromium (DD-023); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
@@ -148,6 +153,14 @@ The terminal-environment packages, and why each is there:
 | `ripgrep`, `fd-find`, `fzf`, `git` | What LazyVim's default keymaps shell out to. Without them the keys exist and do nothing |
 | `lazygit` | Git in a terminal UI, in its own right as well as behind LazyVim's `<leader>gg`. Configured from `/usr/share/qubix-os/lazygit/config.yml` through `LG_CONFIG_FILE`, and wrapped as `lg` (DD-032) |
 | `cascadia-mono-nf-fonts` | A Nerd Font, so the prompt's glyphs resolve outside WezTerm (which bundles its own fallback) |
+
+The packages WezTerm's own configuration needs (DD-034):
+
+| Package(s) | Role |
+|---|---|
+| `ibm-plex-mono-fonts`, `ibm-plex-sans-fonts` | Entries 3 and 4 of WezTerm's font fallback chain. The two families ahead of them are not packaged by anyone and come from module 4d below |
+| `google-noto-sans-cjk-fonts` | CJK coverage, standing in for IBM Plex Sans SC/TC/JP — published only as ~1.2 GB of release archives, and absent from Fedora's `ibm-plex-fonts`. The **static** package, not `-vf-`, because its `.ttc` files expose `Noto Sans CJK SC` / `TC` / `JP` as plain family names |
+| `unzip` | Needed by module 4d, which unpacks two upstream font archives. Listed rather than assumed, for the same reason `git` is |
 
 - **Ordering:** must precede `default-flatpaks` so the Firefox RPM is gone before the
   Flatpak is queued, and precede the `containerfile` module below, which needs `zsh` and
@@ -192,8 +205,8 @@ No `repo` is specified, so Flathub is used by default.
 
 ### 4. `containerfile` — build steps no module covers
 
-*Defined in `common-base.yml`. Three snippets: zsh completions, the login-shell assertion,
-and zellij.*
+*Defined in `common-base.yml`. Five snippets: zsh completions, the login-shell assertion,
+zellij, WezTerm's two upstream fonts, and the WezTerm configuration assertion.*
 
 ```yaml
 - type: containerfile
@@ -218,6 +231,18 @@ and zellij.*
             sha256sum -c the extracted binary, install it to /usr/bin, \
             generate the zsh and bash completions, \
             assert `zellij setup --check` resolves and parses /etc/zellij/config.kdl
+    - |
+      RUN set -eu; \
+          mono_ver=1.400; mono_sha=9b7f9505…; \
+          plex_ver=1.1.0;  plex_sha=d85ed404…; \
+          … download monaspace-nerdfonts-v${mono_ver}.zip and ibm-plex-math.zip, \
+            sha256sum -c each archive, unzip the Krypton NF faces (minus *Wide*) \
+            into /usr/share/fonts/, assert 14 of them, fc-cache
+    - |
+      RUN set -eu; \
+          … HOME=<empty> XDG_CONFIG_DIRS=/etc/xdg wezterm ls-fonts, \
+            then grep for each of the seven families it must have resolved, \
+            and for the absence of `scheme was not found`
 ```
 
 The second snippet is an assertion, not a change: zsh's `%post` appends itself to
@@ -261,9 +286,42 @@ zsh-completions comes from upstream's own tag:
   `/etc/zellij/config.kdl`, or a config directory zellij would not have looked in, into a
   build failure instead of a surprise at someone's first login.
 
-- **Ordering:** after `dnf`, which installs `zsh` and `git`; after the `files` module, which
-  ships `/etc/zellij/config.kdl` for the check above. Before the identity rewrite, though
-  nothing forces that.
+The fourth installs the two fonts **WezTerm's configuration names that no repository
+packages** — Monaspace Krypton NF and IBM Plex Math (DD-034). Same pattern again: pinned
+version, asserted SHA-256.
+
+- **Two version/hash pairs**, from
+  [Monaspace's releases](https://github.com/githubnext/monaspace/releases) and
+  [IBM Plex's](https://github.com/IBM/plex/releases). **Bumping means changing both halves
+  of a pair**, and re-checking the vendored OFL text against the new Monaspace tag.
+- **The Nerd Font build, deliberately.** WezTerm bundles Symbols Nerd Font Mono, so plain
+  Monaspace would draw the same glyphs — but only the patched build answers to the family
+  name `Monaspace Krypton NF` that the config asks for.
+- **Only the normal widths.** `-x '*Wide*'` drops the `SemiWide` and `Wide` faces, which are
+  two thirds of the archive and which a terminal never asks for. The remaining count is
+  asserted, so a reorganised archive fails here rather than shipping half a family.
+- **315 MB downloaded, 31 MB shipped.** Monaspace publishes no per-family archive. The temp
+  directory is removed in the same layer.
+- **Licences.** IBM's archive carries one beside the font and it is installed from there;
+  Monaspace's carries none, so the OFL text is vendored in the overlay at
+  `/usr/share/licenses/monaspace-krypton-nf/LICENSE`.
+
+The fifth is an assertion, not a change — the WezTerm counterpart of `zellij setup --check`:
+
+- **`wezterm ls-fonts` exits 0 whatever is wrong**, so the greps are the assertion. It prints
+  the family it resolved for every entry of the fallback chain, and drops the ones it could
+  not load.
+- **`HOME` points at an empty directory and `XDG_CONFIG_DIRS` at `/etc/xdg`**, which makes
+  this a test of *resolution*: with no `~/.wezterm.lua` and no `~/.config/wezterm`, the only
+  way `Monaspace Krypton NF` can be the primary font is if
+  `/etc/xdg/wezterm/wezterm.lua` was found by the real search path and parsed.
+- **A renamed colour scheme is caught separately.** WezTerm logs `scheme was not found` and
+  carries on with its default, which the font greps would not notice.
+
+- **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm` and the packaged
+  fonts; after the `files` module, which ships `/etc/zellij/config.kdl` and
+  `/etc/xdg/wezterm/` for the two checks. The fifth snippet must follow the fourth. Before
+  the identity rewrite, though nothing forces that.
 
 ### 5. `containerfile` — raw build steps
 

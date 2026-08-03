@@ -51,6 +51,8 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Login shell | zsh for accounts created from now on; one `chsh` for one that already exists (DD-030) | `files/system/etc/default/useradd` |
 | Packages removed | `firefox`, `firefox-langpacks` — no Firefox in either form (DD-023) | `recipe.yml` (`dnf`) |
 | Default terminal | WezTerm, for KDE and for the `$TERMINAL` convention | `files/system/etc/xdg/kdeglobals`, `files/system/usr/lib/environment.d/` |
+| Terminal configuration | WezTerm's font stack, colour scheme and window settings, system-wide. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` still wins (DD-034) | `files/system/etc/xdg/wezterm/` |
+| Terminal fonts | Monaspace Krypton NF and IBM Plex Math from pinned upstream releases; IBM Plex Mono/Sans and Noto Sans CJK from Fedora (DD-034) | `recipe.yml` (`dnf`, `containerfile`) |
 | Default browser | Ungoogled Chromium, claimed for the web MIME types in both sessions | `files/system/etc/xdg/mimeapps.list`, `files/system/etc/xdg/kdeglobals` |
 | Second session | Niri added alongside — nothing KDE removed. System config shipped | `recipe.yml` (`dnf`), `files/system/etc/niri/config.kdl` |
 | Niri shell | DankMaterialShell, started by systemd under Niri only | `files/system/usr/lib/systemd/user/niri.service.d/` |

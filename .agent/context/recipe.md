@@ -44,9 +44,9 @@ described here or in `files/system/`.
   | # | Module | From | Effect | Ordering constraint |
   |---|---|---|---|---|
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
-  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `lazygit`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
+  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm` + its config's fonts (`ibm-plex-mono-fonts`, `ibm-plex-sans-fonts`, `google-noto-sans-cjk-fonts`) + `unzip`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `lazygit`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
-  | 4 | `containerfile` | `common-base.yml` | Three snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses | after `dnf` (needs `zsh`, `git`) and after `files` (needs `/etc/zellij`) — DD-026, DD-028, DD-033 |
+  | 4 | `containerfile` | `common-base.yml` | Five snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses; install Monaspace Krypton NF + IBM Plex Math from pinned upstream archives, asserting both SHA-256s; assert `wezterm ls-fonts` resolves `/etc/xdg/wezterm/wezterm.lua` and all seven of its families | after `dnf` (needs `zsh`, `git`, `unzip`, `wezterm`) and after `files` (needs `/etc/zellij`, `/etc/xdg/wezterm`); the last snippet after the one before it — DD-026, DD-028, DD-033, DD-034 |
   | 5 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
   | 6 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
 
@@ -134,14 +134,30 @@ described here or in `files/system/`.
   every invocation, and the build container's `/root` must not ship. Its last two `grep`s
   are the real assertion — `zellij setup --check` exits 0 even when the config is broken,
   so the greps are what turn a malformed `/etc/zellij/config.kdl` into a build failure.
+- **Two of WezTerm's fonts are build steps, not packages** (DD-034). Fedora has no
+  `monaspace-fonts` in any form, and `ibm-plex-fonts` 6.4.0 ships no `math` subpackage —
+  checked against the repository metadata, so do not "simplify" either into the `dnf` list.
+  Both are pinned by version and asserted by SHA-256; **bumping means changing both halves of
+  a pair**, and re-checking the OFL text vendored in the overlay against the new tag.
+  `-x '*Wide*'` on the Monaspace unzip is deliberate — the archive carries every weight three
+  times over — and the `-eq 14` after it is what turns a reorganised archive into a build
+  failure.
+- **The WezTerm snippet is an assertion and its greps are the whole point.**
+  `wezterm ls-fonts` exits 0 on a Lua syntax error, an unknown colour scheme *and* a missing
+  font, exactly like `zellij setup --check`. Running it with `HOME` in a temp dir and
+  `XDG_CONFIG_DIRS=/etc/xdg` is what makes it a test of resolution rather than of the file:
+  nothing but `/etc/xdg/wezterm/wezterm.lua` can make `Monaspace Krypton NF` the primary
+  font. Do not swap it for `--config-file`, which proves nothing about the search path.
+- `unzip` is in the package list for module 4d, the same way `git` is there for 4a. Removing
+  the font snippet means removing it too.
 - **lazygit is a tool, not just a LazyVim dependency** (DD-032). Its config lives in the
   overlay at `/usr/share/qubix-os/lazygit/config.yml` and is reached through
   `LG_CONFIG_FILE`; removing the package also means removing that wiring and the `lg`
   wrapper in `shell/common.sh`.
 - **Installing the shell tools is half the job.** The configuration is in the overlay
   (`files/system/etc/zshenv`, `etc/profile.d/`, `usr/share/qubix-os/shell/`,
-  `etc/fastfetch/`, `etc/zellij/`, `usr/share/qubix-os/lazygit/`). Adding a package here
-  does not put it in anyone's shell.
+  `etc/fastfetch/`, `etc/zellij/`, `etc/xdg/wezterm/`, `usr/share/qubix-os/lazygit/`).
+  Adding a package here does not put it in anyone's shell.
 - `fastfetch` is installed for the config that ships with it (DD-031), and **nothing runs
   it** — not a login banner, not a shell startup hook. Do not add one; a 200 ms picture on
   every prompt is exactly what the rest of this design avoids.

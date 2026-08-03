@@ -1674,3 +1674,115 @@ frame.
 - **Copying uses OSC 52**, zellij's default, because the alternative (`copy_command
   "wl-copy"`) ties the clipboard to a local Wayland session and to a package this image does
   not install. The config says so and gives the one-line change.
+
+---
+
+## DD-034 — Ship WezTerm's configuration in `/etc/xdg`, and the fonts it names from upstream
+
+**Status:** Accepted
+
+**Implements:** `IMG-023`
+
+**Context.** DD-012 made WezTerm the default terminal in both sessions and stopped there: it
+was installed and selected, and then ran with WezTerm's built-in defaults. The configuration
+that was actually wanted already existed — the one the owner of this image runs on macOS —
+so the question was not *what* to configure but **where a system-wide WezTerm config can
+live**, and what to do about a font stack written for a machine where every family was
+installed by hand.
+
+**Where the config goes.** WezTerm resolves its configuration in this order, first file that
+exists winning (`config/src/config.rs`, `load_with_overrides`):
+
+| # | Path | Source |
+|---|---|---|
+| 1 | `$WEZTERM_CONFIG_FILE` | environment, inserted at the **front** |
+| 2 | `~/.wezterm.lua` | `HOME_DIR` |
+| 3 | `$XDG_CONFIG_HOME/wezterm/wezterm.lua`, defaulting to `~/.config/wezterm/wezterm.lua` | `xdg_config_home()` |
+| 4 | `<dir>/wezterm/wezterm.lua` for each entry of `$XDG_CONFIG_DIRS` | `config_dirs()` |
+
+Row 4 is the whole answer, and row 1 is the trap. `WEZTERM_CONFIG_FILE` is the obvious lever
+— it is the one the other tools here use, in the shape `STARSHIP_CONFIG` (DD-026) and
+`LG_CONFIG_FILE` (DD-032) established — and it is exactly wrong for this: it is inserted at
+the **front** of the list, so the image would beat the user instead of losing to them.
+`/etc/xdg/wezterm/wezterm.lua` gives the relationship fastfetch and zellij already have
+(DD-031, DD-033): a user's own config shadows it wholesale, with nothing to undo and no
+wiring at all.
+
+Colour schemes are found the same way. `compute_color_scheme_dirs()` appends `colors/` to
+each of those same directories, so `/etc/xdg/wezterm/colors/*.toml` is where the shipped
+schemes live — and they stay available even to a user whose own `wezterm.lua` has replaced
+the file above them. Each scheme registers under its `[metadata] name`, **not** its
+filename, which is the string `color_scheme` has to match.
+
+**`$XDG_CONFIG_DIRS` has to be guaranteed, not assumed.** WezTerm reads the variable
+literally — `if let Some(d) = std::env::var_os("XDG_CONFIG_DIRS")` in `config/src/lib.rs` —
+and does **not** apply the XDG base directory spec's `/etc/xdg` default when it is unset. So
+where nothing sets it, this config simply does not exist. Plasma sets it; niri does not. It
+is therefore stated in `/usr/lib/environment.d/50-qubix-terminal.conf`, as
+`XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:-/etc/xdg}` — the `:-` form leaves an inherited value
+alone, so a session that adds directories of its own keeps them. `environment.d(5)` supports
+that expansion and gives this exact shape as its own example.
+
+**The fonts had to become real.** The config names seven families in a fallback chain, and
+shipping a config that names fonts the image does not have is not shipping the config —
+WezTerm drops each missing family silently and renders with something else. Availability was
+checked rather than assumed:
+
+| Family | Where it comes from | Why |
+|---|---|---|
+| Monaspace Krypton NF | upstream release, pinned + SHA-256 | Fedora packages no `monaspace-fonts` in any form |
+| IBM Plex Math | upstream release, pinned + SHA-256 | `ibm-plex-fonts` 6.4.0 has no `math` subpackage — its co-packages are mono, sans, serif, arabic, devanagari, hebrew, thai |
+| IBM Plex Mono, IBM Plex Sans | `ibm-plex-mono-fonts`, `ibm-plex-sans-fonts` | In Fedora's main repositories |
+| Noto Sans CJK SC / TC / JP | `google-noto-sans-cjk-fonts` | **Substituted** for IBM Plex Sans SC/TC/JP — see below |
+
+The two upstream fonts follow the pattern DD-026 and DD-033 already use: a pinned version
+whose identity is *asserted*, so a changed artifact fails the build rather than shipping.
+
+**The Nerd Font build, and only the normal widths.** WezTerm bundles Symbols Nerd Font Mono
+as a built-in fallback (DD-012), so plain Monaspace would have drawn the same glyphs. The
+patched build is taken anyway because `Monaspace Krypton NF` is the family name the config
+asks for on every other machine the owner uses, and only the patched build answers to it.
+Within it, the `SemiWide` and `Wide` faces are dropped: a terminal never asks for them, they
+are two thirds of the archive, and leaving them installed only gives font matching a chance
+to pick one.
+
+**CJK is Noto, and that is a substitution.** IBM publishes Plex Sans SC, TC and JP only as
+GitHub release archives of 523 MB, 367 MB and 317 MB, and Fedora packages no CJK Plex at all.
+`google-noto-sans-cjk-fonts` covers the same three scripts in one `dnf` line. The *order* —
+Simplified, then Traditional, then Japanese — is what decides which regional form a shared
+Han character is drawn in, so it is preserved exactly. The **static** package is used rather
+than `google-noto-sans-cjk-vf-fonts` because its `.ttc` files expose `Noto Sans CJK SC` / `TC`
+/ `JP` as plain family names, which is what the config asks for by name and what the build
+asserts.
+
+**What the macOS config lost.** Three settings are macOS-only and are not carried over:
+`macos_window_background_blur`, and the two `send_composed_key_when_*_alt_is_pressed` keys
+(of which the left-alt one was set twice in the original, the second assignment winning).
+`window_background_opacity = 0.75` **is** kept, and it behaves differently here: WezTerm
+never asks for a blurred background region on Wayland, so KWin's blur effect does not apply
+to it and niri has no blur at all. The window is transparent over whatever is behind it, at
+full detail.
+
+**Consequences.**
+- **The build proves the whole path.** `wezterm ls-fonts` prints the family it resolved for
+  each entry of the fallback chain, and — like `zellij setup --check` (DD-033) — **exits 0
+  regardless**, so the greps are the assertion. Run with `HOME` pointed at an empty directory
+  and `XDG_CONFIG_DIRS=/etc/xdg`, the only way `Monaspace Krypton NF` can be the primary font
+  is if the config was found by the real search path, parsed, and its fonts located. A
+  renamed colour scheme is caught separately, because WezTerm logs
+  `scheme was not found` and then carries on with its default.
+- **Version bumps are manual, for both fonts.** Two version/hash pairs in
+  `common-base.yml`, and the vendored OFL text has to be re-checked against the new tag.
+- **315 MB is downloaded to install 31 MB.** Monaspace publishes no per-family archive; the
+  temp directory is removed in the same layer, so only the 14 faces reach the image.
+- **Monaspace ships no licence file in its archive**, so the OFL text is vendored in the
+  overlay at `/usr/share/licenses/monaspace-krypton-nf/LICENSE`. IBM's archive *does* carry
+  one beside the font, and that copy is installed from the archive rather than vendored.
+- **`unzip` is now a layered package.** Both archives are ZIPs and the build container is not
+  assumed to have it, for the same reason `git` is listed explicitly (DD-026).
+- **A user's config replaces this one wholesale**, exactly as with zellij and fastfetch.
+  `cp /etc/xdg/wezterm/wezterm.lua ~/.config/wezterm/` is the documented start, and the
+  shipped colour schemes keep working underneath it.
+- **`XDG_CONFIG_DIRS` is now set for every user session.** It states the spec default, so
+  nothing that already behaved correctly changes — but it is a variable many programs read,
+  not only WezTerm, and it is set from this image rather than inherited.

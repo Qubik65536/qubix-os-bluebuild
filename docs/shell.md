@@ -3,7 +3,8 @@
 What you get in a terminal on Qubix OS, how it is delivered, and how to change or remove
 any of it.
 
-The terminal itself — WezTerm, and how it is made the default in both sessions — is in
+The terminal itself — WezTerm, how it is made the default in both sessions, and the fonts
+and colours it is configured with — is in
 [`desktops.md`](desktops.md#the-default-terminal). This page is about what runs *inside*
 it.
 
@@ -111,9 +112,11 @@ To start from the shipped one rather than a blank file:
 cp /usr/share/qubix-os/starship.toml ~/.config/starship.toml
 ```
 
-The prompt uses Nerd Font glyphs throughout. WezTerm bundles a symbols fallback, and
-`cascadia-mono-nf-fonts` is installed so fontconfig can resolve them everywhere else. A
-terminal explicitly configured with a font that has neither will show boxes.
+The prompt uses Nerd Font glyphs throughout. WezTerm bundles a symbols fallback — and its
+shipped font stack leads with a Nerd Font anyway ([`desktops.md`](desktops.md#the-default-terminal))
+— while `cascadia-mono-nf-fonts` is installed so fontconfig can resolve the glyphs
+everywhere else. A terminal explicitly configured with a font that has neither will show
+boxes.
 
 ### atuin — history, fully local
 
