@@ -1,0 +1,24 @@
+[Unit]
+# The only system unit this image adds. It sets zsh as the login shell for accounts that
+# already exist, which nothing in the recipe can do: /etc/passwd is per machine, and the
+# command that used to be documented instead — `chsh` — is deleted from the image by
+# Aurora. See docs/shell.md and docs/design-decisions.md DD-035.
+Description=Set zsh as the login shell for existing accounts
+Documentation=https://github.com/qubik65536/qubix-os-bluebuild/blob/main/docs/shell.md
+
+# Ordered before the gate that permits logins, so no account is logged in while usermod
+# rewrites /etc/passwd, and the first login of the boot is already in the new shell.
+After=local-fs.target
+Before=systemd-user-sessions.service
+
+# Nothing to do in a container or on a read-only /etc.
+ConditionPathIsReadWrite=/etc
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/qubix-default-shell
+
+[Install]
+# Enabled at build time by the `systemd` module in recipes/common-base.yml.
+WantedBy=multi-user.target

@@ -372,6 +372,26 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - The user confirms the rebased image reaches a login screen — **confirmed 2026-08-01**,
       the machine now boots to the greeter and logs in
 
+### Build assertions
+
+- [x] **MNT-003** — Make the `! grep` assertions able to fail
+  - **Category:** Maintenance
+  - **Depends on:** —
+  - **Notes:** Found on 2026-08-03 while rehearsing IMG-025's snippet locally: the
+    double-append guard did not fire on a second run. **`set -e` is specified to ignore a
+    command whose exit status is inverted with `!`**, so `! grep -q pattern file` does not
+    fail a build when the pattern *is* found. It reads like an assertion and asserts
+    nothing.
+    One instance already shipped: `! grep -q 'scheme was not found'` in the WezTerm font
+    check (DD-034), which was meant to catch a renamed colour scheme and could never have.
+    Both are now `if grep -q …; then echo …; exit 1; fi`, which fails and says why.
+  - **Acceptance criteria:**
+    - No `! <command>` is used as an assertion in `recipes/`
+    - Each replacement prints what failed before exiting non-zero
+    - Rehearsed locally: the guard exits 1 when its pattern is present *(done — the append
+      snippet was run twice against Fedora's real `/etc/zshrc`, and the second run exits 1)*
+    - The trap is written down where the next assertion will be added
+
 ---
 
 ## Open
@@ -634,8 +654,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `y` runs yazi and leaves the shell in the directory it was quit from
     - Bash gets everything that works in bash; what does not work in bash is documented,
       not silently missing
-    - **Superseded by IMG-019:** nothing is written into `$HOME` at all — the shell is
-      wired from `/etc/zshenv` and `/etc/profile.d`, both shipped in the image
+    - **Superseded by IMG-019, then by IMG-025:** nothing is written into `$HOME` at all —
+      the shell is wired from the end of `/etc/zshrc` and from `/etc/profile.d`, both
+      shipped in the image. IMG-019 used `/etc/zshenv`, which runs too early
     - `docs/shell.md`, a `DD-###`, `.agent/context/`, and `docs/recipe-reference.md` cover it
     - On the rebased image a fresh login gets the prompt, history search, and both plugins
       *(open — needs a build and hardware)*
@@ -687,9 +708,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     that zsh's `%post` actually registered itself there — otherwise the documented manual
     command fails with a confusing error.
   - **Acceptance criteria:**
-    - **Superseded by IMG-019:** accounts created from now on get zsh from
-      `/etc/default/useradd`; an account that already exists takes one documented `chsh`.
-      No service edits `/etc/passwd`
+    - **Superseded by IMG-019, and reinstated by IMG-024:** IMG-019 replaced the service
+      with one documented `chsh`, which Aurora deletes from the image, so the service is
+      back — this task's original position was right for the wrong reason
     - `/usr/bin/zsh` is present in `/etc/shells`, asserted at build time so `chsh` works
     - DD-026's "not the default shell" consequence is superseded, not rewritten; the recipe
       comments, `docs/shell.md`, `docs/usage.md` and `.agent/context/` no longer say the
@@ -757,6 +778,8 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
   - **Acceptance criteria:**
     - `qubix-seed-home` and `qubix-default-shell`, their units and their `.wants` symlinks
       are gone, and nothing in the image writes to `$HOME` or `/etc/passwd` at runtime
+      — **`qubix-default-shell` and its unit return in IMG-024**, because the `chsh` this
+      criterion traded them for does not exist on Aurora. Nothing writing to `$HOME` stands
     - zsh still gets the full set on an existing account, with no per-user file
     - atuin is still fully local, and a user's own `config.toml` still wins
     - The vendored LazyVim starter is gone; `docs/shell.md` gives the clone command
@@ -913,6 +936,86 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       `docs/glossary.md` and `.agent/context/` cover it, including how to bump the version
     - On the rebased image, `zellij` starts with the Qubix theme on a fresh account
       *(open — needs a build and hardware)*
+
+- [ ] **IMG-024** — Set the login shell to zsh from the image, because `chsh` does not exist
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Reported 2026-08-03: neither zsh nor starship-on-zsh is working on the
+    machine. One upstream fact explains both, and it invalidates DD-030.
+    **Aurora deletes `/usr/bin/chsh`.** `ublue-os/aurora`,
+    `build_files/base/16-override-install.sh` line 8: `rm -f /usr/bin/chsh /usr/bin/lchsh`,
+    commented "Footgun", citing ublue-os main issue 598. So
+    `chsh -s /usr/bin/zsh` — the command in `docs/shell.md`, `docs/usage.md`,
+    `docs/overview.md`, `docs/recipe-reference.md` and the recipe comments, and the **only**
+    route to zsh for an account that already exists — fails with `command not found` on
+    every Qubix image ever published. DD-030 rested on that command being available. It
+    never was.
+    The starship complaint is the same bug one step later: WezTerm sets no `default_prog`,
+    so a terminal spawns the login shell, which is still bash. The zsh half of the
+    environment was only ever reachable by typing `zsh`.
+    **`usermod -s` is the replacement**, not a different `chsh`. It is shadow-utils, which
+    Aurora keeps, it does not consult `/etc/shells`, and it needs no password when run as
+    root — which is what makes the boot service the natural home for it.
+    So DD-028's service comes back, with its three rules intact (ordered
+    `Before=systemd-user-sessions.service`, UID 1000–60000 so root keeps bash, and one
+    attempt per account, stamped in `/var/lib/qubix-os/`). DD-030 removed it as "a large
+    hammer for a command the owner runs once"; the command it was traded for does not exist.
+  - **Acceptance criteria:**
+    - A boot service sets `/usr/bin/zsh` as the login shell for human accounts that are
+      still on bash, once per account, and never touches an account twice
+    - `root` is never touched, and an account moved back to bash stays there
+    - `/etc/default/useradd` still covers accounts created afterwards
+    - The build asserts that `usermod` exists, so the service cannot ship without its tool
+    - **No page tells anyone to run `chsh`.** Every instruction that survives is `usermod`,
+      and the reason chsh is absent is written down where a reader will hit it
+    - DD-030's login-shell half is superseded, not rewritten, by a record carrying the
+      upstream evidence; DD-028's status points at it
+    - On the rebased image, the first login after a boot lands in zsh on an account that was
+      created before the rebase *(open — needs a build and hardware)*
+
+- [ ] **IMG-025** — Wire zsh from the end of `/etc/zshrc`, not from `/etc/zshenv`
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Found while diagnosing IMG-024. `/etc/zshenv` is the **first** file zsh
+    reads, and `/etc/profile.d/qubix-shell-env.sh` is reached later — through `/etc/zprofile`
+    for a login shell, through `/etc/zshrc` for an interactive one. So today every variable
+    the image exports for these tools (`STARSHIP_CONFIG`, `ATUIN_*`, `LG_CONFIG_FILE`,
+    `EDITOR`) is set **after** `starship init` and `atuin init` have already run. It works
+    only because both tools re-read their environment at prompt time; nothing about the
+    design makes that safe, and the next tool that reads its config at init time breaks.
+    Two more costs of that position, established against Fedora's own files rather than
+    assumed (rawhide dist-git, `zshrc.rhs`):
+    - `/etc/zshrc` line 11 is `[[ "$PROMPT" = "%m%# " ]] && PROMPT=...`. It runs *after*
+      `/etc/zshenv`, so the only thing standing between Fedora's prompt and starship's is
+      that guard. Ours should simply run later.
+    - `/etc/zshenv` is read by **every** zsh, scripts included, which is why the file needs
+      an `-o interactive` guard to hold interactive setup at all.
+    `/etc/zshrc` is the file zsh documents for interactive setup, it is sourced only by
+    interactive shells, and it is where the `/etc/profile.d` loop already lives — so
+    appending to its end puts the shell environment after everything the system sets and
+    before the user's own `~/.zshrc`, which still wins.
+    **Appended at build time rather than shipped as a file.** Vendoring Fedora's 50 lines
+    into the overlay to add six of ours means owning their copy forever; a `containerfile`
+    snippet appends only what is ours, so upstream changes flow through untouched. The
+    snippet asserts Fedora's `_src_etc_profile_d` is present before appending, and runs
+    `zsh -n` over the result, so a base image that reorganises `/etc/zshrc` fails the build
+    instead of silently producing a shell with no prompt.
+    Rejected, and recorded so it is not re-proposed: deferring the setup to the first
+    `precmd` hook from `/etc/zshenv`. It would run later still — after `~/.zshrc` — but it
+    mutates `precmd_functions` while zsh is iterating over it, and it is a great deal of
+    cleverness for an ordering that appending already gets right.
+  - **Acceptance criteria:**
+    - The zsh half is sourced from the end of `/etc/zshrc`, after the `/etc/profile.d` loop
+      and after Fedora's default `PROMPT` line
+    - `files/system/etc/zshenv` is gone, and Fedora's own file comes back on a rebase
+    - Fedora's `/etc/zshrc` is not vendored: the build appends to it and asserts both that
+      upstream's content is there first and that the result parses
+    - A user's `~/.zshrc` still runs last and still wins
+    - DD-030's zsh-wiring half is superseded, not rewritten
+    - `docs/shell.md`, `.agent/context/` and `docs/recipe-reference.md` no longer say the
+      shell is wired from `/etc/zshenv`
+    - On the rebased image, a zsh login has the starship prompt, atuin history search and
+      both plugins *(open — needs a build and hardware)*
 
 - [ ] **IMG-023** — Ship the WezTerm configuration, and the fonts it names
   - **Category:** Image content

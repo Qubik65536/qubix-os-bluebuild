@@ -1,20 +1,25 @@
-# Read by: zsh, sourced from /etc/zshenv.
+# Read by: zsh, sourced from the end of /etc/zshrc.
 #
 # Everything interactive that zsh gets. It lives here, in /usr, rather than in anyone's
 # home directory: a rebase changes the shell environment with nothing to re-run and
 # nothing stale left in $HOME (DD-030).
 #
-# WHY /etc/zshenv AND NOT /etc/profile.d, where the bash half lives: zsh sources
-# /etc/profile.d/*.sh from inside a function that has run `emulate -L ksh`, so KSH_ARRAYS
-# and SH_WORD_SPLIT are in force there — not the language zsh plugin scripts are written
-# in. /etc/zshenv is plain zsh at top level, and Fedora's copy is comments only, so
-# replacing it costs nothing.
+# WHY NOT /etc/profile.d, where the bash half lives: zsh sources /etc/profile.d/*.sh from
+# inside a function that has run `emulate -L ksh`, so KSH_ARRAYS and SH_WORD_SPLIT are in
+# force there — not the language zsh plugin scripts are written in.
 #
-# THIS RUNS BEFORE ~/.zshrc. A user's own file therefore always wins, which is the right
-# way round. The cost is at the bottom of this file: zsh-syntax-highlighting cannot wrap
-# widgets that do not exist yet.
+# WHY THE END OF /etc/zshrc rather than /etc/zshenv, which is where this used to be
+# sourced from: /etc/zshenv is the first file zsh reads, so everything the image exports
+# in /etc/profile.d — STARSHIP_CONFIG, ATUIN_*, LG_CONFIG_FILE, EDITOR — was being set
+# after the tools below had already been initialised. The end of /etc/zshrc is after that
+# loop and after Fedora's default PROMPT line. The block that sources this file is
+# appended at build time by recipes/common-base.yml, module 4f (DD-036).
 #
-# See docs/shell.md and docs/design-decisions.md DD-026, DD-030.
+# THIS STILL RUNS BEFORE ~/.zshrc. A user's own file therefore always wins, which is the
+# right way round. The cost is at the bottom of this file: zsh-syntax-highlighting cannot
+# wrap widgets that do not exist yet.
+#
+# See docs/shell.md and docs/design-decisions.md DD-026, DD-030, DD-036.
 
 # Interactive shells only. Nothing below has any meaning in a script.
 [[ -o interactive ]] || return 0
@@ -73,7 +78,7 @@ fi
 # It wraps the ZLE widgets that exist at the moment it is sourced. Nothing may be added
 # below this line.
 #
-# The known limit of wiring zsh from /etc/zshenv: widgets a user defines in their own
+# The known limit of wiring zsh system-wide: widgets a user defines in their own
 # ~/.zshrc come later still, and are not wrapped. Re-sourcing this file at the end of
 # ~/.zshrc fixes that for anyone who cares — documented in docs/shell.md, and not
 # something the image does on a user's behalf.

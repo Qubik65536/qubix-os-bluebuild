@@ -82,8 +82,9 @@ substitution.
   | `/etc/niri/config.kdl` | System-default Niri configuration (DD-014) |
   | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
   | `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's interactive setup (DD-026, DD-030) |
-  | `/etc/zshenv` | Sources zsh's half. **Replaces** Fedora's, which is comments only (DD-030) |
   | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on. **Replaces** shadow-utils' copy (DD-030) |
+  | `/usr/bin/qubix-default-shell` | Moves accounts that already exist to zsh, once each (DD-035) |
+  | `/usr/lib/systemd/system/qubix-default-shell.service` | Runs it before logins are permitted. Enabled by module 5 (DD-035) |
   | `/usr/share/qubix-os/shell/` | The interactive shell configuration itself (DD-026) |
   | `/usr/share/qubix-os/starship.toml` | The prompt, used unless the user has their own (DD-026) |
   | `/usr/share/qubix-os/lazygit/config.yml` | lazygit's icons and palette, reached through `LG_CONFIG_FILE`; the user's config merges *over* it (DD-032) |
@@ -143,7 +144,7 @@ The terminal-environment packages, and why each is there:
 
 | Package(s) | Role |
 |---|---|
-| `zsh` | The login shell. Nothing in the recipe can make it so — `/etc/passwd` is per machine — so `/etc/default/useradd` covers new accounts and an existing one takes one `chsh` (DD-030) |
+| `zsh` | The login shell. Nothing in the recipe can make it so — `/etc/passwd` is per machine — so `/etc/default/useradd` covers new accounts and `qubix-default-shell.service` (module 5) covers the ones that already exist (DD-035) |
 | `zsh-autosuggestions`, `zsh-syntax-highlighting` | The two interactive zsh plugins. Loaded from `/usr/share/qubix-os/shell/qubix.zsh`, highlighting last |
 | `atuin` | Local SQLite shell history. Wired into zsh only — its bash integration needs `bash-preexec`, which Fedora does not package |
 | `bat` | `cat` with highlighting; aliased over `cat` in interactive shells |
@@ -205,8 +206,9 @@ No `repo` is specified, so Flathub is used by default.
 
 ### 4. `containerfile` — build steps no module covers
 
-*Defined in `common-base.yml`. Five snippets: zsh completions, the login-shell assertion,
-zellij, WezTerm's two upstream fonts, and the WezTerm configuration assertion.*
+*Defined in `common-base.yml`. Six snippets: zsh completions, the login-shell assertions,
+zellij, WezTerm's two upstream fonts, the WezTerm configuration assertion, and the zsh
+wiring appended to `/etc/zshrc`.*
 
 ```yaml
 - type: containerfile
@@ -222,7 +224,9 @@ zellij, WezTerm's two upstream fonts, and the WezTerm configuration assertion.*
           rm -rf "$tmp"; \
           ls /usr/share/zsh/site-functions | wc -l
     - |
-      RUN grep -qx '/usr/bin/zsh' /etc/shells
+      RUN set -eu; \
+          command -v usermod >/dev/null; \
+          grep -qx '/usr/bin/zsh' /etc/shells
     - |
       RUN set -eu; \
           ver=0.44.3; \
@@ -245,11 +249,16 @@ zellij, WezTerm's two upstream fonts, and the WezTerm configuration assertion.*
             and for the absence of `scheme was not found`
 ```
 
-The second snippet is an assertion, not a change: zsh's `%post` appends itself to
-`/etc/shells` on first install, and this fails the build if it ever stops.
-`chsh` is how every account that already exists moves to zsh, and it validates against
-`/etc/shells`. Without the entry it fails with *"chsh: /usr/bin/zsh is not a valid shell"*
-and nothing explains why (DD-028, DD-030).
+The second snippet is two assertions, not a change (DD-035):
+
+- **`usermod` must exist.** It is what `qubix-default-shell.service` runs to move an account
+  that already exists to zsh, and it is the *only* way to do that here: Aurora deletes
+  `/usr/bin/chsh` from the image. A service whose tool is missing would fail silently at
+  boot on somebody's machine, so the build checks instead.
+- **`/usr/bin/zsh` must be in `/etc/shells`.** `usermod` never reads that file, so this is
+  for everything else that does — a `chsh` layered back on with `util-linux-user`, and
+  anything that declines to treat an account as interactive when its shell is unlisted. The
+  entry comes from zsh's `%post` in the *base* image, since Aurora installs zsh itself.
 
 The first is a raw build step because there is nothing to install *from*: Fedora does not package
 `zsh-completions`, and the `@zsh-users/zsh-completions` COPR has no build chroots at all —
@@ -317,13 +326,62 @@ The fifth is an assertion, not a change — the WezTerm counterpart of `zellij s
   `/etc/xdg/wezterm/wezterm.lua` was found by the real search path and parsed.
 - **A renamed colour scheme is caught separately.** WezTerm logs `scheme was not found` and
   carries on with its default, which the font greps would not notice.
+- **Assertions here are written as `if grep …; then exit 1; fi`, never as `! grep …`.**
+  `set -e` ignores a command whose status is inverted with `!`, so the `!` form cannot fail
+  a build (MNT-003). Anything added to these snippets must follow the same shape.
+
+The sixth wires zsh into the shell environment, by **appending** to Fedora's `/etc/zshrc`:
+
+```yaml
+    - |
+      RUN set -eu; \
+          grep -q '_src_etc_profile_d' /etc/zshrc; \
+          ! grep -q 'qubix-os/shell/qubix.zsh' /etc/zshrc; \
+          printf '%s\n' … 'if [[ -r /usr/share/qubix-os/shell/qubix.zsh ]]; then' \
+                          '    source /usr/share/qubix-os/shell/qubix.zsh' \
+                          'fi' >> /etc/zshrc; \
+          zsh -n /etc/zshrc
+```
+
+- **The end of `/etc/zshrc` is the point of it.** It is after the `/etc/profile.d` loop, so
+  the variables that configure these tools exist before the tools are initialised, and after
+  Fedora's default `PROMPT` line. This was `/etc/zshenv` until DD-036, which ran before both.
+- **Appended, not replaced.** `/etc/zshrc` carries real behaviour — that `profile.d` loop —
+  so shipping our own copy would mean owning Fedora's forever. Only our block is added.
+- **The first `grep` is the safety.** It fails the build if the base image ever ships an
+  `/etc/zshrc` that is not Fedora's, rather than appending to something unknown. The second
+  refuses to append twice.
+- **`zsh -n` parses the result**, so a broken shell fails in CI instead of at a login.
+- Fedora's `/etc/zshrc` has not changed since 2015, per the package changelog. That is why
+  appending is a reasonable thing to do to it, and why the assertion is cheap.
 
 - **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm` and the packaged
-  fonts; after the `files` module, which ships `/etc/zellij/config.kdl` and
-  `/etc/xdg/wezterm/` for the two checks. The fifth snippet must follow the fourth. Before
-  the identity rewrite, though nothing forces that.
+  fonts; after the `files` module, which ships `/etc/zellij/config.kdl`,
+  `/etc/xdg/wezterm/` and `/usr/share/qubix-os/shell/qubix.zsh`. The fifth snippet must
+  follow the fourth. Before the identity rewrite, though nothing forces that.
 
-### 5. `containerfile` — raw build steps
+### 5. `systemd` — enable the login-shell service
+
+*Defined in `common-base.yml`.*
+
+```yaml
+- type: systemd
+  system:
+    enabled:
+      - qubix-default-shell.service
+```
+
+The only unit this image enables, and the only thing in the terminal environment that is not
+a file: it sets zsh as the login shell for accounts that already exist, which no image can do
+declaratively because `/etc/passwd` is per machine (DD-035).
+
+- The unit and its script are shipped by module 1; this module only enables it.
+- It runs `Before=systemd-user-sessions.service`, so nobody is logged in while it rewrites
+  `/etc/passwd`, and stamps each account in `/var/lib/qubix-os/default-shell/` so an account
+  is only ever changed once. Full behaviour: [`shell.md`](shell.md#the-login-shell).
+- **Ordering:** after `files`, which ships the unit. Nothing else depends on it.
+
+### 6. `containerfile` — raw build steps
 
 *Defined in `common-identity.yml`.*
 
@@ -357,7 +415,7 @@ Implementation notes:
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
 - **Ordering:** must run after any module that can regenerate `os-release`.
 
-### 6. `signing` — install the verification policy
+### 7. `signing` — install the verification policy
 
 *Defined in each recipe, last.*
 

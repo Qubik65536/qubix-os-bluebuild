@@ -33,10 +33,11 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | Path | Consumer | Effect |
 |---|---|---|
 | `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and — at the end — bash's interactive setup (DD-026, DD-030, DD-032) |
-| `etc/zshenv` | zsh, on every invocation | Sources `qubix.zsh`. **Replaces** Fedora's file, which is comments only |
 | `etc/default/useradd` | `useradd(8)` | `SHELL=/usr/bin/zsh`. **Replaces** shadow-utils' copy; only one line differs |
+| `usr/bin/qubix-default-shell` | `qubix-default-shell.service` | Sets zsh as the login shell for existing accounts, once each, stamped in `/var/lib/qubix-os/default-shell/` (DD-035). Mode `100755` |
+| `usr/lib/systemd/system/qubix-default-shell.service` | systemd, at boot | Runs the above `Before=systemd-user-sessions.service`. Enabled by the `systemd` module in `common-base.yml` |
 | `usr/share/qubix-os/shell/common.sh` | `qubix.bash`, `qubix.zsh` | The `cat`→`bat` alias, the `y` yazi wrapper and the `lg` lazygit wrapper |
-| `usr/share/qubix-os/shell/qubix.zsh` | zsh, from `/etc/zshenv` | Prompt, atuin, both plugins, history defaults |
+| `usr/share/qubix-os/shell/qubix.zsh` | zsh, from the block appended to `/etc/zshrc` | Prompt, atuin, both plugins, history defaults |
 | `usr/share/qubix-os/shell/qubix.bash` | bash, from `/etc/profile.d` | Prompt and aliases. No atuin — see gotchas |
 | `usr/share/qubix-os/starship.toml` | starship, as `$STARSHIP_CONFIG` | The prompt. Never copied into `$HOME` |
 | `usr/share/qubix-os/lazygit/config.yml` | lazygit, as the **first** entry of `$LG_CONFIG_FILE` | Nerd Font icons + the `#56728B` palette. The user's config is appended after it and **merges over it key by key** (DD-032) |
@@ -44,21 +45,23 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/fastfetch/config.jsonc` | fastfetch, when a user runs it | The system-wide default box. **The only system-wide path fastfetch reads** — its search path has no `/usr` entry (DD-031) |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Mode `100755` in the overlay |
 
-**Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, no units
-(DD-030, DD-031). An earlier
-design seeded a `source` line into `~/.zshrc` from a systemd user service, plus a system
-service that ran `usermod` to set the login shell, plus a vendored LazyVim starter — all
-removed as more machinery than the result justified.
+**Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, and one system
+service that touches `/etc/passwd` (DD-030, DD-031, DD-035). An earlier design also seeded a
+`source` line into `~/.zshrc` from a systemd *user* service and vendored the LazyVim starter;
+both are gone. The login-shell service came back in DD-035, because the single `chsh` it was
+traded for does not exist on Aurora — upstream deletes `/usr/bin/chsh` from the image.
 
-Two constraints survive from that design and still explain the layout:
+Two constraints explain the rest of the layout:
 
 - **`/etc/profile.d` cannot carry the zsh half.** Fedora's `/etc/zshrc` sources those files
   from inside a function running `emulate -L ksh`, so `KSH_ARRAYS` and `SH_WORD_SPLIT` are
   set — not the language zsh plugin scripts are written in. Environment variables and
   bash's setup only.
-- **`/etc/zshenv` is the zsh entry point** because Fedora's copy is comments only, so
-  replacing it loses nothing, and it is plain zsh at top level. `/etc/zshrc` was rejected:
-  it carries the `profile.d` loop itself, which we would then own forever.
+- **The end of `/etc/zshrc` is the zsh entry point**, appended there at build time by
+  `common-base.yml` (DD-036). It is the last thing the *system* runs before `~/.zshrc`, and
+  crucially it is after the `profile.d` loop, so `STARSHIP_CONFIG` and friends exist before
+  the tools that read them start. `/etc/zshenv` held this until 2026-08-03 and ran too
+  early; Fedora's file is not vendored, only appended to.
 
 ## Branding
 
@@ -95,8 +98,9 @@ without clobbering an upstream file — currently `etc/xdg/kdeglobals` (DD-012, 
 `etc/xdg/mimeapps.list` (DD-023; the `/usr` equivalent,
 `/usr/share/applications/mimeapps.list`, exists upstream and Aurora appends to it),
 `etc/niri/config.kdl` (DD-014; niri's config search path has no `/usr` entry), the
-three terminal-environment files above — `/etc/profile.d`, `/etc/zshenv` and
-`/etc/default/useradd` all have no `/usr` equivalent at all (DD-026, DD-030) — and
+two terminal-environment files above — `/etc/profile.d` and `/etc/default/useradd` have no
+`/usr` equivalent at all (DD-026, DD-030), and `/etc/zshrc` is appended to rather than
+shipped (DD-036) — and
 `etc/fastfetch/config.jsonc` (DD-031; fastfetch's config search path is `~/.config` →
 `$HOME` → `$XDG_CONFIG_DIRS` → `/etc/xdg` → `/etc`, and `/usr/share/fastfetch/` is a
 *data* dir for presets and logos, not a config dir), and `etc/zellij/config.kdl` (DD-033;
@@ -110,10 +114,10 @@ lazygit is the counter-example worth remembering: it also has no `/usr` path, bu
 `LG_CONFIG_FILE` takes a *list*, so its config stays in `/usr` and the user's file is
 appended after it (DD-032). Check for an environment variable before reaching for `/etc`.
 
-The last two are **replacements** of upstream files rather than additions, which is
-normally forbidden here. Both are justified in their own headers: Fedora's `/etc/zshenv`
-is comments only, so nothing is lost, and `/etc/default/useradd` is eight lines of which
-one differs. Both must be re-checked against upstream if either package changes them.
+`/etc/default/useradd` is the one **replacement** of an upstream file rather than an
+addition, which is normally forbidden here. It is justified in its own header: eight lines,
+of which one differs. Re-check it against shadow-utils if that package changes it.
+`/etc/zshenv` used to be a second such replacement and is not shipped any more (DD-036).
 
 ## Gotchas
 
@@ -178,9 +182,13 @@ one differs. Both must be re-checked against upstream if either package changes 
   is now the *only* thing that writes into a home directory, and it is a pointer it owns
   (DD-025). Do not add a second seeder for shell or editor configuration; that was tried
   and removed (DD-030).
-- **`/etc/zshenv` runs BEFORE `~/.zshrc`.** Two consequences, both intended: a user's own
+- **The zsh block runs BEFORE `~/.zshrc`.** Two consequences, both intended: a user's own
   file always wins, and zsh-syntax-highlighting cannot wrap widgets defined there. Do not
   "fix" the second by writing into `~/.zshrc`.
+- **The zsh block is APPENDED to Fedora's `/etc/zshrc`, not shipped as a file in the
+  overlay.** Vendoring Fedora's 50 lines would mean owning them forever. The build asserts
+  upstream's `_src_etc_profile_d` is present before appending, and `zsh -n` afterwards, so a
+  base image that reorganises the file fails CI rather than a login (DD-036).
 - **Nothing may be added below the syntax-highlighting line in `qubix.zsh`.** It wraps the
   ZLE widgets that exist when it is sourced.
 - **atuin is configured from the environment, not a file**, because it reads every setting
@@ -194,10 +202,15 @@ one differs. Both must be re-checked against upstream if either package changes 
 - **The Neovim config is not shipped at all.** `~/.config/nvim` is the user's, from a
   documented `git clone` of LazyVim's starter — which is also what makes `git pull` work.
   A vendored starter used to live here; it is gone (DD-030).
-- **The login shell needs one `chsh` on an existing account.** `/etc/default/useradd` only
-  affects accounts created afterwards, and `/etc/passwd` is per machine. This is a
-  documented limit, not an oversight — a boot service that edited `/etc/passwd` was tried
-  and removed.
+- **`chsh` DOES NOT EXIST on this image.** Aurora deletes `/usr/bin/chsh` and
+  `/usr/bin/lchsh` (`build_files/base/16-override-install.sh`, "Footgun"). Every manual
+  instruction must therefore say `usermod -s`, and the login shell for an account that
+  already exists is set by `qubix-default-shell.service` — which is why that service exists
+  at all, after being removed once as unnecessary (DD-035).
+- **The login-shell service gets ONE attempt per account.** Every account it looks at is
+  stamped in `/var/lib/qubix-os/default-shell/`, changed or not, so an account moved back to
+  bash stays there. Removing the stamping would turn the image into something that overrules
+  its owner every boot.
 - **`pkill xwaylandvideobridge` matches nothing**, ever. `pkill`/`pgrep` compare against
   `/proc/PID/comm`, truncated by the kernel to 15 characters; that name is 19. `-f` matches
   the full command line instead — and then needs `-x`, or it also matches the shell running

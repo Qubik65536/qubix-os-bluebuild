@@ -95,15 +95,16 @@ modules:
         - cliphist
         # ── Terminal environment ──────────────────────────────────────────────
         # The shell, its editor, and the tools they call. Configuration for all of it is
-        # in the overlay — files/system/etc/zshenv, etc/profile.d/ and
-        # usr/share/qubix-os/shell/ — so installing these packages is only half the job.
-        # DD-026, DD-030.
+        # in the overlay — files/system/etc/profile.d/ and usr/share/qubix-os/shell/,
+        # plus the block module 4f appends to /etc/zshrc — so installing these packages
+        # is only half the job. DD-026, DD-030, DD-036.
         #
-        # zsh is the intended login shell, but nothing in this file can make it so: that
-        # lives in /etc/passwd, per account, and an image cannot write another machine's
+        # zsh is the login shell, and nothing in this file can make it so: that lives in
+        # /etc/passwd, per account, and an image cannot write another machine's
         # /etc/passwd. files/system/etc/default/useradd covers accounts created from now
-        # on; one that already exists takes a single `chsh -s /usr/bin/zsh`. DD-030.
-        # Bash stays fully configured regardless — moving back is `chsh -s /bin/bash`.
+        # on, and qubix-default-shell.service (module 5) covers the ones that already
+        # exist, once each. Bash stays fully configured regardless — moving back is
+        # `sudo usermod -s /bin/bash $USER`, and the service never reverses it. DD-035.
         - zsh
         - zsh-autosuggestions # the greyed-out suggestion from history
         - zsh-syntax-highlighting # command colouring as you type
@@ -205,16 +206,25 @@ modules:
             rm -rf "$tmp"; \
             ls /usr/share/zsh/site-functions | wc -l
 
-      #    4b. Assert that zsh registered itself as a valid login shell.
-      #        zsh's %post appends /usr/bin/zsh and /bin/zsh to /etc/shells on first
-      #        install, and scriptlets DO run in this build — unlike the CachyOS kernel
-      #        install, which disables them on purpose (DD-017).
-      #        This matters because `chsh` — the one command every existing account runs
-      #        to move to zsh — validates against /etc/shells. Without the entry it fails
-      #        with "chsh: /usr/bin/zsh is not a valid shell" and nothing explains why.
-      #        Cheap, and it fails the build instead of the user. DD-028, DD-030.
+      #    4b. Assert the two things the login-shell service depends on.
+      #
+      #        `usermod` is what qubix-default-shell.service runs to move an existing
+      #        account to zsh. It comes from shadow-utils, which Aurora keeps — unlike
+      #        `chsh`, which Aurora DELETES from the image
+      #        (ublue-os/aurora, build_files/base/16-override-install.sh: "Footgun").
+      #        That deletion is the whole reason the service exists, so checking that its
+      #        replacement is present is not ceremony. DD-035.
+      #
+      #        /usr/bin/zsh in /etc/shells is NOT needed by usermod, which never consults
+      #        it. It is asserted for everything else that does: a `chsh` the user layers
+      #        back on, and anything that declines to treat an account as interactive when
+      #        its shell is unlisted. The entry comes from zsh's %post in the BASE image —
+      #        Aurora installs zsh itself, so the package is already there when the module
+      #        above lists it — not from a scriptlet in this build. DD-028, DD-035.
       - |
-        RUN grep -qx '/usr/bin/zsh' /etc/shells
+        RUN set -eu; \
+            command -v usermod >/dev/null; \
+            grep -qx '/usr/bin/zsh' /etc/shells
 
       #    4c. zellij — the terminal multiplexer.
       #
@@ -360,5 +370,87 @@ modules:
                 grep -qF "\"$family\"" "$tmp/fonts" \
                     || { echo "wezterm did not resolve font: $family"; exit 1; }; \
             done; \
-            ! grep -q 'scheme was not found' "$tmp/fonts"; \
+            if grep -q 'scheme was not found' "$tmp/fonts"; then \
+                echo "wezterm did not find the colour scheme the config names"; exit 1; \
+            fi; \
             rm -rf "$tmp"
+
+      #    4f. Wire zsh into the shell environment, from the END of /etc/zshrc.
+      #
+      #        WHY NOT /etc/profile.d, where the bash half lives: Fedora's /etc/zshrc
+      #        sources those files from inside a function that has run `emulate -L ksh`,
+      #        so KSH_ARRAYS and SH_WORD_SPLIT are in force there — not the language zsh
+      #        plugin scripts are written in. That constraint is real and unchanged.
+      #
+      #        WHY NOT /etc/zshenv, which is where this used to live: it is the FIRST file
+      #        zsh reads, and /etc/profile.d is reached later — through /etc/zprofile for a
+      #        login shell, through /etc/zshrc for an interactive one. So every variable
+      #        the image exports for these tools (STARSHIP_CONFIG, ATUIN_*, LG_CONFIG_FILE,
+      #        EDITOR) was being set AFTER `starship init` and `atuin init` had run. It
+      #        works only because both re-read their environment at prompt time. It is also
+      #        read by every zsh, scripts included, which is why it needed a guard to hold
+      #        interactive setup at all. DD-036 supersedes that choice.
+      #
+      #        The end of /etc/zshrc is after the /etc/profile.d loop AND after Fedora's
+      #        default PROMPT line, and /etc/zshrc is read only by interactive shells. The
+      #        user's own ~/.zshrc still runs after it and still wins.
+      #
+      #        APPENDED, NOT SHIPPED. Fedora's /etc/zshrc carries real behaviour — that
+      #        profile.d loop — and vendoring its 50 lines into the overlay to add six of
+      #        ours would mean owning their copy forever. Appending leaves upstream's
+      #        content untouched and flowing through.
+      #
+      #        The two greps are what make that safe: the first fails the build if the base
+      #        image ever ships an /etc/zshrc that is not Fedora's, the second refuses to
+      #        append twice. `zsh -n` then parses the result, so a broken shell fails here
+      #        rather than at a login.
+      #
+      #        BOTH ARE WRITTEN AS `if`, NOT AS `! grep`. `set -e` is specified to ignore a
+      #        command whose status is inverted with `!`, so `! grep -q x file` does NOT
+      #        fail a build when the pattern IS found — it is an assertion that cannot
+      #        assert. Verified by running this snippet twice against Fedora's file.
+      #
+      #        Ordering: after `files` (ships usr/share/qubix-os/shell/qubix.zsh) and after
+      #        `dnf` (zsh must exist to parse-check with).
+      - |
+        RUN set -eu; \
+            if ! grep -q '_src_etc_profile_d' /etc/zshrc; then \
+                echo "/etc/zshrc is not the file Fedora ships: refusing to append"; \
+                exit 1; \
+            fi; \
+            if grep -q 'qubix-os/shell/qubix.zsh' /etc/zshrc; then \
+                echo "/etc/zshrc already carries the Qubix block"; \
+                exit 1; \
+            fi; \
+            printf '%s\n' \
+                '' \
+                '# ── Qubix OS ──────────────────────────────────────────────────────────────────' \
+                '# Appended at image build time by recipes/common-base.yml. Everything that zsh' \
+                '# gets interactively is in the file below; a rebase changes it with nothing to' \
+                '# re-run and nothing left behind in a home directory.' \
+                '#' \
+                '# LAST IN THIS FILE ON PURPOSE: after the /etc/profile.d loop above, so the' \
+                '# variables those files export (STARSHIP_CONFIG, ATUIN_*, LG_CONFIG_FILE,' \
+                '# EDITOR) are set before the tools that read them are initialised, and after' \
+                '# the default PROMPT line above, so the prompt starship installs is the one' \
+                '# that survives. Your own ~/.zshrc runs after this and still wins.' \
+                '#' \
+                '# See docs/shell.md and docs/design-decisions.md DD-036.' \
+                'if [[ -r /usr/share/qubix-os/shell/qubix.zsh ]]; then' \
+                '    source /usr/share/qubix-os/shell/qubix.zsh' \
+                'fi' \
+                >> /etc/zshrc; \
+            zsh -n /etc/zshrc
+
+  # 5. Enable the one system service this image adds.
+  #    qubix-default-shell.service sets zsh as the login shell for accounts that already
+  #    exist — the only thing in the terminal environment that cannot be delivered as a
+  #    file, because /etc/passwd is per machine. The command that was documented instead,
+  #    `chsh`, is deleted from the image by Aurora, so there was no manual path either.
+  #    The unit and its script come from the overlay (module 1); this only enables it.
+  #    DD-035.
+  #    Ordering: after `files`, which ships the unit.
+  - type: systemd
+    system:
+      enabled:
+        - qubix-default-shell.service

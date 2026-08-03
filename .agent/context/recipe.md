@@ -20,9 +20,9 @@ described here or in `files/system/`.
 - **Headers:** `yaml-language-server` schema comments — `recipe-v1` for recipes,
   `module-list-v1` for shared module lists. Keep them.
 - **Shared files (DD-016):**
-  - `common-base.yml` — modules 1–4: `files`, `dnf`, `default-flatpaks`, `containerfile`
-    (zsh completions + login-shell check + zellij). Everything that makes an image
-    "Qubix OS".
+  - `common-base.yml` — modules 1–5: `files`, `dnf`, `default-flatpaks`, `containerfile`
+    (zsh completions + login-shell checks + zellij + fonts + the `/etc/zshrc` append), and
+    `systemd` (the login-shell service). Everything that makes an image "Qubix OS".
   - `common-identity.yml` — module 5: the `os-release` rewrite. Split out because of its
     ordering constraint (must run late).
   - `common-kernel-cachyos.yml` — the kernel swap. **`recipe-cachyos.yml` only.**
@@ -46,9 +46,10 @@ described here or in `files/system/`.
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
   | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm` + its config's fonts (`ibm-plex-mono-fonts`, `ibm-plex-sans-fonts`, `google-noto-sans-cjk-fonts`) + `unzip`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `lazygit`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
-  | 4 | `containerfile` | `common-base.yml` | Five snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses; install Monaspace Krypton NF + IBM Plex Math from pinned upstream archives, asserting both SHA-256s; assert `wezterm ls-fonts` resolves `/etc/xdg/wezterm/wezterm.lua` and all seven of its families | after `dnf` (needs `zsh`, `git`, `unzip`, `wezterm`) and after `files` (needs `/etc/zellij`, `/etc/xdg/wezterm`); the last snippet after the one before it — DD-026, DD-028, DD-033, DD-034 |
-  | 5 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
-  | 6 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
+  | 4 | `containerfile` | `common-base.yml` | Six snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `usermod` exists and `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses; install Monaspace Krypton NF + IBM Plex Math from pinned upstream archives, asserting both SHA-256s; assert `wezterm ls-fonts` resolves `/etc/xdg/wezterm/wezterm.lua` and all seven of its families; append the zsh wiring to Fedora's `/etc/zshrc` | after `dnf` (needs `zsh`, `git`, `unzip`, `wezterm`) and after `files` (needs `/etc/zellij`, `/etc/xdg/wezterm`, `/usr/share/qubix-os/shell/`); the WezTerm snippet after the font one — DD-026, DD-033, DD-034, DD-035, DD-036 |
+  | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service` | after `files`, which ships the unit — DD-035 |
+  | 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
+  | 7 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
 
 - **`os-release` result:** `ID=qubix_os_bluebuild`, `NAME="QubixOS-BlueBuild"`,
   `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)"`. All other upstream
@@ -148,6 +149,10 @@ described here or in `files/system/`.
   `XDG_CONFIG_DIRS=/etc/xdg` is what makes it a test of resolution rather than of the file:
   nothing but `/etc/xdg/wezterm/wezterm.lua` can make `Monaspace Krypton NF` the primary
   font. Do not swap it for `--config-file`, which proves nothing about the search path.
+- **Write every assertion as `if grep …; then echo …; exit 1; fi`, never as `! grep …`.**
+  `set -e` ignores a command whose status is inverted with `!`, so the `!` form reads like an
+  assertion and cannot fail a build. One had shipped that way since DD-034; both are fixed
+  (MNT-003). Rehearse a new one locally before trusting it.
 - `unzip` is in the package list for module 4d, the same way `git` is there for 4a. Removing
   the font snippet means removing it too.
 - **lazygit is a tool, not just a LazyVim dependency** (DD-032). Its config lives in the
@@ -155,17 +160,24 @@ described here or in `files/system/`.
   `LG_CONFIG_FILE`; removing the package also means removing that wiring and the `lg`
   wrapper in `shell/common.sh`.
 - **Installing the shell tools is half the job.** The configuration is in the overlay
-  (`files/system/etc/zshenv`, `etc/profile.d/`, `usr/share/qubix-os/shell/`,
+  (`etc/profile.d/`, `usr/share/qubix-os/shell/`,
   `etc/fastfetch/`, `etc/zellij/`, `etc/xdg/wezterm/`, `usr/share/qubix-os/lazygit/`).
   Adding a package here does not put it in anyone's shell.
 - `fastfetch` is installed for the config that ships with it (DD-031), and **nothing runs
   it** — not a login banner, not a shell startup hook. Do not add one; a 200 ms picture on
   every prompt is exactly what the rest of this design avoids.
-- `zsh` is the intended login shell, but nothing in `recipes/` can make it so:
+- `zsh` is the login shell, and nothing in `recipes/` can make it so directly:
   `/etc/passwd` is per machine. `files/system/etc/default/useradd` covers accounts created
-  from now on; an existing one takes one `chsh` (DD-030). The second `containerfile`
-  snippet asserts that zsh registered itself in `/etc/shells`, which is exactly what `chsh`
-  validates against.
+  from now on, and the `systemd` module enables `qubix-default-shell.service` for the ones
+  that already exist (DD-035). **`chsh` is not an alternative — Aurora deletes it from the
+  image** — which is why the second `containerfile` snippet asserts `usermod` exists. The
+  `/etc/shells` half of that assertion is for a `chsh` a user layers back on; `usermod`
+  never reads it.
+- **The zsh wiring is APPENDED to `/etc/zshrc` by a build snippet, not shipped as a file**
+  (DD-036). Fedora's copy carries the `/etc/profile.d` loop, so it is never replaced; the
+  snippet greps for upstream's `_src_etc_profile_d` before appending and runs `zsh -n`
+  after. `/etc/zshenv` held this until 2026-08-03 and ran before `/etc/profile.d`, which
+  meant the tools were initialised before their environment existed.
 - No templating in the `files` module. Anything needing a build-time value must go through
   `containerfile`.
 - Flatpaks are seeded on first boot, not baked in.

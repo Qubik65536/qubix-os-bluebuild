@@ -24,9 +24,9 @@ it.
 | [fastfetch](https://github.com/fastfetch-cli/fastfetch) | System information, in a box, when you ask for it | bash, zsh |
 | [Neovim](https://neovim.io) + [LazyVim](https://lazyvim.org) | The editor, and `$EDITOR` | — |
 
-**zsh is the intended login shell**, and on an account that already exists that takes one
-command — see [The login shell](#the-login-shell). Bash is fully configured either way: it
-gets the prompt, the aliases and `y`; the four zsh-only entries above are what it misses.
+**zsh is the login shell**, and the image sets it for you — see
+[The login shell](#the-login-shell). Bash is fully configured either way: it gets the
+prompt, the aliases and `y`; the four zsh-only entries above are what it misses.
 
 ## How it is delivered
 
@@ -37,13 +37,13 @@ with nothing to re-run and nothing stale left behind (DD-030).
 | File | Read by | Holds |
 |---|---|---|
 | `/etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE` — and, at the end, bash's interactive setup |
-| `/etc/zshenv` | zsh, on every invocation | One `source` of the file below |
+| `/etc/zshrc`, last block | zsh, when it is interactive | One `source` of the file below, appended to Fedora's file at build time |
 | `/usr/share/qubix-os/shell/` | the two above | The prompt, the plugin loading, the aliases |
 | `/usr/share/qubix-os/lazygit/config.yml` | lazygit, via `LG_CONFIG_FILE` | Nerd Font icons and the project palette (DD-032) |
 | `/etc/zellij/config.kdl` | zellij, when you start it | The multiplexer's theme (DD-033) |
 | `/etc/fastfetch/config.jsonc` | fastfetch, when you run it | The system-information box (DD-031) |
 
-### Why zsh is wired from `/etc/zshenv`
+### Why zsh is wired from the end of `/etc/zshrc`
 
 `/etc/profile.d/*.sh` is where system-wide shell setup normally goes, and it **cannot**
 hold the zsh half: Fedora's `/etc/zshrc` sources those files from inside a function that
@@ -51,9 +51,24 @@ has run `emulate -L ksh`, so `KSH_ARRAYS` and `SH_WORD_SPLIT` are in force — n
 language zsh plugin scripts are written in. So it holds the environment variables, and
 bash's setup, and nothing else.
 
-That leaves zsh's own startup files. `/etc/zshrc` carries real behaviour — including that
-`profile.d` loop — so replacing it means owning Fedora's copy forever. **`/etc/zshenv` is
-comments only**, so replacing it costs nothing, and it is plain zsh at top level.
+That leaves zsh's own startup files, and the order they run in is the whole argument:
+
+| # | File | What is there |
+|---|---|---|
+| 1 | `/etc/zshenv` | Fedora's, comments only. Read by **every** zsh, scripts included |
+| 2 | `/etc/zprofile` → `/etc/profile` → `/etc/profile.d/*.sh` | the image's environment: `STARSHIP_CONFIG`, `ATUIN_*`, `LG_CONFIG_FILE`, `EDITOR` |
+| 3 | `/etc/zshrc` | Fedora's default prompt, the `profile.d` loop for non-login shells — **and the image's block, appended at the end** |
+| 4 | `~/.zshrc` | yours, and it still wins |
+
+Row 3 is where the setup has to be, because row 2 is where its environment comes from.
+Until 2026-08-03 this was wired from row 1, which meant starship and atuin were initialised
+*before* the variables that configure them were exported — it worked only because both
+re-read their environment at every prompt (DD-036).
+
+`/etc/zshrc` is not replaced. The block is appended to Fedora's file at build time, so
+upstream's content — including that `profile.d` loop — stays exactly as Fedora ships it.
+The build fails if the base image ever ships an `/etc/zshrc` that is not Fedora's, and
+again if the result does not parse.
 
 It has one known cost. It runs *before* `~/.zshrc`, and zsh-syntax-highlighting only wraps
 the ZLE widgets that exist when it is sourced — so widgets you define in your own
@@ -70,29 +85,43 @@ skeleton — once here, once there. It costs a few milliseconds; deleting the sk
 
 ## The login shell
 
-zsh is the image's default shell, and there is exactly one thing the image cannot do for
-you.
+zsh is the login shell, and **you do not have to do anything to get it.**
 
 **Accounts created from now on** get `/usr/bin/zsh`, from `SHELL=` in
 `/etc/default/useradd`.
 
 **An account that already exists** has its shell in `/etc/passwd`, which is per machine —
-no image can write it. One command, once:
+no image can write it, so `qubix-default-shell.service` does it on the machine instead. It
+runs at boot, before logins are permitted, and moves human accounts that are still on bash
+to zsh. Your first login after a rebase is already in zsh.
+
+It gets **one attempt per account, ever**:
+
+- Every account it looks at is stamped in `/var/lib/qubix-os/default-shell/`, whether or not
+  it changed anything.
+- It only ever replaces **bash**, which is what an account inherited. An account on fish, or
+  nushell, or anything else, is stamped and left alone.
+- `root` is never touched, so a broken zsh cannot cost you your recovery shell.
+
+### Going back, or opting out
 
 ```bash
-chsh -s /usr/bin/zsh
+sudo usermod -s /bin/bash $USER      # back to bash. Permanent — you are already stamped
+sudo usermod -s /usr/bin/zsh $USER   # and forward again, if you change your mind
 ```
 
-Then log out and back in. Going back is the same command the other way:
+To decline before the first boot on a rebased image:
 
 ```bash
-chsh -s /bin/bash
+sudo touch /var/lib/qubix-os/default-shell/$USER
 ```
 
-Both are permanent: `/etc/passwd` lives in `/etc` and survives every update and rebase.
-Nothing in the image re-imposes a shell at boot — an earlier version did, with a service
-that ran `usermod`, and it was more machinery than a once-in-a-lifetime command deserves
-(DD-030).
+**Not `chsh`.** Aurora deletes `/usr/bin/chsh` from the image — deliberately, as a footgun —
+so every instruction that used to say `chsh` here was impossible to follow. That is the bug
+this service exists to fix (DD-035). `usermod` is shadow-utils and is always present; it
+does the same thing, and as root it does not prompt for a password. If you want `chsh`
+back, `rpm-ostree install util-linux-user` layers it, and `/usr/bin/zsh` is already listed
+in `/etc/shells` for it.
 
 ## The tools
 
@@ -157,8 +186,8 @@ common aliases → compinit → atuin → starship → autosuggestions → synta
 zsh-syntax-highlighting wraps the ZLE widgets that exist when it is sourced, so it goes
 last — after atuin and starship have defined theirs. Because all of this runs before
 `~/.zshrc`, **widgets you define there are not highlighted**; see
-[Why zsh is wired from `/etc/zshenv`](#why-zsh-is-wired-from-etczshenv) for the one-line
-fix.
+[Why zsh is wired from the end of `/etc/zshrc`](#why-zsh-is-wired-from-the-end-of-etczshrc)
+for the one-line fix.
 
 `zsh-completions` is not a Fedora package and the `@zsh-users` COPR has no builds for any
 current Fedora, so it is installed at build time from a pinned upstream tag into
@@ -383,7 +412,7 @@ directory — which the image never writes to.
 | Change the fastfetch box | `cp /etc/fastfetch/config.jsonc ~/.config/fastfetch/config.jsonc` and edit that |
 | Keep fastfetch offline | Delete the `publicip` block from your copy of the config |
 | Use a different editor | `export EDITOR=…` in your rc file |
-| Switch to zsh, or back | `chsh -s /usr/bin/zsh` / `chsh -s /bin/bash` |
+| Switch to zsh, or back | `sudo usermod -s /usr/bin/zsh $USER` / `sudo usermod -s /bin/bash $USER` — not `chsh`, which this image does not have |
 | Update the Neovim config | `git -C ~/.config/nvim pull` |
 
 ## Files
@@ -391,8 +420,11 @@ directory — which the image never writes to.
 | Path | Purpose |
 |---|---|
 | `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and bash's setup |
-| `/etc/zshenv` | Sources the zsh half. **Replaces** Fedora's, which is comments only |
+| `/etc/zshrc`, last block | Sources the zsh half. **Appended to** Fedora's file at build time, never replacing it (DD-036) |
 | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on |
+| `/usr/bin/qubix-default-shell` | Moves existing accounts to zsh, once each (DD-035) |
+| `/usr/lib/systemd/system/qubix-default-shell.service` | Runs it at boot, before logins are permitted |
+| `/var/lib/qubix-os/default-shell/` | One stamp per account the service has looked at. Machine state, not config |
 | `/usr/share/qubix-os/shell/common.sh` | The `cat` alias and the `y` function — shared by both shells |
 | `/usr/share/qubix-os/shell/qubix.zsh` | Prompt, atuin, plugins, history defaults |
 | `/usr/share/qubix-os/shell/qubix.bash` | Prompt and aliases |
@@ -404,8 +436,10 @@ directory — which the image never writes to.
 | `/usr/share/zsh/site-functions/_*` | zsh-completions and zellij's completions, installed at build time |
 | `/usr/share/bash-completion/completions/zellij` | zellij's bash completions, generated by the binary that ships |
 
-Configuration files, one hand-run tool, no services, and nothing under `$HOME`.
+Configuration files, one hand-run tool, one boot service that touches `/etc/passwd` once
+per account, and nothing under `$HOME`.
 
 Why each of these lives where it does: [`design-decisions.md`](design-decisions.md),
-DD-026, DD-030, DD-031, DD-032 and DD-033. What the recipe installs and in which module:
+DD-026, DD-030, DD-031, DD-032, DD-033, DD-035 and DD-036. What the recipe installs and in
+which module:
 [`recipe-reference.md`](recipe-reference.md).

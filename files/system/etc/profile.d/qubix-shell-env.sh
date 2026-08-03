@@ -3,11 +3,12 @@
 #
 # NOTHING ZSH-SPECIFIC MAY GO IN THIS FILE. zsh sources it from inside a function that has
 # run `emulate -L ksh` (Fedora's /etc/zshrc), so KSH_ARRAYS and SH_WORD_SPLIT are in
-# force — not the language zsh plugin scripts are written in. zsh is wired up in
-# /etc/zshenv instead; bash, which has no such problem, is wired up at the end of this
-# file.
+# force — not the language zsh plugin scripts are written in. zsh is wired up from the end
+# of /etc/zshrc instead, which is AFTER this file in both a login and a non-login shell —
+# so everything exported below is in place before zsh initialises the tools that read it
+# (DD-036). Bash, which has no such problem, is wired up at the end of this file.
 #
-# See docs/shell.md and docs/design-decisions.md DD-026, DD-030.
+# See docs/shell.md and docs/design-decisions.md DD-026, DD-030, DD-036.
 
 # ── Editor ────────────────────────────────────────────────────────────────────
 # Neovim is the configured editor; `micro` stays installed for anyone who prefers it.
@@ -81,7 +82,8 @@ fi
 
 # ── bash: the interactive setup ───────────────────────────────────────────────
 # Last, because it is the only part that is not plain environment. zsh does NOT come
-# through here — /etc/zshenv sources its half directly, outside the ksh emulation above.
+# through here — the block at the end of /etc/zshrc sources its half directly, after this
+# file has been read and outside the ksh emulation described above.
 if [ -n "${BASH_VERSION:-}" ] && [ -r /usr/share/qubix-os/shell/qubix.bash ]; then
     . /usr/share/qubix-os/shell/qubix.bash
 fi

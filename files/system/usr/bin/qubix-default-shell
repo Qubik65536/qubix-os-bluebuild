@@ -1,0 +1,71 @@
+#!/usr/bin/bash
+#
+# qubix-default-shell — give each existing account zsh as its login shell, once.
+#
+# Run by qubix-default-shell.service at boot, before logins are permitted.
+#
+# WHY THIS EXISTS AT ALL. The login shell is a field in /etc/passwd, which is per machine,
+# so no image can set it for the account that was created at install time — the only
+# account that matters on a personal machine. The documented answer used to be one
+# `chsh -s /usr/bin/zsh`, and that answer is impossible here: Aurora deletes /usr/bin/chsh
+# from the image (ublue-os/aurora, build_files/base/16-override-install.sh, "Footgun").
+# So the image does it, as root, with usermod — which is shadow-utils, which Aurora keeps.
+# See docs/shell.md and docs/design-decisions.md DD-035.
+#
+# ONE ATTEMPT PER ACCOUNT. Every account this script considers is stamped on sight,
+# whether or not it is changed. An account that is not on bash was a choice, and a choice
+# is not something to overrule; an account moved back to bash afterwards is already
+# stamped, so nothing reverts it. The image gets one attempt at each account, never a
+# standing veto.
+
+set -euo pipefail
+
+TARGET_SHELL=/usr/bin/zsh
+STAMP_DIR=/var/lib/qubix-os/default-shell
+
+# ── Preconditions ─────────────────────────────────────────────────────────────
+# Both are asserted at build time (recipes/common-base.yml, module 4b), so failing here
+# means the running system is not the image that was built. Say so and exit successfully:
+# a login shell is not worth failing a boot over.
+if [ ! -x "$TARGET_SHELL" ]; then
+    echo "qubix-default-shell: $TARGET_SHELL is missing, nothing to do"
+    exit 0
+fi
+if ! command -v usermod >/dev/null 2>&1; then
+    echo "qubix-default-shell: usermod is missing, nothing to do"
+    exit 0
+fi
+
+install -d -m 0755 "$STAMP_DIR"
+
+# ── One pass over the local accounts ───────────────────────────────────────────
+# /etc/passwd rather than `getent passwd`: usermod can only edit accounts that live in
+# this file, so an account from any other NSS source is not ours to change.
+#
+# UID 1000–60000 is the human range. root is deliberately outside it — a broken zsh must
+# never cost anyone their recovery shell — and so is `nobody` at 65534.
+while IFS=: read -r name _ uid _ _ _ shell; do
+    [ "${uid:-0}" -ge 1000 ] && [ "${uid:-0}" -lt 60000 ] || continue
+
+    stamp="$STAMP_DIR/$name"
+    [ -e "$stamp" ] && continue
+    : > "$stamp"
+
+    # Only bash is replaced: it is what the account inherited, not what it chose.
+    case "$shell" in
+        /bin/bash | /usr/bin/bash) ;;
+        *)
+            echo "qubix-default-shell: $name uses $shell, leaving it alone"
+            continue
+            ;;
+    esac
+
+    if usermod -s "$TARGET_SHELL" "$name"; then
+        echo "qubix-default-shell: $name -> $TARGET_SHELL"
+    else
+        # Drop the stamp so a transient failure is retried at the next boot rather than
+        # being remembered forever as "already handled".
+        rm -f "$stamp"
+        echo "qubix-default-shell: usermod failed for $name, will retry next boot"
+    fi
+done < /etc/passwd

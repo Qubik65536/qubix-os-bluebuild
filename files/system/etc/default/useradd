@@ -7,13 +7,16 @@
 # changes; there is no drop-in directory for this file, so shipping it means owning it.
 #
 # THIS ONLY AFFECTS ACCOUNTS CREATED FROM NOW ON. The login shell of an account that
-# already exists is a field in /etc/passwd, which an image cannot write. For that one:
+# already exists is a field in /etc/passwd, which an image cannot write — so
+# qubix-default-shell.service does it on the machine, at boot, once per account (DD-035).
+# By hand, that is:
 #
-#     chsh -s /usr/bin/zsh
+#     sudo usermod -s /usr/bin/zsh $USER
+#
+# and NOT `chsh`, which Aurora deletes from the image.
 #
 # Qubix OS configures both shells (DD-026), so an account still on bash gets the prompt
-# and the aliases — it is the four zsh-only tools that are missing. See docs/shell.md
-# and DD-030.
+# and the aliases — it is the four zsh-only tools that are missing. See docs/shell.md.
 GROUP=100
 HOME=/home
 INACTIVE=-1

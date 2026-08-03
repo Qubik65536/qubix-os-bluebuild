@@ -37,7 +37,7 @@ terms over synonyms.
 | **Look-and-feel package** | A KDE Plasma theme bundle under `/usr/share/plasma/look-and-feel/`. Aurora's contains the startup splash this image overrides. |
 | **matugen** | Generates a Material colour scheme from the wallpaper. DankMaterialShell uses it to theme itself and niri. |
 | **MIME association** | The mapping from a MIME type or URL scheme to the desktop entry that opens it. Set system-wide in `/etc/xdg/mimeapps.list`; the user's `~/.config/mimeapps.list` is searched first and wins. How the default browser is declared (DD-023). |
-| **Module** | A build step (`files`, `dnf`, `default-flatpaks`, `containerfile`, `initramfs`, `signing`). Modules run in the order the recipe composes them. |
+| **Module** | A build step (`files`, `dnf`, `default-flatpaks`, `containerfile`, `systemd`, `initramfs`, `signing`). Modules run in the order the recipe composes them. |
 | **MOK** | Machine Owner Key — an X.509 key enrolled with shim via `mokutil`, letting a machine's owner trust binaries their vendor did not sign. How Secure Boot stays on with the CachyOS kernel ([`variants.md`](variants.md)). |
 | **Nerd Font** | A font patched with an extra set of icon glyphs. The prompt and the editor use them; `cascadia-mono-nf-fonts` provides them for consumers that do not bundle their own, as WezTerm does. |
 | **Monaspace** | GitHub's monospace type family. *Krypton* is the variant WezTerm's shipped config uses; the Nerd-Font-patched build is installed from a pinned upstream release because Fedora packages none of it (DD-034). |
@@ -46,13 +46,14 @@ terms over synonyms.
 | **Override** | Shipping a file at an upstream path so the upstream file is replaced in the image. The branding mechanism (DD-004). |
 | **Plymouth** | The boot splash system. Reads the watermark this image overrides. |
 | **Quickshell** | The QtQuick-based shell toolkit DankMaterialShell is written against. |
+| **`qubix-default-shell`** | The boot service that gives an account which already exists zsh as its login shell, once per account. It exists because `/etc/passwd` is per machine and Aurora deletes `chsh` from the image (DD-035). See [`shell.md`](shell.md#the-login-shell). |
 | **Rebase** | Switching a machine to a different OS image (`rpm-ostree rebase`). How Qubix OS is installed and uninstalled. |
 | **`XDG_CONFIG_DIRS`** | The colon-separated list of *system* configuration directories, searched after the user's own. How WezTerm finds `/etc/xdg/wezterm/wezterm.lua`. WezTerm does not apply the spec's `/etc/xdg` default when the variable is unset, so this image states it (DD-034). |
 | **Recipe** | A `recipes/recipe*.yml` file: the declarative definition of one published image. Shared parts live in `recipes/common-*.yml`. |
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |
 | **SDDM** | The display manager (login screen). Lists sessions from `/usr/share/wayland-sessions/`, which is how Niri appears as a login choice. |
 | **Secure Boot** | UEFI feature where firmware only loads signed boot binaries. Fedora's kernel is signed; the CachyOS one is not, so this variant needs it off or a [MOK](variants.md#secure-boot) enrolled. |
-| **Seeder** | A user service that writes into `$HOME` what the image cannot ship there. Only one remains: `qubix-dms-theme`, which writes the theme pointer every Niri session (DD-025). The shell and editor once had seeders too; they were replaced by plain system files (DD-030). |
+| **Seeder** | A user service that writes into `$HOME` what the image cannot ship there. Only one remains: `qubix-dms-theme`, which writes the theme pointer every Niri session (DD-025). The shell and editor once had seeders too; they were replaced by plain system files (DD-030). Not to be confused with `qubix-default-shell`, which is a *system* service and writes to `/etc/passwd`, never to `$HOME`. |
 | **Session** | One desktop environment as offered at the login screen. This image has two: Plasma (Wayland) and Niri. |
 | **shim** | The Fedora-signed first-stage bootloader that chains to GRUB and checks the kernel against firmware `db` plus the MOK list. |
 | **Signing policy** | Client-side configuration, installed into the image by the `signing` module, that lets `ostree-image-signed:` rebases verify against `cosign.pub`. |

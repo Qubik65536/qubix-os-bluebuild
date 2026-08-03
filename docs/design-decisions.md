@@ -1255,7 +1255,9 @@ and the general rule it is an exception to.
 
 **Status:** Superseded by
 [DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder) *(the
-service is removed; zsh is still the intended login shell)*
+service is removed; zsh is still the intended login shell)*, then **reinstated** by
+[DD-035](#dd-035--set-the-login-shell-from-the-image-because-chsh-does-not-exist-here)
+*(the service returns, with the three rules below unchanged)*
 
 **Amends:** [DD-026](#dd-026--wire-the-shell-from-a-one-line-pointer-in-each-users-rc-file)
 *(its "zsh is not made the default shell" consequence)*
@@ -1372,7 +1374,14 @@ never have worked anyway. If the clone fails, nothing is stamped and the next lo
 
 ## DD-030 — Configure the shell with system files, and no runtime seeder
 
-**Status:** Accepted
+**Status:** Accepted, except for two rows of its table — the login shell is superseded by
+[DD-035](#dd-035--set-the-login-shell-from-the-image-because-chsh-does-not-exist-here)
+*(`chsh`, the command this record traded a service for, is deleted from the image by
+Aurora)* and the zsh wiring by
+[DD-036](#dd-036--wire-zsh-from-the-end-of-etczshrc-not-from-etczshenv)
+*(`/etc/zshenv` runs before `/etc/profile.d`, so it initialised the tools before their
+environment existed)*. Everything else here stands: no runtime seeder, no writes to
+`$HOME`, atuin configured from the environment, Neovim left to the user
 
 **Supersedes:** [DD-026](#dd-026--wire-the-shell-from-a-one-line-pointer-in-each-users-rc-file)
 *(its delivery mechanism only)*,
@@ -1786,3 +1795,145 @@ full detail.
 - **`XDG_CONFIG_DIRS` is now set for every user session.** It states the spec default, so
   nothing that already behaved correctly changes — but it is a variable many programs read,
   not only WezTerm, and it is set from this image rather than inherited.
+
+---
+
+## DD-035 — Set the login shell from the image, because `chsh` does not exist here
+
+**Status:** Accepted
+
+**Supersedes:** [DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder)
+*(its login-shell row only; everything it says about system files stands)*
+
+**Reinstates:** [DD-028](#dd-028--make-zsh-the-login-shell-once-per-account)
+
+**Implements:** `IMG-024`
+
+**Context.** DD-028 shipped a boot service that moved existing accounts to zsh. DD-030
+removed it, on the grounds that a service editing `/etc/passwd` is "a large hammer for a
+command the owner runs once":
+
+> **An existing account needs one `chsh -s /usr/bin/zsh`.**
+
+**That command does not exist on this image.** Aurora deletes it:
+
+```sh
+# ublue-os/aurora, build_files/base/16-override-install.sh
+# Footgun, See: https://github.com/ublue-os/main/issues/598
+rm -f /usr/bin/chsh /usr/bin/lchsh
+```
+
+So the trade DD-030 made was not "a service versus one command" but "a service versus
+`chsh: command not found`". Every published Qubix image has told its owner to run a command
+the base image removes, in `docs/shell.md`, `docs/usage.md`, `docs/overview.md`,
+`docs/recipe-reference.md` and the recipe comments. The account created at install time —
+the only one that matters on a personal machine — has been on bash the whole time, which
+also made the entire zsh half of DD-026 unreachable: a terminal spawns the login shell, and
+WezTerm sets no `default_prog`.
+
+`usermod -s` is the replacement, not a different `chsh`. It comes from shadow-utils, which
+Aurora keeps; it does not consult `/etc/shells`; and as root it needs no password — which is
+what makes a service its natural home rather than something the user types.
+
+**Decision.** `qubix-default-shell.service` returns, with DD-028's three rules unchanged:
+
+| Rule | Why |
+|---|---|
+| Ordered `Before=systemd-user-sessions.service` | That unit is the gate that permits logins, so nobody is logged in when `usermod` runs, and the first login of the boot is already in zsh |
+| UID 1000–60000 only | Human accounts. **`root` keeps bash**, so a broken zsh can never cost anyone their recovery shell |
+| One attempt per account, stamped in `/var/lib/qubix-os/default-shell/` | Every account is stamped **on sight**, changed or not. Bash is what an account inherited; anything else was a choice, and a choice is not something to overrule every boot |
+
+**Consequences.**
+- **A rebase gives you zsh at the next boot**, on an account that already existed, with no
+  per-user action and nothing to read first.
+- **`sudo usermod -s /bin/bash $USER` sticks.** The account is stamped, so nothing reverts
+  it. That property is what makes a service acceptable: the image gets one attempt per
+  account, never a standing veto. Opting out ahead of time is
+  `sudo touch /var/lib/qubix-os/default-shell/<user>`.
+- **`chsh` is gone from every instruction in this repository.** Where a manual command is
+  still worth giving, it is `sudo usermod -s …`, and the pages say why. A user who wants
+  `chsh` back can layer `util-linux-user`; the build assertion on `/etc/shells` is kept for
+  exactly that case, since `usermod` itself never reads it.
+- **The build asserts `usermod` exists.** The service is useless without it, and the failure
+  would otherwise appear as a silent no-op at boot on somebody's machine.
+- `/etc/default/useradd` stays and is unchanged: it covers accounts created afterwards, and
+  the service covers the ones that were there.
+- Cost, unchanged from DD-028: this repository ships **one system unit that modifies
+  `/etc/passwd`**. It is the largest hammer here, and the once-ever stamp is not optional.
+- This is the second time this decision has been reversed. What was missing both times was
+  not judgement about hammers but a fact about the base image — recorded now, in the recipe
+  comment, in the unit, and in the script, so the next reversal has to argue with the
+  evidence.
+
+---
+
+## DD-036 — Wire zsh from the end of `/etc/zshrc`, not from `/etc/zshenv`
+
+**Status:** Accepted
+
+**Supersedes:** [DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder)
+*(its zsh-wiring row only)*
+
+**Implements:** `IMG-025`
+
+**Context.** DD-030 moved the zsh setup into `/etc/zshenv`, because Fedora's copy of that
+file is comments only and replacing it therefore costs nothing. That is true, and it is the
+wrong file. zsh reads, for an interactive login shell:
+
+| # | File | What the image has there |
+|---|---|---|
+| 1 | `/etc/zshenv` | *was* the entire zsh setup |
+| 2 | `/etc/zprofile` → `/etc/profile` → `/etc/profile.d/*.sh` | `STARSHIP_CONFIG`, `ATUIN_*`, `LG_CONFIG_FILE`, `EDITOR` |
+| 3 | `/etc/zshrc` | Fedora's default `PROMPT`, and the `profile.d` loop for non-login shells |
+| 4 | `~/.zshrc` | the user's own |
+
+Row 1 runs before row 2. **Every variable the image exports for these tools was being set
+after the tools had been initialised.** It works today only because starship and atuin
+re-read their environment at prompt time; nothing in the design guarantees that, and the
+next tool that reads its configuration at init time gets the wrong answer with no visible
+cause.
+
+Two smaller costs of the same position, checked against Fedora's own files (rawhide
+dist-git, `zshrc.rhs`) rather than assumed:
+
+- `/etc/zshrc` line 11 is `[[ "$PROMPT" = "%m%# " ]] && PROMPT='[%n@%m]%~%# '`. It runs
+  *after* `/etc/zshenv`, so the only thing standing between Fedora's prompt and starship's
+  is that guard being there.
+- `/etc/zshenv` is read by **every** zsh, scripts included. Holding an interactive setup
+  there requires an `-o interactive` guard, which is the file telling you it is the wrong
+  one.
+
+**Decision.** Source the zsh half from the **end of `/etc/zshrc`**, which zsh reads only for
+interactive shells, after the `profile.d` loop and after Fedora's `PROMPT` line, and before
+the user's own `~/.zshrc`. `files/system/etc/zshenv` is deleted, so Fedora's file returns on
+the next rebase.
+
+**Appended at build time, not shipped as a file.** `/etc/zshrc` carries real behaviour, so
+vendoring its 50 lines into the overlay to add six of ours would mean owning Fedora's copy
+forever — the objection DD-026 raised, and it was right. A `containerfile` snippet appends
+only what is ours and leaves upstream's content flowing through untouched.
+
+Three assertions make that safe, in the same spirit as the zellij and WezTerm checks:
+`grep` for Fedora's `_src_etc_profile_d` before appending (a base image with a different
+`/etc/zshrc` fails the build), `grep` against appending twice, and `zsh -n` over the result
+so a broken shell fails in CI rather than at somebody's login.
+
+**Consequences.**
+- **The environment is in place before the tools that read it start**, which is what this
+  record is for. `STARSHIP_CONFIG` in particular now exists at `starship init` time rather
+  than a few files later.
+- **`~/.zshrc` still runs last and still wins**, with nothing here to undo — unchanged from
+  DD-030, and still the reason `compinit` may run twice for an account whose `~/.zshrc` came
+  from Fedora's skeleton.
+- **zsh-syntax-highlighting still cannot wrap widgets defined in a user's own `~/.zshrc`.**
+  That cost is inherent to any system-wide wiring and is unchanged; the one-line fix is
+  still to re-source `/usr/share/qubix-os/shell/qubix.zsh` at the end of `~/.zshrc`.
+- **Non-interactive zsh no longer parses any of this.** `zsh -c` in a script reads Fedora's
+  comments-only `/etc/zshenv` and stops, as it did before DD-030.
+- **One upstream file is now appended to rather than replaced**, and one replacement is
+  given back. `/etc/zshenv` returns to Fedora's on rebase, because the live copy matches the
+  previous deployment's default and rpm-ostree therefore takes the new one. Anyone who
+  edited `/etc/zshenv` by hand keeps their edit — and would then source the zsh half twice;
+  the tools guard against double initialisation, the plugins do not.
+- The append is not idempotent by itself, which is why the second `grep` exists. Each build
+  starts from a fresh base layer, so the block is written exactly once per image.

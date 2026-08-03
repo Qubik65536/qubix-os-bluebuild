@@ -92,13 +92,15 @@ else, install it and pick it in *System Settings → Default Applications* (Plas
 wins and survives updates.
 
 **The terminal environment is already there** — the prompt, the aliases and the zsh
-plugins are files in the image, not anything seeded into your home directory. Two things
-are worth doing once:
+plugins are files in the image, not anything seeded into your home directory. **Your login
+shell is zsh from the first boot after a rebase**, including on an account that was created
+long before it: `/etc/passwd` is per machine, so `qubix-default-shell.service` sets it on
+the machine, once per account, before logins are permitted (DD-035). To go back:
+`sudo usermod -s /bin/bash $USER` — and nothing will change it again. Not `chsh`; Aurora
+deletes it from the image. Bash keeps the prompt and the aliases either way.
 
-- **Switch your login shell to zsh:** `chsh -s /usr/bin/zsh`, then log out and back in.
-  `/etc/passwd` is per machine, so this is the one thing the image cannot do for an account
-  that already exists. Accounts created afterwards get zsh automatically. Bash keeps the
-  prompt and the aliases either way.
+One thing is still worth doing once:
+
 - **Install the Neovim config:** `git clone https://github.com/LazyVim/starter ~/.config/nvim`,
   then run `nvim` once with a network connection so LazyVim can bootstrap. Keeping it as a
   clone is what makes `git -C ~/.config/nvim pull` work later; `:Lazy update` handles the
