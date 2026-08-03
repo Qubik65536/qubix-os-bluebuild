@@ -43,6 +43,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/share/qubix-os/lazygit/config.yml` | lazygit, as the **first** entry of `$LG_CONFIG_FILE` | Nerd Font icons + the `#56728B` palette. The user's config is appended after it and **merges over it key by key** (DD-032) |
 | `etc/zellij/config.kdl` | zellij, when a user starts it | The Qubix theme. **The only system-wide path zellij reads**; `~/.config/zellij/` shadows it wholesale (DD-033) |
 | `etc/fastfetch/config.jsonc` | fastfetch, when a user runs it | The system-wide default box. **The only system-wide path fastfetch reads** — its search path has no `/usr` entry (DD-031) |
+| `usr/bin/qubix-config` | nobody — run by hand | Copies any shipped config into `~/.config`, lists them, diffs a copy against the image, and `--check`s its own paths. **Nothing runs it** — it is the alternative to a seeder, not one (DD-039). Mode `100755` |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Mode `100755` in the overlay |
 
 **Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, and one system
@@ -129,8 +130,16 @@ of which one differs. Re-check it against shadow-utils if that package changes i
 - macOS writes `.DS_Store` files into this tree while editing. They are gitignored and must
   stay that way, or the `files` module would copy them into `/usr/share/pixmaps/`.
 - Changing artwork means updating **every** copy in the group above.
+- **`qubix-config` hardcodes a table of paths, and the build checks it.** Adding a
+  configuration to the image means adding a row to `entry()` in
+  `usr/bin/qubix-config`, or it is the one thing a user cannot easily take over; moving one
+  fails the build at module 4g (`qubix-config --check`), which is the point. Two entries copy
+  **less** than they could on purpose — WezTerm's `colors/` and lazygit's merged config stay
+  in the image so they go on tracking it — and **niri's copy is not a byte copy**: its
+  relative `include "qubix-theme.kdl"` is rewritten to an absolute path, because a verbatim
+  copy names a file that is not in `~/.config/niri/` and the session does not load (DD-039).
 - **File modes carry through.** `usr/bin/qubix-video-bridge`, `usr/bin/qubix-dms-theme` and
-  `usr/share/qubix-os/fastfetch/retune.sh` are executable only because git records mode
+  `usr/bin/qubix-config` and `usr/share/qubix-os/fastfetch/retune.sh` are executable only because git records mode
   `100755`; the `files` module copies the bit as it finds it. A rewrite that drops it
   produces a script that silently cannot run.
 - **fastfetch's box is pinned to its logo, and the logo is pinned on purpose.** The four

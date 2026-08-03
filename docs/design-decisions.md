@@ -2093,3 +2093,88 @@ is reordered.
   guarantee they were relying on the session to provide.
 - **It is still not set for a bare `sh -c` from a daemon**, which reads no profile and is not
   a user unit. Nothing in this image needs it there.
+
+---
+
+## DD-039 — A command that copies the image's config into `~/.config`, and nothing that runs it
+
+**Status:** Accepted
+
+**Amends:** [DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder)
+*(it adds a route into `$HOME`; the rule that **nothing in the image takes** that route
+stands, and is the reason this is a command rather than a service)*
+
+**Implements:** `IMG-028`
+
+**Context.** Every configuration this image ships lives in `/usr` or `/etc`, where a rebase
+replaces it and a user's own file shadows it. That default is right, and DD-030 is what
+bought it: no runtime seeder, no writes to `$HOME`, so anyone who has customised nothing
+keeps receiving improvements with nothing to re-run.
+
+It leaves *starting* to customise awkward, and more so than it looks. Six configurations,
+six source paths in three different trees, and three different relationships with the
+image:
+
+| | Your file | Relationship |
+|---|---|---|
+| starship, fastfetch, zellij, wezterm, niri | replaces the image's | wholesale — you now maintain all of it |
+| lazygit | merges over the image's | key by key, so copying it all throws that away |
+| niri | replaces the image's | **and breaks the session if copied verbatim** |
+
+That last row is the one that decided this. `/etc/niri/config.kdl` includes the palette with
+`include "qubix-theme.kdl"` — a **relative** include, which niri resolves against the
+including file's own directory. Copied into `~/.config/niri/` it names a file that is not
+there. `docs/desktops.md` warned about it in prose; prose is not a good place for a step you
+cannot skip.
+
+**Decision.** Ship `/usr/bin/qubix-config`: one command that copies any of the six into
+`~/.config`, lists what is available, and diffs a copy against what the image ships today.
+
+**Nothing runs it.** Not at login, not on first boot, not ever. This is the whole reason it
+is a command and not the seeder DD-030 removed: an account that never runs it has nothing in
+`~/.config` and keeps tracking the image, so the convenience reaches the people who asked
+for it and changes nothing for anybody else. `/etc/skel/.config/` was the other candidate
+and reaches only accounts created afterwards — on a personal machine, nobody.
+
+**It knows the three things a `cp` does not:**
+
+- **niri's include is rewritten** to the absolute `/etc/niri/qubix-theme.kdl` — the line
+  `docs/desktops.md` already asked people to keep — so a personal config still receives
+  palette changes and still live-reloads (DD-022, DD-025). The rewrite is **asserted**: if
+  the pattern ever stops matching, the command refuses to write rather than producing a
+  session that does not load.
+- **WezTerm's colour schemes are deliberately not copied.** WezTerm looks for `colors/` in
+  every config directory, so leaving them in `/etc/xdg/wezterm/colors/` keeps them available
+  to a personal `wezterm.lua` *and* tracking the image (DD-034). Only what you edit is
+  forked.
+- **lazygit says that a whole copy is usually wrong**, because its config merges key by key
+  and a file holding only the changed keys keeps everything else tracking the image
+  (DD-032).
+
+**Safety, in the order it matters:** it never overwrites without `--force`, `--force` keeps
+the previous file as a timestamped `.bak`, and it refuses to run as root — `sudo
+qubix-config` would fill a home directory with root-owned files its owner then could not
+edit. `--list`, `--diff` and `--check` write nothing and are allowed anywhere, which is what
+lets the build run `--check`.
+
+**The build asserts the command, because it hardcodes paths.** `qubix-config --check`
+verifies that all six sources exist in the image and that niri's relative include still
+matches, so a configuration that moves fails CI rather than turning into "not in this image"
+at somebody's terminal. This is the same shape as the zellij and WezTerm assertions
+(DD-033, DD-034).
+
+**Consequences.**
+- **The default is unchanged.** `/usr` and `/etc` are still where configuration lives, and
+  an account that never runs this is exactly as it was.
+- **A copy is a fork, and the command says so** — every run that writes something ends by
+  saying it, and `--diff` is the way to see what a rebase has changed since. That is the
+  honest cost of editing, and it is now visible at the moment it is incurred rather than
+  buried in a page.
+- **Six `cp` instructions leave `docs/`.** They are replaced by one command, which removes
+  the chance of following the niri one literally.
+- **Adding a configuration to the image means adding it to this table**, or it is the one
+  thing users cannot easily take over. `--check` does not catch that omission — nothing can.
+- **atuin and the zsh half are not in the table**, and that is correct rather than
+  incomplete: atuin ships no file at all (it is configured from the environment, DD-030), and
+  `/usr/share/qubix-os/shell/qubix.zsh` is *sourced* rather than shadowed — the supported
+  customisation is the documented `source` line at the end of `~/.zshrc`, not a copy.

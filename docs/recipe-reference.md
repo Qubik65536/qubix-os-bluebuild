@@ -84,6 +84,7 @@ substitution.
   | `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's interactive setup (DD-026, DD-030) |
   | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on. **Replaces** shadow-utils' copy (DD-030) |
   | `/usr/bin/qubix-default-shell` | Moves accounts that already exist to zsh, once each (DD-035) |
+  | `/usr/bin/qubix-config` | Copies any shipped configuration into `~/.config` on request. **Nothing runs it** (DD-039) |
   | `/usr/lib/systemd/system/qubix-default-shell.service` | Runs it before logins are permitted. Enabled by module 5 (DD-035) |
   | `/usr/share/qubix-os/shell/` | The interactive shell configuration itself (DD-026) |
   | `/usr/share/qubix-os/starship.toml` | The prompt, used unless the user has their own (DD-026) |
@@ -355,10 +356,30 @@ The sixth wires zsh into the shell environment, by **appending** to Fedora's `/e
 - Fedora's `/etc/zshrc` has not changed since 2015, per the package changelog. That is why
   appending is a reasonable thing to do to it, and why the assertion is cheap.
 
+The seventh asserts that `qubix-config` still names files that exist:
+
+```yaml
+    - |
+      RUN set -eu; \
+          bash -n /usr/bin/qubix-config; \
+          test -x /usr/bin/qubix-config; \
+          qubix-config --check
+```
+
+- **It hardcodes six source paths**, one per configuration it can copy, so a path that moves
+  would turn into "not in this image" at somebody's terminal instead of failing here.
+- **`--check` writes nothing and needs no home directory**, which is what lets it run in a
+  build container as root. It reports both things that can rot: a missing source, and niri's
+  *relative* theme include, which the command rewrites to an absolute path when it copies —
+  if that include is ever renamed, a copied niri config would not load (DD-039).
+- **`bash -n` runs first**, so a syntax error fails for the right reason rather than making
+  `--check` exit non-zero and hiding which problem it was.
+
 - **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm` and the packaged
   fonts; after the `files` module, which ships `/etc/zellij/config.kdl`,
-  `/etc/xdg/wezterm/` and `/usr/share/qubix-os/shell/qubix.zsh`. The fifth snippet must
-  follow the fourth. Before the identity rewrite, though nothing forces that.
+  `/etc/xdg/wezterm/`, `/usr/share/qubix-os/shell/qubix.zsh`, `/usr/bin/qubix-config` and
+  every path that last one names. The fifth snippet must follow the fourth. Before the
+  identity rewrite, though nothing forces that.
 
 ### 5. `systemd` — enable the login-shell service
 

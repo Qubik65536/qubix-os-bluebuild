@@ -1156,6 +1156,53 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image, a WezTerm opened in either session comes up with the Oxocarbon
       scheme and the Monaspace stack *(open — needs a build and hardware)*
 
+- [ ] **IMG-028** — Give the shipped configuration a one-command route into `~/.config`
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Requested 2026-08-03. Every configuration this image ships lives in `/usr` or
+    `/etc`, where a rebase replaces it and a user's own file shadows it. That default is
+    right and stays (DD-030). What it leaves awkward is *starting* to customise: you have to
+    know which of six paths holds the file, whether your copy replaces the image's wholesale
+    or merges with it, and — for niri — that copying it verbatim **breaks the session**.
+    Three shapes were considered. `/etc/skel/.config/` is nearly free and reaches only
+    accounts created afterwards, which on a personal machine is nobody. A login seeder
+    reaches existing accounts and is exactly the machinery IMG-019 deleted, and it would
+    make every account's config a dead copy by default — the trap DD-025 and DD-030 exist to
+    avoid. **A command run on demand** gives the same convenience to the people who want it
+    and changes nothing for anybody else, so that is what this is.
+    Two details are worth more than the copying:
+    - **niri's palette include is relative.** `/etc/niri/config.kdl` ends its theme block
+      with `include "qubix-theme.kdl"`, which niri resolves against the *including file's*
+      directory. Copied verbatim into `~/.config/niri/` that names a file which is not
+      there. The copy is rewritten to the absolute `/etc/niri/qubix-theme.kdl` — which is
+      also the line `docs/desktops.md` already tells people to keep, and which leaves the
+      palette tracking the image.
+    - **Two entries deliberately copy less than they could.** WezTerm's colour schemes stay
+      in `/etc/xdg/wezterm/colors/`, where they remain available to a personal
+      `wezterm.lua` and go on tracking the image; lazygit's config merges key by key, so a
+      whole copy is usually the wrong thing and the command says so.
+    A copy is still a fork, so `--diff` shows what the image has changed since you took one.
+  - **Acceptance criteria:**
+    - `/usr/bin/qubix-config` copies any shipped configuration into `~/.config`, lists what
+      is available with its source and whether you already have a copy, and diffs your copy
+      against the image's current version
+    - **Nothing runs it.** No login hook, no service, no first-boot seeding; an account that
+      never runs it has nothing in `~/.config` and keeps tracking the image
+    - It never overwrites without `--force`, and `--force` keeps the previous file
+    - The niri copy has its theme `include` rewritten to an absolute path, and the command
+      **fails rather than writing** a config whose include did not rewrite
+    - Entries whose relationship with the image is not "replaces it wholesale" say so at the
+      moment they are copied
+    - It refuses to write as root, so `sudo` cannot leave root-owned files in a home
+      directory
+    - The build asserts that every path it names exists in the image and that the niri
+      rewrite still matches, so a moved config fails CI rather than a user's copy
+    - Every scattered `cp …` instruction in `docs/` is replaced by it
+    - `docs/shell.md`, `docs/desktops.md`, a `DD-###`, `docs/recipe-reference.md` and
+      `.agent/context/` cover it, including that a copy stops receiving image changes
+    - On the rebased image, `qubix-config niri` produces a session that loads and still
+      themes *(open — needs a build and hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

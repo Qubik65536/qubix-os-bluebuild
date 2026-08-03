@@ -1,0 +1,323 @@
+#!/usr/bin/bash
+#
+# qubix-config — copy the image's configuration into ~/.config so you can edit it.
+#
+# WHY THIS EXISTS. Every configuration Qubix OS ships lives in /usr or /etc, where a rebase
+# replaces it and a file of your own shadows it. That is the right default and it stays:
+# nothing is written into $HOME, and everyone who has customised nothing goes on receiving
+# improvements with nothing to re-run (DD-030). What it leaves awkward is *starting* to
+# customise — you have to know which of six paths holds the file, whether your copy replaces
+# the image's wholesale or merges with it, and, for niri, that copying it verbatim breaks the
+# session. This is that knowledge, as a command.
+#
+# WHAT IT DELIBERATELY IS NOT: a seeder. Nothing runs it for you, at login or ever. An
+# account that never runs it has nothing in ~/.config and keeps tracking the image, which is
+# what removing the runtime seeders bought (DD-030, DD-039).
+#
+# A COPY IS A FORK. From the moment a file lands in ~/.config, changes the image makes to it
+# stop reaching you. `qubix-config --diff` is how you see what you are missing.
+#
+# See docs/shell.md, docs/desktops.md and docs/design-decisions.md DD-039.
+
+set -euo pipefail
+
+PROGRAM=qubix-config
+
+# `${HOME:-}` rather than `$HOME`, because `set -u` would otherwise make an unset HOME a
+# fatal error before the argument parsing that decides whether a home directory is even
+# needed. --check and --help do not need one — which is what lets the build run --check —
+# and the writing path below refuses when there is nowhere to write.
+CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME:-}/.config}"
+
+# Every name this command knows, in the order --list and --all walk them.
+NAMES="starship fastfetch wezterm zellij lazygit niri"
+
+# ── The table ─────────────────────────────────────────────────────────────────
+# One entry per configuration, setting four globals:
+#
+#   SRC   the file in the image
+#   DEST  where it goes under $CONFIG_HOME
+#   DESC  one line, for --list
+#   NOTE  what is true about THIS entry and not the others, printed after a copy.
+#         Only entries whose relationship with the image is not "your copy replaces it
+#         wholesale" have one — those are the cases where a full copy is a decision.
+#
+# Two entries copy less than they could, on purpose. WezTerm's colour schemes are found in
+# EVERY config directory, so leaving them in /etc/xdg/wezterm/colors/ keeps them available
+# to a personal wezterm.lua and still tracking the image; lazygit MERGES key by key, so a
+# whole copy throws away the only per-key relationship in the terminal environment.
+entry() {
+    SRC= DEST= DESC= NOTE=
+    case "$1" in
+        starship)
+            SRC=/usr/share/qubix-os/starship.toml
+            DEST="$CONFIG_HOME/starship.toml"
+            DESC="the shell prompt"
+            ;;
+        fastfetch)
+            SRC=/etc/fastfetch/config.jsonc
+            DEST="$CONFIG_HOME/fastfetch/config.jsonc"
+            DESC="the system-information box"
+            NOTE="The box is drawn with absolute cursor columns derived from the logo's width, so changing the logo puts it out of square. /usr/share/qubix-os/fastfetch/retune.sh re-derives all four columns for a config given as its argument."
+            ;;
+        wezterm)
+            SRC=/etc/xdg/wezterm/wezterm.lua
+            DEST="$CONFIG_HOME/wezterm/wezterm.lua"
+            DESC="the terminal: fonts, colours, window"
+            NOTE="The colour schemes are NOT copied, deliberately: WezTerm looks for colors/ in every config directory, so /etc/xdg/wezterm/colors/ stays available to your copy and goes on tracking the image. To fork those too: cp -r /etc/xdg/wezterm/colors '$CONFIG_HOME/wezterm/'"
+            ;;
+        zellij)
+            SRC=/etc/zellij/config.kdl
+            DEST="$CONFIG_HOME/zellij/config.kdl"
+            DESC="the terminal multiplexer"
+            ;;
+        lazygit)
+            SRC=/usr/share/qubix-os/lazygit/config.yml
+            DEST="$CONFIG_HOME/lazygit/config.yml"
+            DESC="the git terminal UI"
+            NOTE="lazygit MERGES your file over the image's key by key — the one place here where you do not have to repeat everything. A whole copy is usually not what you want: a file holding only the keys you are changing keeps every other key tracking the image."
+            ;;
+        niri)
+            SRC=/etc/niri/config.kdl
+            DEST="$CONFIG_HOME/niri/config.kdl"
+            DESC="the Niri session"
+            NOTE="The theme include has been rewritten to the absolute /etc/niri/qubix-theme.kdl, so your copy keeps receiving palette changes. Everything else is now yours: niri ignores /etc/niri/config.kdl completely once this file exists, so keybinds and layout changes from a rebase no longer reach you."
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# ── Rendering ─────────────────────────────────────────────────────────────────
+# What would be written to DEST. Everything is a byte copy except niri.
+#
+# NIRI'S PALETTE INCLUDE IS RELATIVE. /etc/niri/config.kdl says `include "qubix-theme.kdl"`,
+# and niri resolves a relative include against the INCLUDING FILE's own directory — /etc/niri
+# for the system config. Copied verbatim into ~/.config/niri/ that becomes a reference to a
+# file which is not there, and the session does not load. Rewriting it to the absolute path
+# is also the better answer rather than merely a safe one: it is the one line docs/desktops.md
+# asks people to keep, and it leaves the palette live-reloading from the image (DD-022,
+# DD-025).
+render() {
+    case "$1" in
+        niri)
+            sed 's|^include "qubix-theme\.kdl"|include "/etc/niri/qubix-theme.kdl"|' "$SRC"
+            ;;
+        *)
+            cat "$SRC"
+            ;;
+    esac
+}
+
+# Print a NOTE wrapped and indented, so a long one stays readable in a terminal.
+print_note() {
+    printf '%s\n' "$1" | fold -s -w 72 | sed 's/^/       /'
+}
+
+# ── Actions ───────────────────────────────────────────────────────────────────
+
+# list — every entry, its source, and whether this account already has a copy.
+list() {
+    local n status
+    echo "Configurations this image can copy into $CONFIG_HOME:"
+    echo
+    for n in $NAMES; do
+        entry "$n"
+        if [ -e "$DEST" ]; then status="you have your own copy"; else status="not present"; fi
+        printf '  %-10s %s\n' "$n" "$DESC"
+        printf '  %-10s image  %s%s\n' "" "$SRC" \
+            "$([ -r "$SRC" ] || echo '   (MISSING from this image)')"
+        printf '  %-10s yours  %s   (%s)\n' "" "$DEST" "$status"
+        echo
+    done
+    cat <<'EOF'
+  qubix-config <name>...     copy them
+  qubix-config --diff        what the image has changed since you copied
+  qubix-config --help        everything else
+EOF
+}
+
+# install_one <name> — write one entry, never over an existing file unless --force.
+install_one() {
+    local name=$1 tmp backup
+    if ! entry "$name"; then
+        echo "$PROGRAM: unknown name: $name (try --list)" >&2
+        return 1
+    fi
+
+    if [ ! -r "$SRC" ]; then
+        echo "  $name: $SRC is not in this image — skipped" >&2
+        return 0
+    fi
+
+    if [ -e "$DEST" ] && [ "$FORCE" != yes ]; then
+        echo "  $name: $DEST exists already — left alone (--force replaces it, keeping a backup)"
+        return 0
+    fi
+
+    if [ "$DRYRUN" = yes ]; then
+        echo "  $name: would write $DEST from $SRC"
+        return 0
+    fi
+
+    install -d -m 0755 "$(dirname "$DEST")"
+    tmp="$(mktemp "$DEST.$PROGRAM.XXXXXX")"
+    render "$name" > "$tmp"
+
+    # The niri rewrite is asserted, not assumed. If the system config ever stops matching
+    # the pattern above, writing the copy anyway would hand somebody a session that does
+    # not load — so fail here instead, while nothing has been replaced.
+    if [ "$name" = niri ] && grep -q '^include "qubix-theme\.kdl"' "$tmp"; then
+        rm -f -- "$tmp"
+        echo "$PROGRAM: the theme include in $SRC did not rewrite to an absolute path." >&2
+        echo "$PROGRAM: refusing to write a niri config that will not load. Please report this." >&2
+        return 1
+    fi
+
+    if [ -e "$DEST" ]; then
+        backup="$DEST.bak.$(date +%Y%m%d-%H%M%S)"
+        cp -p -- "$DEST" "$backup"
+        echo "  $name: your previous file is kept at $backup"
+    fi
+
+    chmod 0644 "$tmp"
+    mv -f -- "$tmp" "$DEST"
+    WROTE=yes
+    echo "  $name: wrote $DEST"
+    if [ -n "$NOTE" ]; then
+        print_note "$NOTE"
+    fi
+    return 0
+}
+
+# diff_one <name> — your copy against what the image ships TODAY. This is the answer to
+# "a copy is a fork": it is the only way to see what a rebase changed that you are no
+# longer getting.
+diff_one() {
+    local name=$1
+    if ! entry "$name"; then
+        echo "$PROGRAM: unknown name: $name (try --list)" >&2
+        return 1
+    fi
+    [ -r "$SRC" ] || { echo "  $name: not shipped by this image"; return 0; }
+    [ -e "$DEST" ] || { echo "  $name: you have no copy of your own"; return 0; }
+
+    if render "$name" | diff -u --label "image  $SRC" --label "yours  $DEST" - "$DEST"; then
+        echo "  $name: identical to the image's"
+    fi
+    return 0
+}
+
+# check — every source is present, and the niri rewrite still matches. Writes nothing and
+# needs no home directory, so the build runs it as an assertion: a configuration that moves
+# fails CI rather than a user's copy.
+check() {
+    local n rc=0
+    for n in $NAMES; do
+        entry "$n"
+        if [ ! -r "$SRC" ]; then
+            echo "$PROGRAM: $n names $SRC, which is not in this image" >&2
+            rc=1
+        fi
+    done
+    entry niri
+    if [ -r "$SRC" ] && ! grep -q '^include "qubix-theme\.kdl"' "$SRC"; then
+        echo "$PROGRAM: $SRC no longer has the relative theme include this command rewrites" >&2
+        rc=1
+    fi
+    [ "$rc" -eq 0 ] && echo "$PROGRAM: every source is present and the niri rewrite matches"
+    return "$rc"
+}
+
+usage() {
+    cat <<EOF
+$PROGRAM — copy Qubix OS's own configuration into $CONFIG_HOME so you can edit it.
+
+  $PROGRAM --list                 what can be copied, and what you already have
+  $PROGRAM [options] <name>...    copy one or more
+  $PROGRAM [options] --all        copy all of them
+  $PROGRAM --diff [<name>...]     your copies against what the image ships today
+  $PROGRAM --check                verify every path this command names (writes nothing)
+
+Options:
+  -f, --force      replace a file you already have, keeping it as a .bak
+  -n, --dry-run    say what would happen, write nothing
+  -h, --help       this
+
+Names: $NAMES
+
+Nothing runs this for you. An account that never runs it has nothing in
+$CONFIG_HOME and keeps receiving every change a rebase makes. Once you have a
+copy, the image's version of that file no longer reaches you — which is the
+point, and why --diff exists.
+EOF
+}
+
+# ── Arguments ─────────────────────────────────────────────────────────────────
+FORCE=no
+DRYRUN=no
+MODE=install
+ARGS=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h | --help) usage; exit 0 ;;
+        -l | --list) MODE=list ;;
+        --diff) MODE=diff ;;
+        --check) MODE=check ;;
+        --all) ARGS="$NAMES" ;;
+        -f | --force) FORCE=yes ;;
+        -n | --dry-run) DRYRUN=yes ;;
+        -*)
+            echo "$PROGRAM: unknown option: $1" >&2
+            echo "Try '$PROGRAM --help'." >&2
+            exit 2
+            ;;
+        *) ARGS="${ARGS:+$ARGS }$1" ;;
+    esac
+    shift
+done
+
+case "$MODE" in
+    list) list; exit 0 ;;
+    check) check; exit $? ;;
+    diff)
+        for name in ${ARGS:-$NAMES}; do diff_one "$name"; done
+        exit 0
+        ;;
+esac
+
+if [ -z "$ARGS" ]; then
+    usage
+    exit 2
+fi
+
+# Only the writing path refuses root. `sudo qubix-config …` would fill a home directory with
+# root-owned files that their owner then cannot edit — which is the exact opposite of the
+# point. --list, --diff and --check write nothing and are allowed anywhere, which is also
+# what lets the build run --check.
+if [ "$(id -u)" -eq 0 ]; then
+    echo "$PROGRAM: run this as yourself, not with sudo — it writes into your own $CONFIG_HOME." >&2
+    exit 1
+fi
+
+if [ -z "${XDG_CONFIG_HOME:-}" ] && [ -z "${HOME:-}" ]; then
+    echo "$PROGRAM: neither \$HOME nor \$XDG_CONFIG_HOME is set, so there is nowhere to write." >&2
+    exit 1
+fi
+
+# WROTE is what keeps the closing note honest: a run that only reported "left alone" has
+# forked nothing, and saying otherwise would be noise on the command people repeat.
+WROTE=no
+status=0
+for name in $ARGS; do
+    install_one "$name" || status=1
+done
+
+if [ "$WROTE" = yes ]; then
+    echo
+    echo "  A copy is a fork: the image's version of these files no longer reaches you."
+    echo "  '$PROGRAM --diff' shows what a rebase has changed since."
+fi
+exit "$status"

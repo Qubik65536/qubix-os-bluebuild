@@ -46,7 +46,7 @@ described here or in `files/system/`.
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
   | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm` + its config's fonts (`ibm-plex-mono-fonts`, `ibm-plex-sans-fonts`, `google-noto-sans-cjk-fonts`) + `unzip`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `lazygit`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
-  | 4 | `containerfile` | `common-base.yml` | Six snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `usermod` exists and `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses; install Monaspace Krypton NF + IBM Plex Math from pinned upstream archives, asserting both SHA-256s; assert `wezterm ls-fonts` resolves `/etc/xdg/wezterm/wezterm.lua` and all seven of its families; append the zsh wiring to Fedora's `/etc/zshrc` | after `dnf` (needs `zsh`, `git`, `unzip`, `wezterm`) and after `files` (needs `/etc/zellij`, `/etc/xdg/wezterm`, `/usr/share/qubix-os/shell/`); the WezTerm snippet after the font one — DD-026, DD-033, DD-034, DD-035, DD-036 |
+  | 4 | `containerfile` | `common-base.yml` | Seven snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `usermod` exists and `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses; install Monaspace Krypton NF + IBM Plex Math from pinned upstream archives, asserting both SHA-256s; assert `wezterm ls-fonts` resolves `/etc/xdg/wezterm/wezterm.lua` and all seven of its families; append the zsh wiring to Fedora's `/etc/zshrc`; assert `qubix-config --check` — every path that command names exists, and niri's relative theme include still matches | after `dnf` (needs `zsh`, `git`, `unzip`, `wezterm`) and after `files` (needs `/etc/zellij`, `/etc/xdg/wezterm`, `/usr/share/qubix-os/shell/`); the WezTerm snippet after the font one — DD-026, DD-033, DD-034, DD-035, DD-036, DD-039 |
   | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service` | after `files`, which ships the unit — DD-035 |
   | 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
   | 7 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
@@ -159,6 +159,16 @@ described here or in `files/system/`.
   overlay at `/usr/share/qubix-os/lazygit/config.yml` and is reached through
   `LG_CONFIG_FILE`; removing the package also means removing that wiring and the `lg`
   wrapper in `shell/common.sh`.
+- **`qubix-config` is asserted because it hardcodes paths.** `/usr/bin/qubix-config` copies
+  the image's configuration into a user's `~/.config` on request (DD-039), and it names six
+  source paths literally. Snippet 4g runs `bash -n` and `qubix-config --check`, which fails
+  the build when one of those paths moves or when niri's relative theme include — the one
+  the command rewrites on copy — is renamed. **Adding a config to the image means adding a
+  row to that command's table**; nothing can assert *that* omission.
+- **Nothing runs `qubix-config`, and nothing may be added that does.** It is the alternative
+  to the runtime seeders IMG-019 removed, not a quieter version of them: an account that
+  never runs it keeps tracking the image, which is the property the whole design is for
+  (DD-030, DD-039).
 - **Installing the shell tools is half the job.** The configuration is in the overlay
   (`etc/profile.d/`, `usr/share/qubix-os/shell/`,
   `etc/fastfetch/`, `etc/zellij/`, `etc/xdg/wezterm/`, `usr/share/qubix-os/lazygit/`).

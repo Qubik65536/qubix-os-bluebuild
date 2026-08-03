@@ -223,15 +223,21 @@ please do not paper over it with per-user config before it is recorded.
 first login.** To customise the session, copy it first:
 
 ```bash
-mkdir -p ~/.config/niri
-cp /etc/niri/config.kdl ~/.config/niri/config.kdl
+qubix-config niri
 ```
+
+**Do not copy it with `cp`.** The system config includes the palette with a *relative* path,
+`include "qubix-theme.kdl"`, and niri resolves that against the including file's own
+directory — so a verbatim copy in `~/.config/niri/` names a file that is not there and the
+session does not load. `qubix-config` rewrites that line to the absolute
+`/etc/niri/qubix-theme.kdl`, which is also what keeps your copy receiving theme changes
+(DD-039).
 
 > **A copy is a fork.** Niri ignores the system file completely once yours exists, so from
 > that moment you stop receiving every change the image makes — new keybinds, the display
-> scale, the theme. Keep `include "/etc/niri/qubix-theme.kdl"` in your copy at minimum, and
-> re-read the system file after a rebase that changes the session. See *The colour theme*
-> below.
+> scale, the layout. The theme is the exception, because of that rewritten include. Run
+> `qubix-config --diff niri` after a rebase to see what you are missing. See *The colour
+> theme* below.
 
 The config live-reloads on save. `niri validate` parses it and reports errors. The full
 option reference ships in the image at `/usr/share/doc/niri/wiki/` and is online at
@@ -406,9 +412,12 @@ WezTerm takes the first of these that exists, so anything you create wins:
 To take it over, start from the shipped copy and edit freely:
 
 ```bash
-mkdir -p ~/.config/wezterm
-cp /etc/xdg/wezterm/wezterm.lua ~/.config/wezterm/
+qubix-config wezterm
 ```
+
+That copies `wezterm.lua` and **not** the colour schemes, deliberately: they stay in
+`/etc/xdg/wezterm/colors/`, where your own config still finds them and where they go on
+tracking the image. To fork those too, `cp -r /etc/xdg/wezterm/colors ~/.config/wezterm/`.
 
 Delete that file and you are back on the image's, including whatever a later rebase changed
 in it. The colour schemes keep working either way: WezTerm looks for `colors/` in *every*

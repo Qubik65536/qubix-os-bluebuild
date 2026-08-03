@@ -442,6 +442,29 @@ modules:
                 >> /etc/zshrc; \
             zsh -n /etc/zshrc
 
+      #    4g. Assert that `qubix-config` still names files that exist.
+      #
+      #        /usr/bin/qubix-config is the documented route from the image's configuration
+      #        into a user's ~/.config (DD-039). It hardcodes six source paths — one per
+      #        tool — and a path that moves would otherwise turn into "not in this image"
+      #        at somebody's terminal rather than here.
+      #
+      #        `--check` writes nothing, needs no home directory and reports both things
+      #        that can rot: a source that is gone, and niri's RELATIVE theme include, which
+      #        the command rewrites to an absolute path when it copies. If that include is
+      #        ever renamed upstream in files/system/etc/niri/config.kdl, a copied niri
+      #        config would not load — so the build fails instead.
+      #
+      #        `bash -n` first, because a syntax error would make --check exit non-zero for
+      #        the wrong reason and hide which one it was.
+      #
+      #        Ordering: after `files`, which ships both the script and every path it names.
+      - |
+        RUN set -eu; \
+            bash -n /usr/bin/qubix-config; \
+            test -x /usr/bin/qubix-config; \
+            qubix-config --check
+
   # 5. Enable the one system service this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already
   #    exist — the only thing in the terminal environment that cannot be delivered as a
