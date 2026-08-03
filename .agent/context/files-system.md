@@ -33,6 +33,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | Path | Consumer | Effect |
 |---|---|---|
 | `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `XDG_CONFIG_DIRS` (DD-038), `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and — at the end — bash's interactive setup (DD-026, DD-030, DD-032). Every exported value is **re-resolved in every shell**, and only ever rewritten when it holds the image's own literal path (DD-037) |
+| `etc/profile.d/zz-qubix-fastfetch.sh` | interactive bash and zsh | Undoes Aurora's `alias fastfetch='ublue-fastfetch'`, without which `/etc/fastfetch/config.jsonc` — and the user's own — is never read. **Named `zz-` because `/etc/profile.d` is sourced alphabetically** and `qubix-shell-env.sh` sorts before `ublue-*` (DD-040) |
 | `etc/default/useradd` | `useradd(8)` | `SHELL=/usr/bin/zsh`. **Replaces** shadow-utils' copy; only one line differs |
 | `usr/bin/qubix-default-shell` | `qubix-default-shell.service` | Sets zsh as the login shell for existing accounts, once each, stamped in `/var/lib/qubix-os/default-shell/` (DD-035). Mode `100755` |
 | `usr/lib/systemd/system/qubix-default-shell.service` | systemd, at boot | Runs the above `Before=systemd-user-sessions.service`. Enabled by the `systemd` module in `common-base.yml` |
@@ -179,6 +180,13 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   it means adding the package or build step that supplies it — otherwise CI fails. CJK is
   `google-noto-sans-cjk-fonts` standing in for IBM Plex Sans SC/TC/JP, and the SC → TC → JP
   order decides which regional Han form is drawn; do not reorder it (DD-034).
+- **Check `type -a` before believing a config search path.** A base image can rename a
+  command out from under the file that configures it, and this one does: Aurora aliases
+  `fastfetch` to `ublue-fastfetch`, which passes its own config explicitly, so DD-031's
+  correctly-placed `/etc/fastfetch/config.jsonc` was unreachable for as long as it shipped —
+  as was the user's own copy. Three rounds of diagnosis went into config paths, `/etc`
+  merges and `$XDG_CONFIG_DIRS` before anybody ran `type -a fastfetch` (DD-040). Any future
+  "my config is ignored" report starts there.
 - **zsh does not comment with `#` on the command line unless told to.** `INTERACTIVE_COMMENTS`
   is off by default — in scripts `#` always comments, so this is invisible until somebody
   pastes a command with a trailing note and `?` in it globs. `qubix.zsh` sets it (IMG-029).

@@ -1227,6 +1227,44 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image, pasting a trailing-comment command works *(open — needs a build
       and hardware)*
 
+- [ ] **IMG-030** — Make the name `fastfetch` reach fastfetch
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Root cause of the "fastfetch config is ignored" reports of 2026-08-03,
+    established on the machine after three wrong guesses:
+    ```
+    $ type -a fastfetch
+    fastfetch is an alias for ublue-fastfetch
+    $ grep -rn fastfetch /etc/profile.d/
+    /etc/profile.d/ublue-fastfetch.sh:3:alias fastfetch='ublue-fastfetch'
+    ```
+    Aurora aliases `fastfetch` to its own wrapper, which passes
+    `/usr/share/ublue-os/fastfetch.jsonc` explicitly. **An alias is resolved before `$PATH`,
+    and an explicit `--config` before any config directory**, so the alias beat the whole
+    search path DD-031 reasoned about — `/etc/fastfetch/config.jsonc` was correct, present
+    and unreachable, and so was `~/.config/fastfetch/config.jsonc`.
+    The ordering is the trap in the fix: `/etc/profile.d` is sourced alphabetically and
+    `qubix-shell-env.sh` sorts before `ublue-fastfetch.sh` (q < u), so an unalias in the
+    file we already ship is undone a moment later. Hence a second file named to sort last.
+    Aurora's file is not replaced — it carries `neofetch`/`neowofetch` aliases that are
+    upstream's, and replacing it would mean owning their copy to delete one line.
+  - **Acceptance criteria:**
+    - `fastfetch` runs `/usr/bin/fastfetch`, so `/etc/fastfetch/config.jsonc` is read and a
+      user's `~/.config/fastfetch/config.jsonc` still wins over it
+    - Aurora's file is left alone; `ublue-fastfetch`, `neofetch` and `neowofetch` all still
+      work and still print Universal Blue's banner
+    - The undo is a no-op when upstream stops setting the alias, and never removes an alias
+      somebody set deliberately
+    - The build asserts the **result** — every `/etc/profile.d` file sourced in order, then
+      the alias must be gone — not the file-sort order, and the assertion is rehearsed
+      against a `zzz-*.sh` that reinstates it *(done — it fails as intended)*
+    - DD-031's status says the config was unreachable until now; a `DD-###` records the
+      mechanism, and `type -a` is written down as the first thing to check for any
+      "my config is ignored" report
+    - `docs/shell.md` and `.agent/context/` cover it
+    - On the rebased image, `fastfetch` draws the Qubix box *(open — needs a build and
+      hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

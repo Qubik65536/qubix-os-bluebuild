@@ -383,6 +383,18 @@ that list, so it replaces this one wholesale:
 qubix-config fastfetch
 ```
 
+**`fastfetch` has to mean fastfetch, and on this base image it did not.** Aurora ships
+`/etc/profile.d/ublue-fastfetch.sh`, which aliases `fastfetch` to `ublue-fastfetch` — a
+wrapper that passes Universal Blue's own config explicitly. An alias is resolved before
+`$PATH` and an explicit `--config` before any config directory, so that alias beat this
+page's entire search order, including your own `~/.config` file.
+`/etc/profile.d/zz-qubix-fastfetch.sh` removes that one alias, and the build asserts the
+result (DD-040). Universal Blue's box is still one command away:
+
+```bash
+ublue-fastfetch      # also still `neofetch` and `neowofetch`
+```
+
 **Edit the copy, not the original.** `/etc` is three-way merged on update, so a file you
 have edited there stops receiving image changes — and an edited `/etc/fastfetch/config.jsonc`
 is also the one way to end up with a box that a later rebase has stopped improving.
@@ -510,6 +522,7 @@ directory — which the image never writes to.
 | `/usr/share/qubix-os/lazygit/config.yml` | lazygit's icons and palette. Merged *under* your own config, not replaced by it (DD-032) |
 | `/etc/zellij/config.kdl` | The zellij theme. The only system-wide path zellij reads (DD-033) |
 | `/etc/fastfetch/config.jsonc` | The fastfetch box. The only system-wide path fastfetch reads (DD-031) |
+| `/etc/profile.d/zz-qubix-fastfetch.sh` | Undoes Aurora's `fastfetch` alias, so the config above is reachable. Named to sort last (DD-040) |
 | `/usr/bin/qubix-config` | Copies any of these into `~/.config` on request. Nothing runs it (DD-039) |
 | `/usr/share/qubix-os/fastfetch/retune.sh` | Re-derives the box's four columns after a logo change. Run by hand, never automatically |
 | `/usr/share/zsh/site-functions/_*` | zsh-completions and zellij's completions, installed at build time |
@@ -519,6 +532,6 @@ Configuration files, one hand-run tool, one boot service that touches `/etc/pass
 per account, and nothing under `$HOME`.
 
 Why each of these lives where it does: [`design-decisions.md`](design-decisions.md),
-DD-026, DD-030, DD-031, DD-032, DD-033, DD-035, DD-036, DD-037, DD-038 and DD-039. What the recipe installs and in
+DD-026, DD-030, DD-031, DD-032, DD-033, DD-035, DD-036, DD-037, DD-038, DD-039 and DD-040. What the recipe installs and in
 which module:
 [`recipe-reference.md`](recipe-reference.md).

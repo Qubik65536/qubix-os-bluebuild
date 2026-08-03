@@ -1462,7 +1462,11 @@ is the `auto_sync` key. Verified in its `settings.rs`, not assumed.
 
 ## DD-031 — Ship fastfetch's config in `/etc`, with the logo pinned
 
-**Status:** Accepted
+**Status:** Accepted. Everything here about *where* the config goes is correct and
+unchanged — but until
+[DD-040](#dd-040--undo-auroras-fastfetch-alias-because-it-beat-the-config-search-path) the
+command `fastfetch` was an alias to Aurora's own wrapper, so **nothing below was ever
+read**, including a user's own file
 
 **Implements:** `IMG-020`
 
@@ -2178,3 +2182,80 @@ at somebody's terminal. This is the same shape as the zellij and WezTerm asserti
   incomplete: atuin ships no file at all (it is configured from the environment, DD-030), and
   `/usr/share/qubix-os/shell/qubix.zsh` is *sourced* rather than shadowed — the supported
   customisation is the documented `source` line at the end of `~/.zshrc`, not a copy.
+
+---
+
+## DD-040 — Undo Aurora's `fastfetch` alias, because it beat the config search path
+
+**Status:** Accepted
+
+**Amends:** [DD-031](#dd-031--ship-fastfetchs-config-in-etc-with-the-logo-pinned)
+*(its reasoning about where the config goes is correct and unchanged; what it missed is that
+nothing typed `fastfetch` ever got as far as reading it)*
+
+**Implements:** `IMG-030`
+
+**Context.** Reported repeatedly from 2026-08-03: fastfetch shows Universal Blue's box, not
+this image's, and copying the config into `~/.config` did not help either. Established on
+the machine:
+
+```
+$ type -a fastfetch
+fastfetch is an alias for ublue-fastfetch
+fastfetch is /usr/bin/fastfetch
+
+$ grep -rn fastfetch /etc/profile.d/
+/etc/profile.d/ublue-fastfetch.sh:3:alias fastfetch='ublue-fastfetch'
+```
+
+`ublue-fastfetch` runs fastfetch against `/usr/share/ublue-os/fastfetch.jsonc`. **A shell
+alias is resolved before `$PATH`, and an explicit `--config` is resolved before any config
+directory**, so the alias beat the entire search path DD-031 reasoned about so carefully.
+`/etc/fastfetch/config.jsonc` was correct, present, and unreachable — and so was
+`~/.config/fastfetch/config.jsonc`, which is worse, because that one is the user's.
+
+This is a good lesson about the shape of the mistake rather than the mistake itself. DD-031
+verified fastfetch's search order in its source and picked the only location that works. All
+of that was right. What it never checked was whether the **name** `fastfetch` still meant
+the binary on this base image — three rounds of diagnosis went into config paths, `/etc`
+merges and `$XDG_CONFIG_DIRS` before anybody ran `type -a`.
+
+**Decision.** Ship `/etc/profile.d/zz-qubix-fastfetch.sh`, which removes that one alias:
+
+```sh
+case "$(alias fastfetch 2>/dev/null)" in
+    *ublue-fastfetch*) unalias fastfetch 2>/dev/null || true ;;
+esac
+```
+
+**A second file, named to sort last.** `/etc/profile.d` is sourced in alphabetical order and
+`qubix-shell-env.sh` sorts *before* `ublue-fastfetch.sh` (q < u), so an unalias in the file
+we already ship would be undone a moment later. `zz-` exists for that and nothing else.
+
+**Aurora's file is not replaced.** It carries `neofetch` and `neowofetch` aliases that are
+upstream's to define; replacing it would mean owning their copy forever to delete one line.
+Undoing one alias leaves the rest flowing through — the same reasoning DD-036 used for
+appending to `/etc/zshrc` rather than vendoring it.
+
+**Guarded on the alias being ublue's**, so it is a no-op if upstream ever stops setting it,
+and so an alias somebody set on purpose is not silently removed. A user's own alias is safe
+regardless: `~/.bashrc` and `~/.zshrc` are both read after `/etc/profile.d`.
+
+**The build asserts the result, not the ordering** (module 4h). It sources every file in
+`/etc/profile.d` the way a shell does and then asks whether the alias survived. Depending on
+`zz-` sorting last is fragile and invisible when it breaks — a vendor file named `zzz-*.sh`
+would silently restore it — so the check tests the thing that matters. Verified to fail on
+exactly that case before being trusted.
+
+**Consequences.**
+- **`fastfetch` means fastfetch**, and therefore reads `/etc/fastfetch/config.jsonc`, and
+  therefore a user's `~/.config/fastfetch/config.jsonc` wins over it. DD-031's design works
+  as written for the first time.
+- **Nothing is removed.** `ublue-fastfetch` is still a command and still prints Universal
+  Blue's banner; `neofetch` and `neowofetch` still point at it.
+- **One more upstream file we depend on the contents of.** If Aurora renames
+  `ublue-fastfetch`, the guard stops matching and the alias comes back — the build assertion
+  is what turns that into a CI failure rather than a silent regression.
+- **`type -a` belongs in the diagnosis of any "my config is ignored" report**, before the
+  search path. A base image can rename a command out from under a config file, and this one
+  does. Written into `.agent/context/files-system.md` as a gotcha for the same reason.

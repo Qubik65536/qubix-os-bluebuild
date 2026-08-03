@@ -465,6 +465,35 @@ modules:
             test -x /usr/bin/qubix-config; \
             qubix-config --check
 
+      #    4h. Assert that `fastfetch` reaches fastfetch.
+      #
+      #        Aurora's /etc/profile.d/ublue-fastfetch.sh aliases `fastfetch` to
+      #        `ublue-fastfetch`, which runs it against Universal Blue's own config. An
+      #        alias is resolved before $PATH and long before any config directory is
+      #        consulted, so it beat this image's /etc/fastfetch/config.jsonc AND a user's
+      #        own — the config shipped by DD-031 could not be read by the command it was
+      #        for. files/system/etc/profile.d/zz-qubix-fastfetch.sh undoes that one alias.
+      #
+      #        THIS ASSERTS THE RESULT, NOT THE ORDERING, on purpose. The fix depends on
+      #        /etc/profile.d being sourced alphabetically and on `zz-` sorting last, which
+      #        is a fragile thing to depend on and an invisible thing to break — a vendor
+      #        file named `zzz-*.sh` would silently restore the alias. Sourcing every file
+      #        in the directory the way a shell does and then asking whether the alias
+      #        survived tests the thing that actually matters.
+      #
+      #        Errors from the other files are discarded: several expect an interactive
+      #        shell or a real session, and none of that is this check's business.
+      #
+      #        Ordering: after `files`, which ships the undo, and after `dnf`.
+      - |
+        RUN set -eu; \
+            a="$(bash -c 'for f in /etc/profile.d/*.sh; do . "$f" >/dev/null 2>&1 || true; done; alias fastfetch 2>/dev/null')" || true; \
+            if [ -n "$a" ]; then \
+                echo "fastfetch is still aliased after every /etc/profile.d file: $a"; \
+                echo "the image config at /etc/fastfetch/config.jsonc would never be read"; \
+                exit 1; \
+            fi
+
   # 5. Enable the one system service this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already
   #    exist — the only thing in the terminal environment that cannot be delivered as a
