@@ -21,9 +21,15 @@ esac
 
 # ── starship — the prompt ─────────────────────────────────────────────────────
 # Config resolution is in /etc/profile.d/qubix-shell-env.sh: the image's prompt unless
-# ~/.config/starship.toml exists. STARSHIP_SHELL is set by `starship init`, so a user who
-# already initialises starship themselves does not get it twice.
-if command -v starship >/dev/null 2>&1 && [ -z "${STARSHIP_SHELL:-}" ]; then
+# ~/.config/starship.toml exists.
+#
+# GUARDED ON THE FUNCTION, NOT ON STARSHIP_SHELL. `starship init bash` ends with
+# `export STARSHIP_SHELL="bash"`, and an EXPORTED variable is inherited by every child
+# process — so a bash started from a zsh that had already run `starship init` saw it set
+# and skipped the prompt. Bash does not export functions unless asked to, so
+# `starship_precmd` is a true "has THIS shell been initialised" test, and it still keeps a
+# user who initialises starship themselves from getting it twice.
+if command -v starship >/dev/null 2>&1 && ! declare -F starship_precmd >/dev/null 2>&1; then
     eval "$(starship init bash)"
 fi
 

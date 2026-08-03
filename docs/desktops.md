@@ -415,6 +415,25 @@ in it. The colour schemes keep working either way: WezTerm looks for `colors/` i
 config directory, so `/etc/xdg/wezterm/colors/` stays available to your own `wezterm.lua`.
 Note that a scheme's name is the `[metadata] name` inside the file, not its filename.
 
+**Step 4 depends entirely on `$XDG_CONFIG_DIRS`.** WezTerm reads that variable literally and
+does not apply the XDG specification's `/etc/xdg` default when it is unset, so a session
+without it gets WezTerm's built-in theme and no explanation. The image guarantees the entry
+in two places, because neither covers the other (DD-038):
+
+| Where | Covers | Why the other one is not enough |
+|---|---|---|
+| `/usr/lib/environment.d/50-qubix-terminal.conf` | Everything the systemd **user manager** starts — `niri.service`, Plasma's units, and anything launched from them | It is the manager's environment; a shell over SSH, on a text console, or from `su -` is not its child and never sees it |
+| `/etc/profile.d/qubix-shell-env.sh` | Every shell, and anything launched from one | It is not read by a unit the user manager starts directly |
+
+Both **append** `/etc/xdg` rather than defaulting to it, and both put it last, so a session
+that exports directories of its own keeps them and keeps their precedence. If the theme is
+ever missing, this is the thing to check first:
+
+```bash
+echo "$XDG_CONFIG_DIRS"      # must contain /etc/xdg
+wezterm ls-fonts | head -1   # must name Monaspace Krypton NF
+```
+
 **The fonts.** The font stack is a fallback chain — each glyph is drawn from the first
 family that has it:
 

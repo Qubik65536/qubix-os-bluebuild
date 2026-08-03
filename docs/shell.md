@@ -36,12 +36,28 @@ with nothing to re-run and nothing stale left behind (DD-030).
 
 | File | Read by | Holds |
 |---|---|---|
-| `/etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE` — and, at the end, bash's interactive setup |
+| `/etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `XDG_CONFIG_DIRS`, `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE` — and, at the end, bash's interactive setup |
 | `/etc/zshrc`, last block | zsh, when it is interactive | One `source` of the file below, appended to Fedora's file at build time |
 | `/usr/share/qubix-os/shell/` | the two above | The prompt, the plugin loading, the aliases |
 | `/usr/share/qubix-os/lazygit/config.yml` | lazygit, via `LG_CONFIG_FILE` | Nerd Font icons and the project palette (DD-032) |
 | `/etc/zellij/config.kdl` | zellij, when you start it | The multiplexer's theme (DD-033) |
 | `/etc/fastfetch/config.jsonc` | fastfetch, when you run it | The system-information box (DD-031) |
+
+### Every shell, not just the first one
+
+A shell started **from another shell** — `zsh` typed into bash, `bash` typed into zsh, or
+either one nested in itself — gets exactly the same setup as a shell started by a terminal.
+That is worth stating because it was not true until 2026-08-03: every guard in these files
+tested a variable the tools **export**, and an exported variable is inherited, so each guard
+read "has anybody up my process tree done this?" instead of "has this shell done this?".
+Nested shells got no prompt and no atuin (DD-037).
+
+The rule now is that a guard may only test something a child cannot inherit — a shell
+function, or the image's own literal path in a variable it is about to rewrite. The
+practical effect beyond nested shells: **a config file you create wins in your next shell,
+not after your next login.** The graphical session reads
+`/etc/profile.d/qubix-shell-env.sh` too, so anything decided once and exported would
+otherwise have been fixed for the life of that session.
 
 ### Why zsh is wired from the end of `/etc/zshrc`
 
@@ -132,8 +148,10 @@ your home directory**: `/etc/profile.d/qubix-shell-env.sh` points `STARSHIP_CONF
 only when you have no `~/.config/starship.toml` of your own.
 
 That means starship's own documented behaviour is intact — create
-`~/.config/starship.toml` and it wins, with nothing here to undo — while the image's
-prompt keeps tracking rebases for everyone who has not.
+`~/.config/starship.toml` and it wins in your **next shell**, with nothing here to undo —
+while the image's prompt keeps tracking rebases for everyone who has not. Exporting a
+`STARSHIP_CONFIG` of your own also wins, and is left alone; only the image's own path is
+ever rewritten (DD-037).
 
 To start from the shipped one rather than a blank file:
 
@@ -162,8 +180,10 @@ mode, filter mode and style.
 
 **Your own config still wins.** atuin applies the environment *after* the config file, so
 those variables are set only when `~/.config/atuin/config.toml` does not exist — create it
-and the whole block switches off, exactly like starship. To pull your existing shell
-history into the database, once:
+and the whole block switches off in your next shell, exactly like starship. Switching off
+means those five variables are **unset**, not merely left alone, because leaving them set
+is the override the guard exists to prevent (DD-037). To pull your existing shell history
+into the database, once:
 
 ```bash
 atuin import auto
@@ -319,7 +339,20 @@ cp /etc/fastfetch/config.jsonc ~/.config/fastfetch/config.jsonc
 ```
 
 **Edit the copy, not the original.** `/etc` is three-way merged on update, so a file you
-have edited there stops receiving image changes.
+have edited there stops receiving image changes — and an edited `/etc/fastfetch/config.jsonc`
+is also the one way to end up with a box that a later rebase has stopped improving.
+
+If the box does not look like the one described here, ask fastfetch which file it used
+rather than guessing:
+
+```bash
+fastfetch --list-config-paths   # /etc/fastfetch/ is the last entry; (*) marks what exists
+ls -l /etc/fastfetch/config.jsonc
+```
+
+Nothing in the shell environment affects this: fastfetch finds `/etc/fastfetch/` on its own,
+with no variable set and no wiring. If the file is not there, the running deployment predates
+it — `rpm-ostree status` shows which image is booted.
 
 #### It needs a 90-column terminal
 
@@ -419,7 +452,7 @@ directory — which the image never writes to.
 
 | Path | Purpose |
 |---|---|
-| `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and bash's setup |
+| `/etc/profile.d/qubix-shell-env.sh` | `XDG_CONFIG_DIRS`, `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and bash's setup |
 | `/etc/zshrc`, last block | Sources the zsh half. **Appended to** Fedora's file at build time, never replacing it (DD-036) |
 | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on |
 | `/usr/bin/qubix-default-shell` | Moves existing accounts to zsh, once each (DD-035) |
@@ -440,6 +473,6 @@ Configuration files, one hand-run tool, one boot service that touches `/etc/pass
 per account, and nothing under `$HOME`.
 
 Why each of these lives where it does: [`design-decisions.md`](design-decisions.md),
-DD-026, DD-030, DD-031, DD-032, DD-033, DD-035 and DD-036. What the recipe installs and in
+DD-026, DD-030, DD-031, DD-032, DD-033, DD-035, DD-036, DD-037 and DD-038. What the recipe installs and in
 which module:
 [`recipe-reference.md`](recipe-reference.md).

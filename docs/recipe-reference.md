@@ -75,7 +75,7 @@ substitution.
   |---|---|
   | `/etc/xdg/kdeglobals` | KDE cascade fragment: default terminal (DD-012), default browser (DD-023) |
   | `/etc/xdg/mimeapps.list` | MIME association fragment: the web types → Ungoogled Chromium (DD-023) |
-  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012), and `XDG_CONFIG_DIRS` defaulted to `/etc/xdg` so the file below is reachable (DD-034) |
+  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012), and `/etc/xdg` **appended** to `XDG_CONFIG_DIRS` so the file below is reachable (DD-034, DD-038). Reaches only what the systemd user manager starts; `/etc/profile.d/qubix-shell-env.sh` carries the same append for every shell |
   | `/etc/xdg/wezterm/wezterm.lua` | WezTerm's system-wide config. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it (DD-034) |
   | `/etc/xdg/wezterm/colors/*.toml` | The colour schemes it selects. Available to a user's own `wezterm.lua` too (DD-034) |
   | `/usr/share/licenses/monaspace-krypton-nf/LICENSE` | The OFL text for a font installed in module 4d. Vendored because Monaspace's archive carries none (DD-034) |

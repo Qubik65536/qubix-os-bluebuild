@@ -1380,8 +1380,11 @@ never have worked anyway. If the clone fails, nothing is stamped and the next lo
 Aurora)* and the zsh wiring by
 [DD-036](#dd-036--wire-zsh-from-the-end-of-etczshrc-not-from-etczshenv)
 *(`/etc/zshenv` runs before `/etc/profile.d`, so it initialised the tools before their
-environment existed)*. Everything else here stands: no runtime seeder, no writes to
-`$HOME`, atuin configured from the environment, Neovim left to the user
+environment existed)*. Its guards are amended by
+[DD-037](#dd-037--guard-shell-setup-on-what-a-shell-owns-never-on-what-it-inherits)
+*(each one tested an exported variable, so no nested shell was set up)*. Everything else
+here stands: no runtime seeder, no writes to `$HOME`, atuin configured from the
+environment, Neovim left to the user
 
 **Supersedes:** [DD-026](#dd-026--wire-the-shell-from-a-one-line-pointer-in-each-users-rc-file)
 *(its delivery mechanism only)*,
@@ -1548,7 +1551,9 @@ columns, so the full Fedora mark would not fit in the window this image opens by
 
 ## DD-032 — lazygit is a tool of its own, configured from `/usr` through `LG_CONFIG_FILE`
 
-**Status:** Accepted
+**Status:** Accepted. How `LG_CONFIG_FILE` is guarded is amended by
+[DD-037](#dd-037--guard-shell-setup-on-what-a-shell-owns-never-on-what-it-inherits)
+*(it is exported, so "resolved once per shell" was in fact once per session)*
 
 **Implements:** `IMG-021`
 
@@ -1688,7 +1693,11 @@ frame.
 
 ## DD-034 — Ship WezTerm's configuration in `/etc/xdg`, and the fonts it names from upstream
 
-**Status:** Accepted
+**Status:** Accepted, except for the way it guarantees `$XDG_CONFIG_DIRS`, which is amended
+by [DD-038](#dd-038--append-etcxdg-to-xdg_config_dirs-in-both-places-a-shell-can-come-from)
+*(`environment.d` alone reaches only the systemd user manager's units, and `:-` does nothing
+to a list that is already set)*. `/etc/xdg/wezterm/` as the location, and everything about
+the fonts, stands
 
 **Implements:** `IMG-023`
 
@@ -1937,3 +1946,150 @@ so a broken shell fails in CI rather than at somebody's login.
   the tools guard against double initialisation, the plugins do not.
 - The append is not idempotent by itself, which is why the second `grep` exists. Each build
   starts from a fresh base layer, so the block is written exactly once per image.
+
+---
+
+## DD-037 — Guard shell setup on what a shell owns, never on what it inherits
+
+**Status:** Accepted
+
+**Amends:** [DD-026](#dd-026--wire-the-shell-from-a-one-line-pointer-in-each-users-rc-file),
+[DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder),
+[DD-032](#dd-032--lazygit-is-a-tool-of-its-own-configured-from-usr-through-lg_config_file)
+*(their guards only; the delivery mechanism each chose stands)*
+
+**Implements:** `IMG-026`
+
+**Context.** Reported 2026-08-03: starship does not appear when zsh is started from bash, or
+bash from zsh. Every guard in the terminal environment turned out to have the same defect,
+and it is a defect of kind rather than of detail — each one tests an **exported** variable,
+and an exported variable is inherited by every child process. So each guard answered *"has
+anybody, anywhere up my process tree, done this?"* when it was written to mean *"has this
+shell already done this?"*
+
+Confirmed against the tools' own output, not inferred:
+
+| Guard | What the variable actually is | What went wrong |
+|---|---|---|
+| `[[ -z ${STARSHIP_SHELL-} ]]` | `starship init zsh` ends with `export STARSHIP_SHELL="zsh"`; the bash init with `="bash"` | **No nested shell of any kind got the prompt** — zsh→bash, bash→zsh and zsh→zsh alike |
+| `[[ -z ${ATUIN_SESSION-} ]]` | `atuin init zsh` runs `export ATUIN_SESSION=$(atuin uuid)` | A nested zsh got no Ctrl-R search and no widgets |
+| `[ -z "${STARSHIP_CONFIG:-}" ]`, `[ -z "${LG_CONFIG_FILE:-}" ]`, the `ATUIN_*` block | exported by this image, from `/etc/profile.d` | Resolved once and inherited for the life of the session — see below |
+
+The atuin case is the sharpest, because atuin had already solved the problem: its init opens
+with `[[ -z "${ATUIN_SESSION:-}" || "${ATUIN_SHLVL:-}" != "$SHLVL" ]]`, which re-issues the
+session id when the shell nests. Wrapping that in a guard on the same variable did nothing
+but stop it running.
+
+The third row costs something subtler and is the reason this record covers the environment
+blocks too. **The graphical session reads `/etc/profile.d` as well** — SDDM's
+`wayland-session` sources `/etc/profile` — so "does the user have a `starship.toml` of their
+own?" was answered once, at login, exported, and inherited by every terminal opened
+underneath. `docs/shell.md` promises that creating the file wins with nothing to undo. It
+did win, after a logout.
+
+**Decision.** One rule, applied everywhere: **guard on something the shell cannot inherit.**
+
+- **Interactive setup guards on a function.** Functions are not passed to child processes,
+  so `_atuin_precmd` and the starship entry in `precmd_functions` are true "has *this* shell
+  been initialised" tests. In zsh the starship test is
+  `[[ -z ${precmd_functions[(r)*starship*]} ]]`, which matches whichever function this
+  starship registers rather than naming one; in bash it is `declare -F starship_precmd`.
+- **Exported values are re-resolved in every shell**, and left alone whenever they hold
+  anything other than the image's own literal path. That literal is the whole safety
+  mechanism: `STARSHIP_CONFIG=/usr/share/qubix-os/starship.toml` can only have come from
+  this image or from someone who typed it deliberately, so rewriting it is safe, and
+  rewriting anything else is not.
+- **Turning a block off means unsetting it**, not skipping it. A user who creates
+  `~/.config/atuin/config.toml` mid-session gets the five `ATUIN_*` variables unset in the
+  next shell, because leaving them set is exactly the override the guard exists to prevent.
+
+**Rejected: a sentinel variable of our own** (`_QUBIX_STARSHIP_SET=1`) to mark what the image
+exported. It is one more exported variable to leak, and it answers a question the literal
+path already answers.
+
+**Consequences.**
+- **Every interactive shell gets the full environment**, however it was started — from a
+  desktop launcher, from another shell, over SSH, or on a text console.
+- **Double initialisation is still prevented**, which is what DD-036's last consequence
+  relies on, and now for the case that actually occurs: sourcing the file twice in one
+  shell. A user who runs `starship init` from `~/.zshenv` is still not given a second one.
+- **A user's own config wins in the next shell, not the next login.** This is the promise
+  `docs/shell.md` already made; it is now true.
+- **The guards depend on function names the tools do not treat as API.** If starship or
+  atuin renamed theirs, the effect is a second `eval` in one shell — `add-zsh-hook` and
+  starship's own `PROMPT_COMMAND` check both deduplicate — so the failure mode is a few
+  wasted milliseconds, not a broken shell. The zsh starship test uses a pattern rather than
+  a name for that reason.
+- **A user who exports `ATUIN_STYLE` themselves *and* keeps a `config.toml`** has it unset
+  here. That combination was already overridden before this change, in the other direction;
+  the config file is the documented way to set these.
+
+---
+
+## DD-038 — Append `/etc/xdg` to `XDG_CONFIG_DIRS`, in both places a shell can come from
+
+**Status:** Accepted
+
+**Amends:** [DD-034](#dd-034--ship-wezterms-configuration-in-etcxdg-and-the-fonts-it-names-from-upstream)
+*(the mechanism that makes its config reachable; the location it chose stands)*
+
+**Implements:** `IMG-027`
+
+**Context.** Reported 2026-08-03 alongside DD-037: the WezTerm theme is not applied.
+`$XDG_CONFIG_DIRS` is the only route to `/etc/xdg/wezterm/wezterm.lua` — WezTerm reads that
+variable literally and does **not** fall back to the `/etc/xdg` the XDG base directory
+specification calls the default (DD-034) — and DD-034 set it in exactly one file,
+`/usr/lib/environment.d/50-qubix-terminal.conf`. That file has two holes, and they are
+independent:
+
+- **environment.d only reaches what the systemd *user manager* starts.** It is the manager's
+  own environment, passed to the units it launches. A shell reached over SSH is a child of
+  sshd; one on a text console is a child of logind's `getty`; one from `su -` is a child of
+  su. None of them is the user manager, so none of them has the variable — and neither does
+  anything launched from one.
+- **`${XDG_CONFIG_DIRS:-/etc/xdg}` does nothing to a variable that is already set.** `:-`
+  only fills in an empty value, so a session exporting a list without `/etc/xdg` in it kept
+  that list and the config stayed unreachable. Plasma's list does contain `/etc/xdg`, from
+  kde-settings, which is why this has not bitten in a Plasma login; that is a property of
+  one session manager, not a guarantee.
+
+**Decision.** Append rather than default, in both places a shell's environment can come from.
+
+```
+# /usr/lib/environment.d/50-qubix-terminal.conf
+XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:+${XDG_CONFIG_DIRS}:}/etc/xdg
+```
+
+```sh
+# /etc/profile.d/qubix-shell-env.sh
+case ":${XDG_CONFIG_DIRS:-}:" in
+    *:/etc/xdg:*) ;;
+    *) XDG_CONFIG_DIRS="${XDG_CONFIG_DIRS:+${XDG_CONFIG_DIRS}:}/etc/xdg"; export XDG_CONFIG_DIRS ;;
+esac
+```
+
+`:+` is supported in `environment.d`, and the man page's own example is this exact shape for
+`LD_LIBRARY_PATH`. environment.d has no conditionals, so it cannot test membership and may
+append a second `/etc/xdg` to a session that had one; that costs nothing, because every
+consumer of the list merges the same file with itself. The shell copy *can* test membership,
+and does, since it runs far more often.
+
+**`/etc/xdg` goes last in both.** Earlier entries win in the XDG specification, so appending
+adds a fallback without taking precedence from a directory the session chose deliberately —
+`/usr/share/kde-settings/kde-profile/default/xdg` above all. Nothing is removed and nothing
+is reordered.
+
+**Consequences.**
+- **The WezTerm config is reachable from every shell**, and from anything launched out of
+  one, not only from units the user manager started.
+- **A session that exports its own list now gets `/etc/xdg` added to it** rather than
+  silently keeping a list without it.
+- **Plasma is unchanged.** Its list already contains `/etc/xdg`, so the shell path matches
+  and does nothing; the environment.d path may duplicate the entry, which changes no
+  behaviour.
+- **This affects more than WezTerm.** `XDG_CONFIG_DIRS` is the KConfig cascade
+  (`/etc/xdg/kdeglobals`, DD-012 and DD-023), the MIME associations
+  (`/etc/xdg/mimeapps.list`), and fastfetch's fourth search entry. All of them gain a
+  guarantee they were relying on the session to provide.
+- **It is still not set for a bare `sh -c` from a daemon**, which reads no profile and is not
+  a user unit. Nothing in this image needs it there.

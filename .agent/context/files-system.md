@@ -14,7 +14,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 |---|---|---|
 | `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012); `BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop` (DD-023) |
 | `etc/xdg/mimeapps.list` | `xdg-open`, GIO, KIO | Web MIME types → Ungoogled Chromium, i.e. the default browser (DD-023) |
-| `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012); `XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:-/etc/xdg}`, without which the WezTerm config below is unreachable (DD-034) |
+| `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012); `XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:+…:}/etc/xdg`, without which the WezTerm config below is unreachable (DD-034). **Appends, not defaults**, and reaches only what the user manager starts — `etc/profile.d/qubix-shell-env.sh` carries the same append for every shell (DD-038) |
 | `etc/xdg/wezterm/wezterm.lua` | WezTerm | System-wide config: font stack, `Oxocarbon Dark`, no title bar, 0.75 opacity. Found via `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it wholesale (DD-034) |
 | `etc/xdg/wezterm/colors/*.toml` | WezTerm | Two custom schemes. Found because `colors/` sits in a config dir, so they stay available to a user's *own* `wezterm.lua` (DD-034) |
 | `usr/share/licenses/monaspace-krypton-nf/LICENSE` | nobody — legal | The OFL text for a font the recipe installs from upstream. **Vendored because Monaspace's archive ships none** (DD-034) |
@@ -32,7 +32,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 
 | Path | Consumer | Effect |
 |---|---|---|
-| `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and — at the end — bash's interactive setup (DD-026, DD-030, DD-032) |
+| `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `XDG_CONFIG_DIRS` (DD-038), `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and — at the end — bash's interactive setup (DD-026, DD-030, DD-032). Every exported value is **re-resolved in every shell**, and only ever rewritten when it holds the image's own literal path (DD-037) |
 | `etc/default/useradd` | `useradd(8)` | `SHELL=/usr/bin/zsh`. **Replaces** shadow-utils' copy; only one line differs |
 | `usr/bin/qubix-default-shell` | `qubix-default-shell.service` | Sets zsh as the login shell for existing accounts, once each, stamped in `/var/lib/qubix-os/default-shell/` (DD-035). Mode `100755` |
 | `usr/lib/systemd/system/qubix-default-shell.service` | systemd, at boot | Runs the above `Before=systemd-user-sessions.service`. Enabled by the `systemd` module in `common-base.yml` |
@@ -153,10 +153,15 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   **front** of its search list, so setting it would make the image beat the user instead of
   losing to them. `/etc/xdg/wezterm/` is reached from the *back* of the list, which is the
   point (DD-034).
-- **`XDG_CONFIG_DIRS` is load-bearing for the WezTerm config.** WezTerm reads the variable
-  and does **not** fall back to the spec's `/etc/xdg` default when it is unset, so
-  `usr/lib/environment.d/50-qubix-terminal.conf` states it. Plasma sets it; niri does not.
-  Deleting that line silently removes the whole WezTerm configuration in the Niri session.
+- **`XDG_CONFIG_DIRS` is load-bearing for the WezTerm config, and it takes TWO files.**
+  WezTerm reads the variable and does **not** fall back to the spec's `/etc/xdg` default when
+  it is unset, so the image guarantees the entry —
+  `usr/lib/environment.d/50-qubix-terminal.conf` for everything the systemd **user manager**
+  starts, and `etc/profile.d/qubix-shell-env.sh` for every shell, because environment.d does
+  not reach a shell over SSH, on a text console, or from `su -`. Both **append** `/etc/xdg`
+  last rather than defaulting to it: `:-` did nothing to a session that already exported a
+  list without it. Deleting either line silently removes the WezTerm configuration from
+  whichever half it covered (DD-038).
 - **A WezTerm colour scheme's name is its `[metadata] name`, not its filename.** That string
   is what `color_scheme` in `wezterm.lua` has to match; renaming the `.toml` changes nothing
   and editing the metadata breaks the reference. The build catches the second case
@@ -165,6 +170,15 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   it means adding the package or build step that supplies it — otherwise CI fails. CJK is
   `google-noto-sans-cjk-fonts` standing in for IBM Plex Sans SC/TC/JP, and the SC → TC → JP
   order decides which regional Han form is drawn; do not reorder it (DD-034).
+- **A guard may never test a variable the tools export.** This is the DD-037 rule and it
+  broke every nested shell once already: `starship init` exports `STARSHIP_SHELL` and
+  `atuin init` exports `ATUIN_SESSION`, so guarding on them asked "has any ancestor process
+  done this?" and a zsh started from bash got no prompt. Interactive setup guards on a
+  **function** (`_atuin_precmd`, `precmd_functions[(r)*starship*]`, `declare -F
+  starship_precmd`), which a child cannot inherit; the exported values in
+  `etc/profile.d/qubix-shell-env.sh` are re-resolved every time and matched against the
+  image's own literal path before being rewritten. The graphical session reads that file
+  too, which is why "once per shell" and "once per session" are not the same thing here.
 - **`LG_CONFIG_FILE` must not name a file that does not exist.** lazygit errors out on a
   missing path in that list rather than skipping it, which is why the block in
   `etc/profile.d/qubix-shell-env.sh` tests for the user's config before appending it. Do not

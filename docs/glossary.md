@@ -48,7 +48,7 @@ terms over synonyms.
 | **Quickshell** | The QtQuick-based shell toolkit DankMaterialShell is written against. |
 | **`qubix-default-shell`** | The boot service that gives an account which already exists zsh as its login shell, once per account. It exists because `/etc/passwd` is per machine and Aurora deletes `chsh` from the image (DD-035). See [`shell.md`](shell.md#the-login-shell). |
 | **Rebase** | Switching a machine to a different OS image (`rpm-ostree rebase`). How Qubix OS is installed and uninstalled. |
-| **`XDG_CONFIG_DIRS`** | The colon-separated list of *system* configuration directories, searched after the user's own. How WezTerm finds `/etc/xdg/wezterm/wezterm.lua`. WezTerm does not apply the spec's `/etc/xdg` default when the variable is unset, so this image states it (DD-034). |
+| **`XDG_CONFIG_DIRS`** | The colon-separated list of *system* configuration directories, searched after the user's own. How WezTerm finds `/etc/xdg/wezterm/wezterm.lua`. WezTerm does not apply the spec's `/etc/xdg` default when the variable is unset, so this image **appends** `/etc/xdg` to it — in `environment.d` for the systemd user manager's units, and in `/etc/profile.d` for every shell (DD-034, DD-038). |
 | **Recipe** | A `recipes/recipe*.yml` file: the declarative definition of one published image. Shared parts live in `recipes/common-*.yml`. |
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |
 | **SDDM** | The display manager (login screen). Lists sessions from `/usr/share/wayland-sessions/`, which is how Niri appears as a login choice. |

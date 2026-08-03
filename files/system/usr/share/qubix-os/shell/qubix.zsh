@@ -56,17 +56,30 @@ fi
 # Rebinds Ctrl-R and Up to a searchable history shared across every terminal.
 # Fully local: no account, no sync, no update check — configured entirely from the
 # environment in /etc/profile.d/qubix-shell-env.sh, so there is no per-user file to seed.
-# ATUIN_SESSION is set by `atuin init`, so this also protects against a double init if a
-# user has their own line for it.
-if (( $+commands[atuin] )) && [[ -z ${ATUIN_SESSION-} ]]; then
+#
+# GUARDED ON A FUNCTION, NOT ON ATUIN_SESSION. `atuin init zsh` runs
+# `export ATUIN_SESSION=$(atuin uuid)`, and an EXPORTED variable is inherited by every
+# child process — so testing it asked "has any ancestor of this shell initialised atuin",
+# and a zsh started from another shell skipped atuin entirely. Functions are not
+# inherited, which makes `_atuin_precmd` a true "has THIS shell been initialised" test.
+#
+# Nesting is atuin's own business and is left to it: its init re-issues ATUIN_SESSION
+# whenever $SHLVL changes, which is the bookkeeping the guard above was destroying.
+if (( $+commands[atuin] )) && (( ! $+functions[_atuin_precmd] )); then
     eval "$(atuin init zsh)"
 fi
 
 # ── starship — the prompt ─────────────────────────────────────────────────────
 # Config resolution is in /etc/profile.d/qubix-shell-env.sh: the image's prompt unless
-# ~/.config/starship.toml exists. STARSHIP_SHELL is set by `starship init`.
+# ~/.config/starship.toml exists.
 # Before the highlighter, so any widget starship defines is wrapped by it.
-if (( $+commands[starship] )) && [[ -z ${STARSHIP_SHELL-} ]]; then
+#
+# GUARDED ON THE PRECMD HOOK, NOT ON STARSHIP_SHELL, for the reason above: `starship init`
+# ends with `export STARSHIP_SHELL="zsh"`, so every child shell inherited it and went
+# without a prompt. `${precmd_functions[(r)…]}` is the first element matching the pattern,
+# and precmd_functions is a plain shell array — not inherited, and it names whichever
+# function this starship registered (`prompt_starship_precmd` today).
+if (( $+commands[starship] )) && [[ -z ${precmd_functions[(r)*starship*]} ]]; then
     eval "$(starship init zsh)"
 fi
 

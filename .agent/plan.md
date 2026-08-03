@@ -1078,6 +1078,84 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       stack and the Oxocarbon scheme on a fresh account
       *(open — needs a build and hardware)*
 
+- [ ] **IMG-026** — Stop guarding the shell setup on variables a child shell inherits
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Reported 2026-08-03: starship does not appear when zsh is started from bash,
+    or bash from zsh. **Reproduced from the source, not guessed.** Every guard in the
+    terminal environment tests an *exported* variable, and an exported variable is
+    inherited by every child process, so each guard reads "somebody, somewhere, once" when
+    it was written to mean "this shell, already".
+    - `starship init zsh` ends with `export STARSHIP_SHELL="zsh"`, and `starship init bash`
+      with `export STARSHIP_SHELL="bash"` — verified against starship's own
+      `--print-full-init` output. `qubix.bash` and `qubix.zsh` both skip `starship init`
+      when `STARSHIP_SHELL` is non-empty, so **no nested shell of any kind gets the
+      prompt**: zsh→bash, bash→zsh, and zsh→zsh alike.
+    - `atuin init zsh` does `export ATUIN_SESSION=$(atuin uuid)`, and `qubix.zsh` skips
+      atuin when that is set. atuin already handles nesting itself — its own guard is
+      `[[ -z "${ATUIN_SESSION:-}" || "${ATUIN_SHLVL:-}" != "$SHLVL" ]]` — so ours does
+      nothing but defeat it. A nested zsh gets no Ctrl-R search and no widgets.
+    - The same mistake in `/etc/profile.d/qubix-shell-env.sh` costs something subtler.
+      `STARSHIP_CONFIG`, `LG_CONFIG_FILE` and the `ATUIN_*` block are resolved from whether
+      the user has a config of their own, exported, and then never reconsidered — and the
+      **session itself** reads that file (SDDM's `wayland-session` sources `/etc/profile`),
+      so the answer is fixed at login and inherited by every terminal under it. "Create
+      `~/.config/starship.toml` and it wins", as the docs promise, has meant "log out and
+      back in".
+    The fix is one rule: **guard on something the shell cannot inherit.** Functions are not
+    inherited, so `prompt_starship_precmd` / `_atuin_precmd` are true per-shell tests; the
+    exported variables are instead re-resolved in every shell, and left alone whenever they
+    hold anything other than the image's own literal path.
+  - **Acceptance criteria:**
+    - starship initialises in every interactive shell, including one started from another
+      shell, in both directions and in both shells
+    - atuin initialises in every interactive zsh, and its own `$SHLVL` bookkeeping is left
+      to it
+    - Neither tool is initialised twice in one shell, including for a user who runs
+      `starship init` from `~/.zshenv`
+    - `STARSHIP_CONFIG`, `LG_CONFIG_FILE` and the `ATUIN_*` block are re-resolved in every
+      shell, so a config file created after login wins in the next shell rather than the
+      next session
+    - A value in any of those variables that is **not** the image's own is never touched
+    - DD-036's "the tools guard against double initialisation" consequence still holds
+    - `docs/shell.md`, a `DD-###` and `.agent/context/` cover it
+    - On the rebased image, `zsh` from bash and `bash` from zsh both come up with the
+      prompt *(open — needs a build and hardware)*
+
+- [ ] **IMG-027** — Make `XDG_CONFIG_DIRS` reach every shell, not only systemd's units
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Reported 2026-08-03 alongside IMG-026: the WezTerm theme is not applied.
+    `XDG_CONFIG_DIRS` is the only route to `/etc/xdg/wezterm/wezterm.lua` — WezTerm reads
+    that variable literally and does **not** fall back to the `/etc/xdg` the XDG base
+    directory specification calls the default (DD-034) — and the image sets it in exactly
+    one place, `/usr/lib/environment.d/50-qubix-terminal.conf`. That file has two holes:
+    - **environment.d only reaches what the systemd *user manager* starts.** A shell over
+      SSH, on a text console, or through `su -` is a child of sshd, of logind's TTY, or of
+      su — none of them the user manager — so none of them has the variable, and neither
+      does anything they launch.
+    - **`${XDG_CONFIG_DIRS:-/etc/xdg}` does nothing when the variable is already set.**
+      `:-` only fills in an *empty* value, so a session that exports a list without
+      `/etc/xdg` in it keeps that list and the system config stays unreachable. Plasma's
+      list does contain `/etc/xdg` (kde-settings), which is why this has not bitten in a
+      Plasma login; nothing guarantees the next session manager is as kind.
+    Both are fixed by appending rather than defaulting: `${XDG_CONFIG_DIRS:+…:}/etc/xdg` in
+    environment.d — the shape systemd's own man page gives for `LD_LIBRARY_PATH`, and `:+`
+    is confirmed supported there — and a membership-tested append in
+    `/etc/profile.d/qubix-shell-env.sh` for every shell environment.d cannot reach.
+    `/etc/xdg` goes **last** in both, so a session that put its own directories first keeps
+    its precedence.
+  - **Acceptance criteria:**
+    - `/etc/xdg` is present in `$XDG_CONFIG_DIRS` in every interactive shell, including one
+      reached over SSH or on a text console
+    - It is added to a list that lacks it, rather than only filling an empty one
+    - It is never added twice by the shell path, never removed, and never reordered ahead of
+      a directory the session chose
+    - No KDE behaviour changes: a Plasma login's list is already correct and is left as it is
+    - `docs/desktops.md`, `docs/shell.md`, DD-034's consequences and `.agent/context/` cover it
+    - On the rebased image, a WezTerm opened in either session comes up with the Oxocarbon
+      scheme and the Monaspace stack *(open — needs a build and hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time
