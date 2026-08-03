@@ -57,6 +57,28 @@ if [ ! -f "${XDG_CONFIG_HOME:-$HOME/.config}/atuin/config.toml" ]; then
     export ATUIN_STYLE
 fi
 
+# ── lazygit: the image's config, with the user's layered on top ───────────────
+# lazygit reads one config path of its own (~/.config/lazygit/config.yml) and has no
+# system-wide location. LG_CONFIG_FILE replaces that path with a comma-separated LIST in
+# which LATER FILES OVERRIDE EARLIER ONES KEY BY KEY — so naming the image's file first and
+# the user's second gives a better relationship than starship's all-or-nothing: overriding
+# one colour keeps the rest.
+#
+# THE USER'S PATH IS ONLY ADDED WHEN IT EXISTS. A path in LG_CONFIG_FILE that is missing is
+# an error in lazygit (ConfigFilePolicyErrorIfMissing), not a skip, so naming it
+# unconditionally would break lazygit for everyone who has no config of their own.
+#
+# Guarded on LG_CONFIG_FILE being unset, so an export in a user's own rc file wins. Note
+# that this is resolved once per shell: create ~/.config/lazygit/config.yml and the next
+# shell picks it up.
+if [ -z "${LG_CONFIG_FILE:-}" ] && [ -f /usr/share/qubix-os/lazygit/config.yml ]; then
+    LG_CONFIG_FILE=/usr/share/qubix-os/lazygit/config.yml
+    if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/lazygit/config.yml" ]; then
+        LG_CONFIG_FILE="${LG_CONFIG_FILE},${XDG_CONFIG_HOME:-$HOME/.config}/lazygit/config.yml"
+    fi
+    export LG_CONFIG_FILE
+fi
+
 # ── bash: the interactive setup ───────────────────────────────────────────────
 # Last, because it is the only part that is not plain environment. zsh does NOT come
 # through here — /etc/zshenv sources its half directly, outside the ksh emulation above.

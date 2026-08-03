@@ -1,0 +1,76 @@
+# Qubix OS — the default lazygit configuration.
+#
+# Read by: lazygit, because LG_CONFIG_FILE names this file. That variable is set in
+#          /etc/profile.d/qubix-shell-env.sh.
+#
+# lazygit reads exactly ONE config path of its own — ~/.config/lazygit/config.yml — and has
+# no system-wide location. LG_CONFIG_FILE replaces that path with a comma-separated LIST,
+# and later files override earlier ones key by key, so the profile.d block names this file
+# first and yours second:
+#
+#     LG_CONFIG_FILE=/usr/share/qubix-os/lazygit/config.yml,$HOME/.config/lazygit/config.yml
+#
+# YOUR FILE THEREFORE WINS PER KEY, not wholesale: override one colour and you keep the
+# rest of this file. Create it and it is picked up by the next shell you open:
+#
+#     mkdir -p ~/.config/lazygit && $EDITOR ~/.config/lazygit/config.yml
+#
+# The user half is only added WHEN THAT FILE EXISTS — lazygit errors out on a config path in
+# LG_CONFIG_FILE that is missing (ConfigFilePolicyErrorIfMissing). Nothing here is ever
+# written to: the only writer in lazygit is SaveGlobalUserConfig, which is integration-test
+# code and refuses to run with more than one config file, so a config in read-only /usr is
+# safe.
+#
+# Every option, with its default: https://github.com/jesseduffield/lazygit/blob/master/docs/Config.md
+#
+# See docs/shell.md and docs/design-decisions.md DD-032.
+
+gui:
+  # Icons for files, branches and commit types. lazygit defaults this to empty — meaning NO
+  # icons — because upstream cannot know whether a Nerd Font is installed. This image can:
+  # cascadia-mono-nf-fonts is in the package list, and WezTerm bundles a symbols fallback
+  # of its own (DD-026). "3" is the current Nerd Font glyph revision.
+  nerdFontsVersion: "3"
+
+  # The project palette, from the same #56728B as the Niri session and DankMaterialShell
+  # (/etc/niri/qubix-theme.kdl, DD-022). Structure holds hue 208 / saturation 24% and moves
+  # only lightness; accents are hsl(h, 55%, 50%).
+  #
+  #   #56728B  base      the focused panel's border
+  #   #3A4E5F  muted     every other panel's border
+  #   #7490A9  raised    the keybinding hints along the bottom
+  #   #2B3945  recessed  the selected line's background
+  #   #C67B39  urgent    search, and the commit marked as a rebase base
+  #   #C63939  red       unstaged changes
+  #
+  # Each value is a LIST — colour first, then any of bold/underline/reverse/strikethrough.
+  # Hex is accepted (pkg/theme/style.go falls through to IsValidHexValue), and an
+  # unrecognised value is SILENTLY IGNORED rather than reported, so check a colour you
+  # change actually took effect.
+  theme:
+    activeBorderColor:
+      - "#56728B"
+      - bold
+    inactiveBorderColor:
+      - "#3A4E5F"
+    searchingActiveBorderColor:
+      - "#C67B39"
+      - bold
+    optionsTextColor:
+      - "#7490A9"
+    selectedLineBgColor:
+      - "#2B3945"
+    cherryPickedCommitFgColor:
+      - "#DCE3EA"
+    cherryPickedCommitBgColor:
+      - "#56728B"
+    markedBaseCommitFgColor:
+      - "#1B242C"
+    markedBaseCommitBgColor:
+      - "#C67B39"
+    unstagedChangesColor:
+      - "#C63939"
+    # Left as lazygit's own default: `default` means the terminal's foreground colour, so
+    # ordinary text follows the terminal's theme rather than being pinned by this image.
+    defaultFgColor:
+      - default

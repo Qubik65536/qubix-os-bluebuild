@@ -83,6 +83,8 @@ substitution.
   | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on. **Replaces** shadow-utils' copy (DD-030) |
   | `/usr/share/qubix-os/shell/` | The interactive shell configuration itself (DD-026) |
   | `/usr/share/qubix-os/starship.toml` | The prompt, used unless the user has their own (DD-026) |
+  | `/usr/share/qubix-os/lazygit/config.yml` | lazygit's icons and palette, reached through `LG_CONFIG_FILE`; the user's config merges *over* it (DD-032) |
+  | `/etc/zellij/config.kdl` | The zellij theme. `/etc/zellij` is zellij's only system-wide config dir, and `~/.config/zellij/` shadows it (DD-033) |
   | `/etc/fastfetch/config.jsonc` | The fastfetch box. fastfetch has no `/usr` config path, and `~/.config/fastfetch/` still wins (DD-031) |
   | `/usr/share/qubix-os/fastfetch/retune.sh` | Re-derives the box's columns after a logo change. Run by hand (DD-031) |
 
@@ -110,7 +112,7 @@ substitution.
       [micro, starship, wezterm, niri, dms,
        material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist,
        zsh, zsh-autosuggestions, zsh-syntax-highlighting, atuin, bat, yazi, fastfetch,
-       neovim, ripgrep, fd-find, fzf, lazygit, git, cascadia-mono-nf-fonts]
+       neovim, ripgrep, fd-find, fzf, git, lazygit, cascadia-mono-nf-fonts]
   remove:
     packages: [firefox, firefox-langpacks]
 ```
@@ -130,7 +132,7 @@ COPR repositories in use:
 | `avengemedia/dms` | DankMaterialShell's authors | `dms`, `dms-cli` | Not in Fedora (DD-015) |
 | `avengemedia/danklinux` | DankMaterialShell's authors | `quickshell`, `dgop`, `matugen`, `material-symbols-fonts`, `cliphist`, … | `dms`'s runtime dependencies. **Required together with `avengemedia/dms`** — without it `dms` is uninstallable |
 | `lihaohong/yazi` | third party | `yazi` | Not in Fedora's main repos (DD-026) |
-| `atim/lazygit` | third party | `lazygit` | Not in Fedora's main repos. Same maintainer as `atim/starship` (DD-026) |
+| `atim/lazygit` | third party | `lazygit` | Not in Fedora's main repos. Same maintainer as `atim/starship` (DD-026, DD-032) |
 
 The terminal-environment packages, and why each is there:
 
@@ -143,7 +145,8 @@ The terminal-environment packages, and why each is there:
 | `yazi` | Terminal file browser, wrapped as `y` so quitting changes the shell's directory |
 | `fastfetch` | System information, on demand. Nothing runs it automatically; the configuration is `/etc/fastfetch/config.jsonc` in the overlay (DD-031) |
 | `neovim` | The editor and `$EDITOR`, configured with LazyVim (DD-027) |
-| `ripgrep`, `fd-find`, `fzf`, `lazygit`, `git` | What LazyVim's default keymaps shell out to. Without them the keys exist and do nothing |
+| `ripgrep`, `fd-find`, `fzf`, `git` | What LazyVim's default keymaps shell out to. Without them the keys exist and do nothing |
+| `lazygit` | Git in a terminal UI, in its own right as well as behind LazyVim's `<leader>gg`. Configured from `/usr/share/qubix-os/lazygit/config.yml` through `LG_CONFIG_FILE`, and wrapped as `lg` (DD-032) |
 | `cascadia-mono-nf-fonts` | A Nerd Font, so the prompt's glyphs resolve outside WezTerm (which bundles its own fallback) |
 
 - **Ordering:** must precede `default-flatpaks` so the Firefox RPM is gone before the
@@ -187,9 +190,10 @@ No `repo` is specified, so Flathub is used by default.
   browser is set by `/etc/xdg/mimeapps.list` and `/etc/xdg/kdeglobals` in the overlay
   (DD-023).
 
-### 4. `containerfile` — zsh completions and login-shell check
+### 4. `containerfile` — build steps no module covers
 
-*Defined in `common-base.yml`. Two snippets.*
+*Defined in `common-base.yml`. Three snippets: zsh completions, the login-shell assertion,
+and zellij.*
 
 ```yaml
 - type: containerfile
@@ -206,6 +210,14 @@ No `repo` is specified, so Flathub is used by default.
           ls /usr/share/zsh/site-functions | wc -l
     - |
       RUN grep -qx '/usr/bin/zsh' /etc/shells
+    - |
+      RUN set -eu; \
+          ver=0.44.3; \
+          sha=a675b0106263113b9cb8f028649bad05c5d2283331fa62b2b36dd275aeaaa4d3; \
+          … download zellij-no-web-x86_64-unknown-linux-musl.tar.gz, \
+            sha256sum -c the extracted binary, install it to /usr/bin, \
+            generate the zsh and bash completions, \
+            assert `zellij setup --check` resolves and parses /etc/zellij/config.kdl
 ```
 
 The second snippet is an assertion, not a change: zsh's `%post` appends itself to
@@ -228,8 +240,30 @@ not for the current Fedora, not for any. Checked against the COPR API rather tha
   using zsh-completions means, not a bug to fix.
 - The trailing `ls | wc -l` is there so the build log shows how many completion functions
   landed; a clone that produced nothing would otherwise pass silently.
-- **Ordering:** after `dnf`, which installs `zsh` and `git`. Before the identity rewrite,
-  though nothing forces that.
+
+The third installs **zellij**, which is neither a Fedora package nor available from a COPR
+anyone upstream endorses (DD-033), so it comes from upstream's own release the same way
+zsh-completions comes from upstream's own tag:
+
+- **`no-web` build.** zellij 0.43 added a local web server. It is off by default; this build
+  is compiled without the capability, so it is absent rather than disabled.
+- **The hash is the pin.** The published `.sha256sum` covers the **binary inside** the
+  tarball, so `sha256sum -c` is run against the extracted file. **Bumping the version means
+  changing both lines**, from the release's `.sha256sum` file.
+- **`HOME` is redirected** into the temp directory for every `zellij` invocation, because
+  zellij creates a cache directory on startup and the build container's `/root` must not end
+  up in the image.
+- **Completions are generated by the binary that ships**, into `/usr/share/zsh/site-functions`
+  and `/usr/share/bash-completion/completions`, so they can never describe a different
+  version.
+- **The last two `grep`s are the point.** `zellij setup --check` prints the config file it
+  resolved and whether it parsed, and it exits 0 either way — so the greps turn a malformed
+  `/etc/zellij/config.kdl`, or a config directory zellij would not have looked in, into a
+  build failure instead of a surprise at someone's first login.
+
+- **Ordering:** after `dnf`, which installs `zsh` and `git`; after the `files` module, which
+  ships `/etc/zellij/config.kdl` for the check above. Before the identity rewrite, though
+  nothing forces that.
 
 ### 5. `containerfile` — raw build steps
 

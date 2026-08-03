@@ -809,6 +809,111 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image, `fastfetch` draws a square box on a fresh account
       *(open — needs a build and hardware)*
 
+- [ ] **IMG-021** — Make lazygit a tool in its own right, not a LazyVim dependency
+  - **Category:** Image content
+  - **Depends on:** IMG-015
+  - **Notes:** Requested 2026-08-02. `lazygit` is **already installed** — IMG-015 added it
+    from COPR `atim/lazygit`, but only as one of the binaries LazyVim's `<leader>gg` shells
+    out to. It appears in no tool table, has no configuration, and nothing tells a user it
+    is there. This task promotes it.
+    Two things the image knows and a user's bare lazygit does not:
+    - **A Nerd Font is installed** (`cascadia-mono-nf-fonts`, DD-026). lazygit shows file
+      and branch icons only when `gui.nerdFontsVersion` is set — it defaults to empty,
+      meaning *no icons*, because upstream cannot assume the font.
+    - **The project palette** (`#56728B`, DD-022). lazygit's theme keys accept hex; verified
+      in `pkg/theme/style.go`, where a value is looked up in `ColorMap` and otherwise passed
+      to `utils.IsValidHexValue` — and an unrecognised value is *silently ignored*, so a
+      typo dims a border rather than failing to start.
+    **How the config is delivered** decided the shape. lazygit reads exactly one path,
+    `~/.config/lazygit/config.yml`, and there is no system-wide location — but
+    `LG_CONFIG_FILE` takes a **comma-separated list**, and later files override earlier ones
+    key by key. So the image's config goes first and the user's second, which is a better
+    relationship than starship's all-or-nothing: a user overriding one colour keeps the
+    rest. Verified in `pkg/config/app_config.go`: paths from `LG_CONFIG_FILE` carry
+    `ConfigFilePolicyErrorIfMissing`, so the user's path may only be appended **when it
+    exists**, and `SaveGlobalUserConfig` (the only writer) is integration-test-only and
+    panics on multiple files — so a config in read-only `/usr` is safe.
+    Upstream's `lg` wrapper (README, "Changing Directory On Exit") makes the shell follow
+    lazygit when you switch repos inside it and quit with `q`. It is the same trade as
+    yazi's `y`, so it is shipped the same way — with `mktemp` instead of upstream's
+    `~/.lazygit/newdir`, so nothing is left in `$HOME`.
+  - **Acceptance criteria:**
+    - `lazygit` is listed and commented as a tool of its own in `common-base.yml`, still
+      noting that LazyVim's `<leader>gg` needs it
+    - The shipped config sets the Nerd Font version and the `#56728B` palette, and lives in
+      `/usr` — nothing is written to `$HOME`
+    - `LG_CONFIG_FILE` is set only when the user has not set it, and names the user's own
+      config **only when that file exists**, so lazygit never errors on a missing path
+    - A user's `~/.config/lazygit/config.yml` overrides the image's key by key, and deleting
+      it returns to the image's
+    - `lg` runs lazygit in both shells and leaves the shell in the repo lazygit was last in
+    - `docs/shell.md`, a `DD-###`, `docs/recipe-reference.md`, `docs/overview.md` and
+      `.agent/context/` cover it
+    - On the rebased image, `lg` works and lazygit shows icons on a fresh account
+      *(open — needs a build and hardware)*
+
+- [ ] **IMG-022** — Ship zellij, the terminal multiplexer
+  - **Category:** Image content
+  - **Depends on:** IMG-015
+  - **Notes:** Requested 2026-08-02.
+    **Where it comes from was the whole question.** Established rather than assumed:
+    - **Fedora does not package zellij** — no `zellij` or `rust-zellij` in dist-git, and
+      repology lists no Fedora or Terra build.
+    - **Upstream endorses no COPR.** zellij's README and installation page give no Fedora
+      instructions at all, unlike yazi, whose own docs point at `lihaohong/yazi` (DD-026).
+    - The COPRs that exist are thin: `varlad/zellij` is stuck on 0.42.2 from July 2025,
+      `boobaa/zellij` has one successful build, `frodo/zellij` has six since March 2026 and
+      one of them failed. Enabling any of them adds a party who can run scriptlets in
+      **every** Qubix image, for one tool.
+    So: upstream's own release artifact, pinned by version and asserted by SHA-256 — the
+    pattern DD-026 already uses for zsh-completions. The published `.sha256sum` is the hash
+    of the **binary inside** the tarball, not of the tarball, so the assertion is on the
+    artifact that ships.
+    **The `no-web` build, deliberately.** zellij 0.43 added a local web server (`zellij web`,
+    `web_sharing`); it is off by default, but upstream also publishes a build compiled
+    without `web_server_capability`, which makes it unavailable rather than merely disabled.
+    That is the right default for an image that promises atuin is local and calls out
+    fastfetch's one network row (DD-031). It is also 4 MB smaller.
+    **Configuration.** `SYSTEM_DEFAULT_CONFIG_DIR` is `/etc/zellij` (verified in
+    `zellij-utils/src/consts.rs`), and `find_default_config_dir()` returns the **first
+    existing** directory of `~/.config/zellij` → `$XDG_CONFIG_HOME/zellij` → `/etc/zellij`,
+    so a user's directory shadows the image's wholesale — the DD-031 relationship again,
+    with no wiring. Nothing auto-creates `~/.config/zellij`:
+    `try_create_home_config_dir()` has no caller in the binary's path.
+    **The theme is written in zellij's named-style form, not its 11-colour palette form**,
+    and that was not the first choice. The palette form is four lines shorter, but
+    `impl From<Palette> for Styling` (`zellij-utils/src/data.rs`) maps the names to *roles*:
+    `green` becomes the focused pane frame and the selected ribbon's background, `blue` is
+    used for one emphasis and one player colour. Feeding it `blue "#56728B"` would have hidden
+    the project colour almost entirely, and six colours the mapping also reads — `gold`,
+    `silver`, `purple`, `brown`, `pink`, `gray` — are not settable in that form at all, so
+    they would have stayed at zellij's defaults. Naming the elements costs lines and leaves
+    nothing to chance. Hex strings are accepted in both forms (`is_six_digit_hex`).
+    **The accents are lifted from DD-022's `hsl(h, 55%, 50%)` to `hsl(h, 55%, 68%)`**,
+    because in zellij every accent is text on a dark surface and the L50 row does not clear
+    WCAG AA there (magenta 3.6:1, red 3.0:1 on `#1B242C`). At L68 all six clear 4.5:1 on
+    both backgrounds this theme puts text on.
+    `copy_command` is left unset on purpose: the default is OSC 52, which WezTerm supports
+    and which keeps working over SSH, whereas `wl-copy` would tie copy to a local Wayland
+    session and to a package this image does not install.
+  - **Acceptance criteria:**
+    - `zellij` is installed from upstream's `no-web` musl release, pinned by version and
+      verified by the published SHA-256 of the binary, so a changed artifact fails the build
+    - Nothing starts zellij automatically — no shell hook, no autostart script
+    - The config lands at `/etc/zellij/config.kdl`, is themed from the `#56728B` palette, and
+      `~/.config/zellij/` still shadows it with no per-user setup
+    - Every UI element zellij can colour is set explicitly — nothing falls back to zellij's
+      own theme — and every text pair clears WCAG AA (4.5:1), with the ratios written down;
+      the one pair that does not is a frame line, states its ratio, and says why
+    - The build asserts that zellij resolves `/etc/zellij/config.kdl` **and** parses it, so a
+      broken KDL fails CI rather than a login
+    - zsh and bash completions are installed, generated by the binary that ships
+    - Nothing is left in the build container's `$HOME`
+    - `docs/shell.md`, a `DD-###`, `docs/recipe-reference.md`, `docs/overview.md`,
+      `docs/glossary.md` and `.agent/context/` cover it, including how to bump the version
+    - On the rebased image, `zellij` starts with the Qubix theme on a fresh account
+      *(open — needs a build and hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

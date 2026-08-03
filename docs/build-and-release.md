@@ -162,6 +162,15 @@ BlueBuild action's changelog before merging — a major bump can change module s
      `zsh-completions` tag no longer points at the pinned commit, or the clone failed. The
      assertion is doing its job: check the tag upstream, then update **both** the tag and
      the hash in `common-base.yml`. Do not remove the check. See DD-026.
+   - **`sha256sum: WARNING: 1 computed checksum did NOT match`** (both variants) → the
+     zellij release artifact is not the one that was pinned. Either the download was
+     truncated, or upstream replaced the asset. Re-run first; if it repeats, check the
+     release's `.sha256sum` file and update **both** the version and the hash in
+     `common-base.yml`. Do not relax the check. See DD-033.
+   - **`grep -qF '[CONFIG FILE]: Well defined.'` failed** (both variants) → the KDL in
+     `files/system/etc/zellij/config.kdl` does not parse, or zellij did not resolve
+     `/etc/zellij` as its config directory. The preceding `zellij setup --check` output is
+     in the build log and names the error. See DD-033.
    - **Disk space** → confirm `maximize_build_space: true` is still set. Two images per
      run makes this likelier, but each job gets its own runner.
    - **Signing failure** → `SIGNING_SECRET` missing, malformed, or rotated.

@@ -32,6 +32,7 @@ terms over synonyms.
 | **initramfs** | The RAM filesystem the kernel boots into before mounting the real root. Regenerated at build time by the `initramfs` module, which the kernel-swapping variant requires. |
 | **KDL** | The configuration language niri uses (<https://kdl.dev>). Braces and nodes, not YAML. |
 | **Kinoite** | Fedora's official immutable KDE Plasma variant. Aurora's base. |
+| **lazygit** | A terminal UI over git. Wrapped as `lg`, so quitting after switching repositories leaves the shell in the new one. Its config is the only one here that *merges* with the user's, through `LG_CONFIG_FILE` (DD-032). See [`shell.md`](shell.md). |
 | **LazyVim** | A Neovim configuration distribution. Not shipped: `~/.config/nvim` is the user's, cloned from upstream's starter by hand, so `:Lazy update` updates the plugins and `git pull` the config (DD-030). See [`shell.md`](shell.md). |
 | **Look-and-feel package** | A KDE Plasma theme bundle under `/usr/share/plasma/look-and-feel/`. Aurora's contains the startup splash this image overrides. |
 | **matugen** | Generates a Material colour scheme from the wallpaper. DankMaterialShell uses it to theme itself and niri. |
@@ -61,4 +62,5 @@ terms over synonyms.
 | **WezTerm** | The GPU-accelerated terminal emulator set as the default in every session (DD-012). Not packaged in Fedora; layered from WezTerm's own COPR. |
 | **x86-64-v3** | A microarchitecture level (AVX2-era CPUs and newer). The default CachyOS kernel is built for it and will not boot on older hardware. |
 | **yazi** | A terminal file browser. Wrapped as `y`, so quitting leaves the shell in the directory it was last in (DD-026). |
+| **zellij** | The terminal multiplexer: panes, tabs, and detachable sessions. Installed from upstream's pinned `no-web` release because Fedora does not package it and upstream endorses no COPR; themed in `/etc/zellij/config.kdl`, and nothing starts it automatically (DD-033). See [`shell.md`](shell.md). |
 | **zsh plugins** | `zsh-autosuggestions`, `zsh-syntax-highlighting` and `zsh-completions`. Loaded from `/usr/share/qubix-os/shell/qubix.zsh`, highlighting **last** (DD-026). See [`shell.md`](shell.md). |

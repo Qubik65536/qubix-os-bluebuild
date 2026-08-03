@@ -1,0 +1,246 @@
+// Qubix OS — the system-wide zellij configuration.
+//
+// Read by: zellij, on every start.
+//
+// WHY /etc AND NOT /usr, where the rest of the shell configuration lives. zellij looks for
+// a config directory in exactly this order (zellij-utils/src/home.rs), and takes the FIRST
+// ONE THAT EXISTS:
+//
+//     ~/.config/zellij  →  $XDG_CONFIG_HOME/zellij  →  /etc/zellij
+//
+// `/etc/zellij` is zellij's own SYSTEM_DEFAULT_CONFIG_DIR (zellij-utils/src/consts.rs).
+// There is no /usr entry and no environment variable for the config path, so this is the
+// only system-wide location — the same situation as fastfetch (DD-031), and a pure
+// addition rather than a replacement of an upstream file.
+//
+// YOUR OWN CONFIG STILL WINS, WHOLESALE. Because the search stops at the first directory
+// that exists, ~/.config/zellij/config.kdl REPLACES this file rather than merging with it.
+// Nothing creates that directory for you, so start from this one:
+//
+//     mkdir -p ~/.config/zellij
+//     cp /etc/zellij/config.kdl ~/.config/zellij/config.kdl
+//
+// Edit the copy, not this file: /etc is three-way merged on update, so a file edited here
+// stops receiving image changes.
+//
+// NOTHING STARTS ZELLIJ. There is no shell hook and no autostart script — `zellij` is a
+// command you type, and `zellij attach` comes back to a session you left. zellij ships an
+// auto-start script (`zellij setup --generate-auto-start zsh`) and this image deliberately
+// does not install it.
+//
+// Every option zellij accepts, with its default and its documentation:
+//
+//     zellij setup --dump-config
+//
+// See docs/shell.md and docs/design-decisions.md DD-033.
+
+// ── The palette ───────────────────────────────────────────────────────────────
+// The same palette as the Niri session (/etc/niri/qubix-theme.kdl) and DankMaterialShell
+// (/usr/share/qubix-os/dms-theme.json): everything derives from ONE hex, #56728B =
+// hsl(208, 24%, 44%). Change one, change the others. DD-022.
+//
+// STRUCTURE holds hue 208 and saturation 24% and moves only lightness, so every surface is
+// the same colour at a different depth:
+//
+//   #11171C   L  9%   deepest    text on the light ribbon
+//   #1B242C   L 14%   flat       the status bar, tab bar, and unselected rows
+//   #2B3945   L 22%   recessed   the selected row
+//   #3A4E5F   L 30%   muted      (unused here; kept so the ramp is complete)
+//   #56728B   L 44%   BASE       the unfocused pane frame
+//   #7490A9   L 56%   raised     the focused pane frame, and the selected ribbon
+//   #DCE3EA   L 89%   light      body text
+//
+// ACCENTS are the one place hue changes: hsl(h, 55%, 68%).
+//
+//   red     #DA8181      orange  #DAAA81      yellow  #DAC881
+//   green   #81DA9E      cyan    #81CEDA      magenta #DA81DA
+//
+// THE LIGHTNESS IS 68%, NOT THE 50% OF DD-022's URGENT COLOUR, and that is deliberate: in
+// zellij every accent is TEXT on a dark surface, and the L50 row does not clear WCAG AA
+// there — magenta reaches 3.6:1 and red 3.0:1 against #1B242C. At L68 all six clear 4.5:1
+// on both #1B242C and #2B3945, which are the only two backgrounds this theme puts text on.
+// Each ratio is written next to the colour below; recompute them if you change a tone.
+//
+// The one place AA is NOT met is the unfocused pane frame (#56728B on the terminal
+// background, 3.1:1). It is a line and a deliberately recessive title, it clears the 3:1
+// that WCAG asks of non-text, and lifting it would make an unfocused pane compete with the
+// focused one. The focused frame is one step up the ramp for exactly the opposite reason:
+// its title has to be readable, and #7490A9 clears 4.7:1.
+
+// ── The theme ─────────────────────────────────────────────────────────────────
+// This is zellij's NAMED-STYLE form, not the eleven-colour palette form. The palette form
+// is shorter, but it maps names to roles rather than to hues — `green` becomes the focused
+// frame and the selected ribbon's background, `blue` is barely used — so #56728B would end
+// up nearly invisible, and six colours zellij also needs (gold, silver, purple, brown,
+// pink, gray) would silently stay at zellij's defaults. Naming the elements costs more
+// lines and leaves nothing to chance.
+//
+// Every block takes `base` (the text), `background`, and `emphasis_0…3` (the highlights
+// inside it — keybinding letters and the like). `base` and all four emphases are REQUIRED
+// once a block is present; a block that is absent falls back to zellij's own default theme.
+themes {
+    qubix {
+        // Body text in every plugin pane: the status bar, the tab bar, the session
+        // manager. This is most of what you look at.
+        text_unselected {
+            base "#DCE3EA" // 12.2:1
+            background "#1B242C"
+            emphasis_0 "#DAAA81" // orange   7.5:1
+            emphasis_1 "#81CEDA" // cyan     8.8:1
+            emphasis_2 "#81DA9E" // green    9.3:1
+            emphasis_3 "#DA81DA" // magenta  6.1:1
+        }
+
+        // The same text, on the row under the cursor.
+        text_selected {
+            base "#DCE3EA" // 9.1:1
+            background "#2B3945"
+            emphasis_0 "#DAAA81" // 5.7:1
+            emphasis_1 "#81CEDA" // 6.6:1
+            emphasis_2 "#81DA9E" // 7.0:1
+            emphasis_3 "#DA81DA" // 4.6:1
+        }
+
+        // Ribbons are the blocks along the status bar: the input modes, and the tabs.
+        // An inactive one is flat against the bar and dimmer than body text.
+        ribbon_unselected {
+            base "#7490A9" // 4.7:1
+            background "#1B242C"
+            emphasis_0 "#DAAA81"
+            emphasis_1 "#81CEDA"
+            emphasis_2 "#81DA9E"
+            emphasis_3 "#DA81DA"
+        }
+
+        // The active mode — the one ribbon that must be found at a glance, so it inverts:
+        // a solid block of the palette's raised tone with the deepest tone as text.
+        // ITS EMPHASES ARE TONES, NOT HUES. No accent hue clears AA on a surface this
+        // light (the best, deep red, reaches 3.8:1), so the highlights use depth instead.
+        ribbon_selected {
+            base "#11171C" // 5.4:1
+            background "#7490A9"
+            emphasis_0 "#11171C" // 5.4:1
+            emphasis_1 "#1B242C" // 4.7:1
+            emphasis_2 "#11171C"
+            emphasis_3 "#1B242C"
+        }
+
+        // The session manager's table: its heading, then its rows.
+        table_title {
+            base "#81CEDA" // 8.8:1
+            background "#1B242C"
+            emphasis_0 "#DAAA81"
+            emphasis_1 "#81DA9E"
+            emphasis_2 "#DA81DA"
+            emphasis_3 "#DCE3EA"
+        }
+        table_cell_unselected {
+            base "#DCE3EA"
+            background "#1B242C"
+            emphasis_0 "#DAAA81"
+            emphasis_1 "#81CEDA"
+            emphasis_2 "#81DA9E"
+            emphasis_3 "#DA81DA"
+        }
+        table_cell_selected {
+            base "#DCE3EA"
+            background "#2B3945"
+            emphasis_0 "#DAAA81"
+            emphasis_1 "#81CEDA"
+            emphasis_2 "#81DA9E"
+            emphasis_3 "#DA81DA"
+        }
+
+        // Lists inside plugins — the session picker, the plugin manager.
+        list_unselected {
+            base "#DCE3EA"
+            background "#1B242C"
+            emphasis_0 "#DAAA81"
+            emphasis_1 "#81CEDA"
+            emphasis_2 "#81DA9E"
+            emphasis_3 "#DA81DA"
+        }
+        list_selected {
+            base "#DCE3EA"
+            background "#2B3945"
+            emphasis_0 "#DAAA81"
+            emphasis_1 "#81CEDA"
+            emphasis_2 "#81DA9E"
+            emphasis_3 "#DA81DA"
+        }
+
+        // Pane frames. These are the closest thing zellij has to niri's focus ring, and
+        // they carry the pane title, so both tones sit one step above niri's: the focused
+        // frame is `raised` so its title clears AA, the unfocused one is the base tone and
+        // stays recessive. No `background` — the pane's own background shows through.
+        frame_unselected {
+            base "#56728B" // 3.1:1 — a line and a quiet title, see the note above
+            emphasis_0 "#7490A9"
+            emphasis_1 "#81CEDA"
+            emphasis_2 "#DAAA81"
+            emphasis_3 "#DA81DA"
+        }
+        frame_selected {
+            base "#7490A9" // 4.7:1
+            emphasis_0 "#DCE3EA"
+            emphasis_1 "#81CEDA"
+            emphasis_2 "#DAAA81"
+            emphasis_3 "#DA81DA"
+        }
+
+        // A frame that wants attention: searching, renaming, a pinned floating pane.
+        // The urgent hue, the same one niri uses for an urgent window (DD-022).
+        frame_highlight {
+            base "#DAAA81" // 7.5:1
+            emphasis_0 "#DA81DA"
+            emphasis_1 "#DAC881"
+            emphasis_2 "#DAAA81"
+            emphasis_3 "#DCE3EA"
+        }
+
+        // How a command pane reports what happened when the command finished.
+        exit_code_success {
+            base "#81DA9E" // 9.3:1
+            emphasis_0 "#81CEDA"
+            emphasis_1 "#DCE3EA"
+            emphasis_2 "#DA81DA"
+            emphasis_3 "#7490A9"
+        }
+        exit_code_error {
+            base "#DA8181" // 5.6:1
+            emphasis_0 "#DAC881"
+            emphasis_1 "#DAAA81"
+            emphasis_2 "#DA81DA"
+            emphasis_3 "#7490A9"
+        }
+
+        // Other people's cursors, when more than one client is attached to a session —
+        // two terminals running `zellij attach`, for instance. Set so nothing in this
+        // theme falls back to zellij's defaults.
+        multiplayer_user_colors {
+            player_1 "#DA81DA"
+            player_2 "#81CEDA"
+            player_3 "#DAAA81"
+            player_4 "#81DA9E"
+            player_5 "#DAC881"
+            player_6 "#7490A9"
+            player_7 "#DA8181"
+            player_8 "#DCE3EA"
+            player_9 "#56728B"
+            player_10 "#DAC881"
+        }
+    }
+}
+
+theme "qubix"
+
+// ── Copying ───────────────────────────────────────────────────────────────────
+// `copy_command` is deliberately NOT set. Unset means zellij copies with OSC 52, which the
+// terminal itself executes: WezTerm (the default terminal here, DD-012) supports it, and it
+// keeps working when zellij is running on the other end of an SSH connection, where a local
+// clipboard tool cannot help.
+//
+// If your terminal does not support OSC 52, this is the one-line fix — in YOUR copy of this
+// file. It needs wl-clipboard, which this image does not install.
+//
+//     copy_command "wl-copy"

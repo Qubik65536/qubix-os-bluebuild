@@ -43,8 +43,9 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Identity | `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` rewritten to Qubix OS | `recipe.yml` (containerfile snippet) |
 | Branding | Distro logos, banners, Plymouth boot watermark, KDE splash and "About this system" | `files/system/usr/share/**` |
 | Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `dms` + fonts + `cliphist` (Niri's shell, from COPR) | `recipe.yml` (`dnf`) |
-| Terminal environment | `zsh` + its plugins, `atuin`, `bat`, `yazi` (from COPR), `fastfetch`, `neovim` and what LazyVim calls; `zsh-completions` from a pinned upstream tag | `recipe.yml` (`dnf`, `containerfile`) |
-| Shell configuration | starship initialised at last, plugins loaded, atuin made explicitly local, `cat`→`bat`, `y`→yazi. System files only — nothing is written to `$HOME` (DD-026, DD-030) | `files/system/etc/profile.d/`, `files/system/etc/zshenv`, `files/system/usr/share/qubix-os/shell/` |
+| Terminal environment | `zsh` + its plugins, `atuin`, `bat`, `yazi` (from COPR), `lazygit` (from COPR), `fastfetch`, `neovim` and what LazyVim calls; `zsh-completions` from a pinned upstream tag | `recipe.yml` (`dnf`, `containerfile`) |
+| Multiplexer | `zellij`, from upstream's pinned `no-web` release — not packaged by Fedora and endorsed by no COPR. Nothing starts it (DD-033) | `recipe.yml` (`containerfile`), `files/system/etc/zellij/config.kdl` |
+| Shell configuration | starship initialised at last, plugins loaded, atuin made explicitly local, `cat`→`bat`, `y`→yazi, `lg`→lazygit. System files only — nothing is written to `$HOME` (DD-026, DD-030) | `files/system/etc/profile.d/`, `files/system/etc/zshenv`, `files/system/usr/share/qubix-os/shell/` |
 | System information | fastfetch's box, as the system-wide default. Run by hand, never automatically; `~/.config/fastfetch/` still wins (DD-031) | `files/system/etc/fastfetch/config.jsonc` |
 | Editor | Neovim is `$EDITOR`. Its config is not shipped: `~/.config/nvim` is the user's, from a one-line `git clone` (DD-030) | `files/system/etc/profile.d/qubix-shell-env.sh` |
 | Login shell | zsh for accounts created from now on; one `chsh` for one that already exists (DD-030) | `files/system/etc/default/useradd` |

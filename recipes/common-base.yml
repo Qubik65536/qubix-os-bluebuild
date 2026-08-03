@@ -108,13 +108,18 @@ modules:
         - neovim
         # What LazyVim's default keymaps shell out to, present so that the config the
         # user clones works on the first run. Without these the keys exist and do nothing:
-        # ripgrep and fd-find back the pickers, fzf backs fuzzy selection, lazygit is
-        # <leader>gg, and git is how lazy.nvim installs every plugin on first launch.
+        # ripgrep and fd-find back the pickers, fzf backs fuzzy selection, and git is how
+        # lazy.nvim installs every plugin on first launch.
         - ripgrep
         - fd-find
         - fzf
-        - lazygit
         - git
+        # Terminal UI for git, in its own right — not only LazyVim's <leader>gg, which
+        # also runs this binary. From the COPR above. Its config is in the overlay,
+        # /usr/share/qubix-os/lazygit/config.yml, reached through LG_CONFIG_FILE in
+        # /etc/profile.d/qubix-shell-env.sh; `lg` (in shell/common.sh) is upstream's
+        # wrapper that lets the shell follow lazygit between repositories. DD-032.
+        - lazygit
         # A Nerd Font, for the prompt's glyphs and LazyVim's icons. WezTerm bundles a
         # symbols fallback of its own (DD-012), so this is for every OTHER consumer —
         # fontconfig resolves the glyphs from here for Konsole, DMS, and anything else.
@@ -149,7 +154,8 @@ modules:
       # out of the box without any packages being forced on anyone.
       - scope: user # Also add Flathub user repo, but no user packages
 
-  # 4. zsh — completions, and a check that zsh is a usable login shell.
+  # 4. Build steps no BlueBuild module covers: things that are not an RPM and not a file
+  #    that can simply be copied. Three snippets, each its own layer.
   #
   #    4a. zsh-completions: completion functions for tools zsh does not cover itself.
   #    A raw build step because there is nothing to install FROM: Fedora does not package
@@ -192,3 +198,55 @@ modules:
       #        Cheap, and it fails the build instead of the user. DD-028, DD-030.
       - |
         RUN grep -qx '/usr/bin/zsh' /etc/shells
+
+      #    4c. zellij — the terminal multiplexer.
+      #
+      #        NOT A PACKAGE, AND NOT A COPR. Fedora does not package zellij (no `zellij`
+      #        and no `rust-zellij` in dist-git), and — unlike yazi — zellij's own docs
+      #        give Fedora users no instructions and endorse no COPR. The COPRs that do
+      #        exist are one-person repos with a handful of builds; enabling one adds a
+      #        party who can run scriptlets in EVERY Qubix image, for one tool.
+      #        So this takes upstream's own release artifact, pinned and hash-asserted,
+      #        exactly as 4a does for zsh-completions. DD-033.
+      #
+      #        THE `no-web` BUILD, on purpose: zellij 0.43 added a local web server, off
+      #        by default but present. Upstream also publishes a build compiled without
+      #        the capability, which makes it unavailable rather than merely disabled.
+      #
+      #        The published .sha256sum is the hash of the BINARY INSIDE the tarball, not
+      #        of the tarball, so the assertion is on the artifact that actually ships.
+      #
+      #        HOME is redirected into the temp dir for every zellij invocation: zellij
+      #        creates its cache directory on startup, and the build container's /root
+      #        must not end up in the image.
+      #
+      #        The last two lines are the real assertion. `zellij setup --check` reports
+      #        which config file it resolves and whether it parses, and it does NOT exit
+      #        non-zero when the config is broken — hence grep. This proves both that
+      #        /etc/zellij (the overlay from module 1) is the directory zellij will use,
+      #        and that the KDL shipped there is valid, at build time instead of at a
+      #        user's first login.
+      #
+      #        To bump: change BOTH the version and the hash, from
+      #        https://github.com/zellij-org/zellij/releases — the hash is in
+      #        zellij-no-web-x86_64-unknown-linux-musl.sha256sum.
+      #
+      #        Ordering: after module 1 (`files`), which ships /etc/zellij/config.kdl.
+      - |
+        RUN set -eu; \
+            ver=0.44.3; \
+            sha=a675b0106263113b9cb8f028649bad05c5d2283331fa62b2b36dd275aeaaa4d3; \
+            tmp="$(mktemp -d)"; \
+            curl -fsSL -o "$tmp/zellij.tar.gz" \
+                "https://github.com/zellij-org/zellij/releases/download/v${ver}/zellij-no-web-x86_64-unknown-linux-musl.tar.gz"; \
+            tar -xzf "$tmp/zellij.tar.gz" -C "$tmp"; \
+            echo "${sha}  ${tmp}/zellij" | sha256sum -c -; \
+            install -D -m 0755 "$tmp/zellij" /usr/bin/zellij; \
+            HOME="$tmp" zellij --version | grep -qx "zellij ${ver}"; \
+            install -d -m 0755 /usr/share/zsh/site-functions /usr/share/bash-completion/completions; \
+            HOME="$tmp" zellij setup --generate-completion zsh > /usr/share/zsh/site-functions/_zellij; \
+            HOME="$tmp" zellij setup --generate-completion bash > /usr/share/bash-completion/completions/zellij; \
+            HOME="$tmp" zellij setup --check > "$tmp/check" 2>&1; \
+            grep -qF '[LOOKING FOR CONFIG FILE FROM]: "/etc/zellij/config.kdl"' "$tmp/check"; \
+            grep -qF '[CONFIG FILE]: Well defined.' "$tmp/check"; \
+            rm -rf "$tmp"

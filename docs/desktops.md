@@ -270,6 +270,12 @@ The theme applies to both halves of the session, from two files that live in the
 **Both are watched, so a rebase updates the colours live** — there is nothing to re-run and
 nothing copied into your home directory. Your DMS settings hold a path, not a palette.
 
+The same palette reaches two terminal tools, in both sessions: zellij's theme in
+`/etc/zellij/config.kdl` and lazygit's in `/usr/share/qubix-os/lazygit/config.yml`
+(DD-032, DD-033). zellij's accents sit at `hsl(h, 55%, 68%)` rather than the 50% above,
+because there every accent is text on a dark surface and 50% misses WCAG AA — see
+[`shell.md`](shell.md).
+
 #### Keeping the theme with a personal niri config
 
 **This is the one thing that will silently cut you off.** Niri prefers

@@ -18,6 +18,8 @@ it.
 | zsh-completions | Completion functions for tools zsh does not cover itself | zsh |
 | [bat](https://github.com/sharkdp/bat) | `cat` with syntax highlighting. Aliased over `cat` | bash, zsh |
 | [yazi](https://yazi-rs.github.io) | Terminal file browser, run as `y` | bash, zsh |
+| [lazygit](https://github.com/jesseduffield/lazygit) | Git in a terminal UI, run as `lazygit` or `lg` | bash, zsh |
+| [zellij](https://zellij.dev) | Terminal multiplexer: panes, tabs, sessions you can detach from | bash, zsh |
 | [fastfetch](https://github.com/fastfetch-cli/fastfetch) | System information, in a box, when you ask for it | bash, zsh |
 | [Neovim](https://neovim.io) + [LazyVim](https://lazyvim.org) | The editor, and `$EDITOR` | — |
 
@@ -33,9 +35,11 @@ with nothing to re-run and nothing stale left behind (DD-030).
 
 | File | Read by | Holds |
 |---|---|---|
-| `/etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings — and, at the end, bash's interactive setup |
+| `/etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE` — and, at the end, bash's interactive setup |
 | `/etc/zshenv` | zsh, on every invocation | One `source` of the file below |
 | `/usr/share/qubix-os/shell/` | the two above | The prompt, the plugin loading, the aliases |
+| `/usr/share/qubix-os/lazygit/config.yml` | lazygit, via `LG_CONFIG_FILE` | Nerd Font icons and the project palette (DD-032) |
+| `/etc/zellij/config.kdl` | zellij, when you start it | The multiplexer's theme (DD-033) |
 | `/etc/fastfetch/config.jsonc` | fastfetch, when you run it | The system-information box (DD-031) |
 
 ### Why zsh is wired from `/etc/zshenv`
@@ -177,6 +181,95 @@ header, no pager. bat already writes plain bytes when its output is not a termin
 `yazi` works as itself. `y` is upstream's wrapper: it does the same thing, and quitting
 with `q` leaves the shell in the directory the browser was last in.
 
+### lazygit, as `lg`
+
+`lazygit` is a terminal UI over git: stage hunks, rewrite history, resolve conflicts,
+without leaving the terminal. It is also what LazyVim's `<leader>gg` opens, and it is the
+same binary either way.
+
+`lg` is upstream's wrapper. It runs lazygit and, if you switched repositories inside it and
+quit with `q`, leaves your shell in the repository you ended up in. Quitting with `Q` leaves
+the shell where it was — that is upstream's opt-out, not an extra.
+
+**The config is layered, not replaced.** lazygit reads one config path of its own and has no
+system-wide location, so `LG_CONFIG_FILE` names two files: the image's, then yours.
+
+```
+LG_CONFIG_FILE=/usr/share/qubix-os/lazygit/config.yml,$HOME/.config/lazygit/config.yml
+```
+
+Later files override earlier ones **key by key**, which makes this the one place in the
+terminal environment where your own file does not have to repeat everything. To change one
+colour, change one colour:
+
+```bash
+mkdir -p ~/.config/lazygit
+printf 'gui:\n  theme:\n    activeBorderColor: ["#C67B39", bold]\n' > ~/.config/lazygit/config.yml
+```
+
+Your half of the pair is added **only when the file exists** — lazygit treats a missing path
+in `LG_CONFIG_FILE` as an error rather than skipping it — so the file takes effect in the
+next shell you open, not the one you created it from.
+
+What the image sets, and nothing else: `gui.nerdFontsVersion: "3"`, which turns on the file
+and branch icons lazygit hides by default when it cannot assume a font, and the `#56728B`
+palette (DD-022). Everything else is lazygit's default.
+
+### zellij — panes, tabs, and sessions
+
+`zellij` is a terminal multiplexer: split panes, tabs, and sessions that keep running when
+you detach or when the terminal window closes.
+
+```bash
+zellij                 # start, or pick from existing sessions
+zellij attach          # back into the last session
+zellij list-sessions
+```
+
+**Nothing starts it for you.** There is no shell hook and no autostart script — zellij ships
+one and this image deliberately does not install it, for the same reason nothing runs
+fastfetch at login. `Ctrl-o d` detaches; `Ctrl-q` quits.
+
+The keybindings are zellij's own defaults, shown along the bottom of the screen.
+`zellij setup --dump-config` prints every option with its documentation.
+
+The shipped configuration is `/etc/zellij/config.kdl`, and it holds one thing: the Qubix
+theme, from the same `#56728B` palette as the Niri session (DD-022, DD-033) — every element
+named explicitly, with each text pair's contrast ratio written next to it. zellij takes the
+**first config directory that exists**, in this order:
+
+```
+~/.config/zellij → $XDG_CONFIG_HOME/zellij → /etc/zellij
+```
+
+so yours replaces this one **wholesale** rather than merging with it — unlike lazygit above.
+Nothing creates `~/.config/zellij` for you, so start from the image's copy:
+
+```bash
+mkdir -p ~/.config/zellij
+cp /etc/zellij/config.kdl ~/.config/zellij/config.kdl
+```
+
+**Edit the copy, not the original**, for the same reason as fastfetch: `/etc` is three-way
+merged on update, so a file edited there stops receiving image changes.
+
+**Copying uses OSC 52**, zellij's default, which the terminal itself executes — WezTerm
+supports it, and it still works when zellij is running at the far end of an SSH connection.
+A terminal without OSC 52 needs `copy_command "wl-copy"` in your copy of the config, plus
+`wl-clipboard`, which this image does not install.
+
+#### Where zellij comes from, and what that costs
+
+zellij is **not** an RPM. Fedora does not package it, and — unlike yazi — upstream endorses
+no COPR, so the image installs upstream's own `no-web` musl release: version pinned, SHA-256
+of the binary asserted at build time (DD-033).
+
+| Consequence | What it means for you |
+|---|---|
+| `rpm -q zellij` finds nothing | Check the version with `zellij --version` |
+| The web server is not merely off, it is **absent** | `zellij web` and browser session sharing do not exist in this build |
+| The version is pinned | New zellij releases arrive when this repository bumps two lines, not with the daily rebuild |
+
 ### fastfetch — system information
 
 `fastfetch` prints the machine in a rounded box: system, hardware, network, toolchain,
@@ -281,6 +374,9 @@ directory — which the image never writes to.
 | Change anything zsh does | Put it in `~/.zshrc`, which runs after all of this |
 | Change anything bash does | Put it in `~/.bashrc` |
 | Keep `cat` as `cat` | `unalias cat` in your rc file |
+| Change one thing about lazygit | Put just that key in `~/.config/lazygit/config.yml` — it merges over the image's |
+| Take lazygit's defaults back | `export LG_CONFIG_FILE=$HOME/.config/lazygit/config.yml` in your rc file |
+| Change the zellij theme or keys | `cp /etc/zellij/config.kdl ~/.config/zellij/config.kdl` and edit that |
 | Change the fastfetch box | `cp /etc/fastfetch/config.jsonc ~/.config/fastfetch/config.jsonc` and edit that |
 | Keep fastfetch offline | Delete the `publicip` block from your copy of the config |
 | Use a different editor | `export EDITOR=…` in your rc file |
@@ -291,19 +387,22 @@ directory — which the image never writes to.
 
 | Path | Purpose |
 |---|---|
-| `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's setup |
+| `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and bash's setup |
 | `/etc/zshenv` | Sources the zsh half. **Replaces** Fedora's, which is comments only |
 | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on |
 | `/usr/share/qubix-os/shell/common.sh` | The `cat` alias and the `y` function — shared by both shells |
 | `/usr/share/qubix-os/shell/qubix.zsh` | Prompt, atuin, plugins, history defaults |
 | `/usr/share/qubix-os/shell/qubix.bash` | Prompt and aliases |
 | `/usr/share/qubix-os/starship.toml` | The prompt configuration |
+| `/usr/share/qubix-os/lazygit/config.yml` | lazygit's icons and palette. Merged *under* your own config, not replaced by it (DD-032) |
+| `/etc/zellij/config.kdl` | The zellij theme. The only system-wide path zellij reads (DD-033) |
 | `/etc/fastfetch/config.jsonc` | The fastfetch box. The only system-wide path fastfetch reads (DD-031) |
 | `/usr/share/qubix-os/fastfetch/retune.sh` | Re-derives the box's four columns after a logo change. Run by hand, never automatically |
-| `/usr/share/zsh/site-functions/_*` | zsh-completions, installed at build time |
+| `/usr/share/zsh/site-functions/_*` | zsh-completions and zellij's completions, installed at build time |
+| `/usr/share/bash-completion/completions/zellij` | zellij's bash completions, generated by the binary that ships |
 
 Configuration files, one hand-run tool, no services, and nothing under `$HOME`.
 
 Why each of these lives where it does: [`design-decisions.md`](design-decisions.md),
-DD-026, DD-030 and DD-031. What the recipe installs and in which module:
+DD-026, DD-030, DD-031, DD-032 and DD-033. What the recipe installs and in which module:
 [`recipe-reference.md`](recipe-reference.md).

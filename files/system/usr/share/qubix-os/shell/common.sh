@@ -38,3 +38,28 @@ if command -v yazi >/dev/null 2>&1; then
         rm -f -- "$tmp"
     }
 fi
+
+# ── lazygit, as `lg` ──────────────────────────────────────────────────────────
+# Upstream's wrapper (README, "Changing Directory On Exit"), for the same reason as `y`:
+# lazygit can switch between repositories from inside its UI, and without this the shell
+# is still in the one you started from when you leave.
+#
+# lazygit writes the new directory to $LAZYGIT_NEW_DIR_FILE and only when you quit with
+# `q`; `Q` leaves the shell where it was. Upstream's snippet points that variable at
+# ~/.lazygit/newdir — a stray dot directory in $HOME — so this uses mktemp instead, and
+# `command cat` for the same reason as above: the alias would send it through bat.
+#
+# `lazygit` itself is untouched and behaves exactly as it always has.
+if command -v lazygit >/dev/null 2>&1; then
+    lg() {
+        local tmp dir
+        tmp="$(mktemp -t lazygit-cwd.XXXXXX)" || return 1
+        LAZYGIT_NEW_DIR_FILE="$tmp" lazygit "$@"
+        # The file is created empty by mktemp and only filled by lazygit, so an empty one
+        # means "stay where you are" — no need to remove it first and race for the name.
+        if dir="$(command cat -- "$tmp")" && [ -n "$dir" ] && [ "$dir" != "$PWD" ]; then
+            builtin cd -- "$dir" || true
+        fi
+        rm -f -- "$tmp"
+    }
+fi

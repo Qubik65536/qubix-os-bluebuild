@@ -21,7 +21,8 @@ described here or in `files/system/`.
   `module-list-v1` for shared module lists. Keep them.
 - **Shared files (DD-016):**
   - `common-base.yml` — modules 1–4: `files`, `dnf`, `default-flatpaks`, `containerfile`
-    (zsh completions + login-shell check). Everything that makes an image "Qubix OS".
+    (zsh completions + login-shell check + zellij). Everything that makes an image
+    "Qubix OS".
   - `common-identity.yml` — module 5: the `os-release` rewrite. Split out because of its
     ordering constraint (must run late).
   - `common-kernel-cachyos.yml` — the kernel swap. **`recipe-cachyos.yml` only.**
@@ -43,9 +44,9 @@ described here or in `files/system/`.
   | # | Module | From | Effect | Ordering constraint |
   |---|---|---|---|---|
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
-  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `lazygit`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
+  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `lazygit`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
-  | 4 | `containerfile` | `common-base.yml` | Installs `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; asserts `/usr/bin/zsh` is in `/etc/shells` | after `dnf` (needs `zsh`, `git`) — DD-026, DD-028 |
+  | 4 | `containerfile` | `common-base.yml` | Three snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses | after `dnf` (needs `zsh`, `git`) and after `files` (needs `/etc/zellij`) — DD-026, DD-028, DD-033 |
   | 5 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
   | 6 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
 
@@ -123,9 +124,24 @@ described here or in `files/system/`.
   build on purpose (DD-026).
 - `git` is in the package list on purpose: the module above it needs `git clone`, and
   "Aurora DX surely has git" is not something a build should rest on.
+- **`zellij` is not a package and must not become a COPR line.** Fedora does not ship it
+  (no `zellij`, no `rust-zellij` in dist-git) and — unlike yazi — upstream endorses no
+  COPR; the ones that exist are one-person repos with a handful of builds. It comes from
+  upstream's own `no-web` musl release, pinned by version and asserted by the SHA-256 **of
+  the binary inside the tarball** (the published `.sha256sum` covers the binary, not the
+  archive). **Bumping means changing both the version and the hash** (DD-033).
+- The zellij snippet redirects `HOME` into its temp dir: zellij creates a cache directory on
+  every invocation, and the build container's `/root` must not ship. Its last two `grep`s
+  are the real assertion — `zellij setup --check` exits 0 even when the config is broken,
+  so the greps are what turn a malformed `/etc/zellij/config.kdl` into a build failure.
+- **lazygit is a tool, not just a LazyVim dependency** (DD-032). Its config lives in the
+  overlay at `/usr/share/qubix-os/lazygit/config.yml` and is reached through
+  `LG_CONFIG_FILE`; removing the package also means removing that wiring and the `lg`
+  wrapper in `shell/common.sh`.
 - **Installing the shell tools is half the job.** The configuration is in the overlay
   (`files/system/etc/zshenv`, `etc/profile.d/`, `usr/share/qubix-os/shell/`,
-  `etc/fastfetch/`). Adding a package here does not put it in anyone's shell.
+  `etc/fastfetch/`, `etc/zellij/`, `usr/share/qubix-os/lazygit/`). Adding a package here
+  does not put it in anyone's shell.
 - `fastfetch` is installed for the config that ships with it (DD-031), and **nothing runs
   it** — not a login banner, not a shell startup hook. Do not add one; a 200 ms picture on
   every prompt is exactly what the rest of this design avoids.

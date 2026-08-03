@@ -29,13 +29,15 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 
 | Path | Consumer | Effect |
 |---|---|---|
-| `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and — at the end — bash's interactive setup (DD-026, DD-030) |
+| `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and — at the end — bash's interactive setup (DD-026, DD-030, DD-032) |
 | `etc/zshenv` | zsh, on every invocation | Sources `qubix.zsh`. **Replaces** Fedora's file, which is comments only |
 | `etc/default/useradd` | `useradd(8)` | `SHELL=/usr/bin/zsh`. **Replaces** shadow-utils' copy; only one line differs |
-| `usr/share/qubix-os/shell/common.sh` | `qubix.bash`, `qubix.zsh` | The `cat`→`bat` alias and the `y` yazi wrapper |
+| `usr/share/qubix-os/shell/common.sh` | `qubix.bash`, `qubix.zsh` | The `cat`→`bat` alias, the `y` yazi wrapper and the `lg` lazygit wrapper |
 | `usr/share/qubix-os/shell/qubix.zsh` | zsh, from `/etc/zshenv` | Prompt, atuin, both plugins, history defaults |
 | `usr/share/qubix-os/shell/qubix.bash` | bash, from `/etc/profile.d` | Prompt and aliases. No atuin — see gotchas |
 | `usr/share/qubix-os/starship.toml` | starship, as `$STARSHIP_CONFIG` | The prompt. Never copied into `$HOME` |
+| `usr/share/qubix-os/lazygit/config.yml` | lazygit, as the **first** entry of `$LG_CONFIG_FILE` | Nerd Font icons + the `#56728B` palette. The user's config is appended after it and **merges over it key by key** (DD-032) |
+| `etc/zellij/config.kdl` | zellij, when a user starts it | The Qubix theme. **The only system-wide path zellij reads**; `~/.config/zellij/` shadows it wholesale (DD-033) |
 | `etc/fastfetch/config.jsonc` | fastfetch, when a user runs it | The system-wide default box. **The only system-wide path fastfetch reads** — its search path has no `/usr` entry (DD-031) |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Mode `100755` in the overlay |
 
@@ -94,7 +96,12 @@ three terminal-environment files above — `/etc/profile.d`, `/etc/zshenv` and
 `/etc/default/useradd` all have no `/usr` equivalent at all (DD-026, DD-030) — and
 `etc/fastfetch/config.jsonc` (DD-031; fastfetch's config search path is `~/.config` →
 `$HOME` → `$XDG_CONFIG_DIRS` → `/etc/xdg` → `/etc`, and `/usr/share/fastfetch/` is a
-*data* dir for presets and logos, not a config dir).
+*data* dir for presets and logos, not a config dir), and `etc/zellij/config.kdl` (DD-033;
+`/etc/zellij` is zellij's `SYSTEM_DEFAULT_CONFIG_DIR` and there is no `/usr` entry).
+
+lazygit is the counter-example worth remembering: it also has no `/usr` path, but
+`LG_CONFIG_FILE` takes a *list*, so its config stays in `/usr` and the user's file is
+appended after it (DD-032). Check for an environment variable before reaching for `/etc`.
 
 The last two are **replacements** of upstream files rather than additions, which is
 normally forbidden here. Both are justified in their own headers: Fedora's `/etc/zshenv`
@@ -121,9 +128,19 @@ one differs. Both must be re-checked against upstream if either package changes 
   a *different* logo — `ID=qubix_os_bluebuild` matches no builtin, so fastfetch falls back
   to a 23-wide penguin — which is why `source: fedora_small` is written out. Changing the
   logo without re-running `retune.sh` produces a box that does not close (DD-031).
-- **The two palette files must change together.** `etc/niri/qubix-theme.kdl` and
-  `usr/share/qubix-os/dms-theme.json` are the same colours in two formats and nothing
-  enforces that. Drift is invisible until someone looks at the bar next to a focus ring.
+- **Four files now carry the palette, and nothing enforces agreement.**
+  `etc/niri/qubix-theme.kdl`, `usr/share/qubix-os/dms-theme.json`,
+  `etc/zellij/config.kdl` and `usr/share/qubix-os/lazygit/config.yml` are the same
+  `#56728B` ramp in four formats (DD-022, DD-032, DD-033). Drift is invisible until someone
+  looks at two of them side by side. The structural tones are `hsl(208, 24%, L)`; the
+  accents are `hsl(h, 55%, 50%)` — compute them, do not eyeball them. **zellij's accents are
+  the same hues at L68**, not L50, because there every accent is text on a dark surface and
+  L50 misses WCAG AA (magenta 3.6:1). That deviation is stated in the file with the ratios;
+  do not "correct" it back.
+- **`LG_CONFIG_FILE` must not name a file that does not exist.** lazygit errors out on a
+  missing path in that list rather than skipping it, which is why the block in
+  `etc/profile.d/qubix-shell-env.sh` tests for the user's config before appending it. Do not
+  "simplify" it into one unconditional assignment.
 - **Seed pointers, never contents.** DMS has no system-wide theme default, so the only
   lever is each user's `settings.json`. Writing the *path* there — with the palette in
   `/usr`, which DMS watches — is what makes a rebase update the colours with nothing
