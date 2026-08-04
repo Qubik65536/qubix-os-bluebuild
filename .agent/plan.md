@@ -1369,6 +1369,21 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `.agent/context/files-system.md`, `.agent/context/recipe.md`, and
       `.agent/context/docs.md` are updated
 
+- [ ] **IMG-034** — Prevent Distrobox guest compinit security prompts
+  - **Category:** Image content
+  - **Depends on:** IMG-033
+  - **Notes:** The host completion directory arrives through Distrobox's `/run/host` bind
+    mount. zsh's ownership check cannot verify that mount path, so `compinit` prompts
+    despite the completion files being host-owned and read-only in the guest.
+  - **Acceptance criteria:**
+    - An interactive zsh in a new standard Distrobox guest starts without a `compinit`
+     insecure-directory prompt
+    - Host-provided zsh completions remain available in the guest
+    - The trust boundary and behavior are documented in `docs/shell.md` and a design
+     decision record
+    - `.agent/context/files-system.md`, `.agent/context/docs.md`, and
+     `.agent/context/agent-files.md` are updated
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time
