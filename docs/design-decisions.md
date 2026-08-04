@@ -1462,11 +1462,17 @@ is the `auto_sync` key. Verified in its `settings.rs`, not assumed.
 
 ## DD-031 — Ship fastfetch's config in `/etc`, with the logo pinned
 
-**Status:** Accepted. Everything here about *where* the config goes is correct and
-unchanged — but until
-[DD-040](#dd-040--undo-auroras-fastfetch-alias-because-it-beat-the-config-search-path) the
-command `fastfetch` was an alias to Aurora's own wrapper, so **nothing below was ever
-read**, including a user's own file
+**Status:** Superseded by
+[DD-041](#dd-041--draw-the-full-fedora-mark-and-move-the-box-to-its-gutter) *(the logo only —
+everything about **where** the config goes is correct and unchanged)*. The shipped logo is
+`fedora`, not `fedora_small`; the four columns are 45/51/61/112; and the reason given below
+for pinning — that detection falls back to a generic penguin — is **wrong**: it reaches
+`ID_LIKE` and matches Fedora's full mark.
+
+Also amended by
+[DD-040](#dd-040--undo-auroras-fastfetch-alias-because-it-beat-the-config-search-path):
+until it, the command `fastfetch` was an alias to Aurora's own wrapper, so **nothing below
+was ever read**, including a user's own file
 
 **Implements:** `IMG-020`
 
@@ -2259,3 +2265,90 @@ exactly that case before being trusted.
 - **`type -a` belongs in the diagnosis of any "my config is ignored" report**, before the
   search path. A base image can rename a command out from under a config file, and this one
   does. Written into `.agent/context/files-system.md` as a gotcha for the same reason.
+
+---
+
+## DD-041 — Draw the full Fedora mark, and move the box to its gutter
+
+**Status:** Accepted
+
+**Supersedes:** the logo half of
+[DD-031](#dd-031--ship-fastfetchs-config-in-etc-with-the-logo-pinned)
+*(where the config goes is unchanged; which logo it draws, how wide the box is, and the
+reason the logo is pinned at all are all replaced here)*
+
+**Implements:** `IMG-031`
+
+**Context.** Asked on 2026-08-03: the `"logo"` block could come out of
+`config.jsonc` — but with it gone, fastfetch draws the **full** Fedora mark and the box is
+written straight over it. The mark occupies columns 1–44; the box's left spine is pinned at
+column 23. Everything from `│` leftwards lands inside the artwork.
+
+**DD-031's reason for pinning the logo was wrong.** It said:
+
+> fastfetch picks its logo from `ID=` in `os-release`, and this image rewrites that to
+> `qubix_os_bluebuild` (DD-003) — a name no builtin logo matches — so detection falls
+> through to the generic 23-column penguin.
+
+Detection does not stop at `ID`. `logoGetBuiltinDetected` in `src/logo/logo.c` tries, in
+order:
+
+| # | Field tried | This image's value | Match? |
+|---|---|---|---|
+| 1 | `ID` | `qubix_os_bluebuild` (DD-003) | no |
+| 2 | `NAME` | `QubixOS-BlueBuild` (DD-003) | no |
+| 3 | each word of `ID_LIKE` | `fedora`, from the base image | **yes** |
+| 4 | kernel name | `Linux` | — |
+| 5 | fallback | `unknown` | — |
+
+DD-003 rewrites `ID`, `NAME` and `PRETTY_NAME` and nothing else, so `ID_LIKE` survives.
+Step 3 is where the match happens by elimination rather than by inspection of the base
+image: the mark that appeared on the machine is Fedora's, steps 1 and 2 cannot produce it,
+and step 4 is `Linux`. On a booted deployment the one-line confirmation is
+`grep -E '^(ID|NAME|ID_LIKE)=' /etc/os-release`. Either way the penguin was never on the
+table; what the block was actually holding back was the full 38-column mark. Neither the old reason nor the old measurement survived a
+re-measure — widths taken from fastfetch 2.61.0 with this config's padding (`+2` left,
+`+4` right):
+
+| Logo | Width | Gutter | Left spine | Right spine | Terminal needed |
+|---|---|---|---|---|---|
+| **`fedora`** | **38** | **44** | **45** | **112** | **112 columns** |
+| `fedora_small` | 16 | 22 | 23 | 90 | 90 columns |
+| `unknown` (the fallback) | 30 | 36 | 37 | 104 | 104 columns |
+
+DD-031 recorded the fallback as 23 wide with a 29-column gutter. It is 30 and 36.
+
+**Decision.** Keep the `"logo"` block, change `"source"` to `fedora`, and re-derive all four
+columns from the 44-column gutter: left spine **45**, labels **51**, separator **61**, right
+spine **112**. The box itself is unchanged — still 68 columns wide, still drawn with CHA, and
+because spine and right spine moved together the `─` runs in the rule lines needed no edit.
+
+The columns were not re-derived by hand. `/usr/share/qubix-os/fastfetch/retune.sh` — shipped
+by DD-031 for exactly this — was run against the config: it asks fastfetch to print the logo
+with no modules, reads the `ESC[<n>C` step the binary emits, and rewrites the four numbers
+*and* the comment block that documents them. That is the first use of the tool for the job it
+was written for, and it worked unmodified.
+
+**Why the logo stays pinned, when detection would now pick the same mark.** Because
+"would now" is the whole problem. The four columns are load-bearing and derived from one
+number, and two ordinary events change that number without touching this repository: a
+fastfetch release that adds a `qubix` builtin logo (step 1 starts matching), or a base image
+that drops `ID_LIKE` (step 3 stops). Either moves every column silently. Naming the logo
+costs one line and makes the layout a property of the config rather than of the environment.
+
+**Consequences.**
+- **The box needs a 112-column terminal**, up from 90. That is the cost the owner accepted
+  for the full mark, and it is real: a WezTerm in Niri's default half-width column is around
+  100 columns on the 1920px panel, so the box overruns it there. `Mod+R` (two-thirds) or
+  `Mod+F` (maximised) is the room it needs. The requirement is stated in the config header
+  and in `docs/shell.md`.
+- **`fedora_small` remains one edit away**, and the escape hatch is the same tool: set
+  `"source": "fedora_small"` in your own copy and run `retune.sh`, which puts the spine back
+  at 23 and the right edge at 90.
+- **A wrong reason survived longer than a wrong result would have.** DD-031's pin produced
+  the right layout for two versions of the wrong explanation, and nothing exercised it until
+  someone asked what happens when the block is deleted. The general form: a claim about
+  *what would happen otherwise* is never tested by the happy path, so it is worth spending a
+  command on. Here it took two: `fastfetch --logo <name> --structure Break` for every width
+  in the table above, and a read of `logoGetBuiltinDetected` for the order the fields are
+  tried in. Both are cheap next to a claim that stood in three files.

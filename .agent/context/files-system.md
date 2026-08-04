@@ -144,11 +144,13 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   `100755`; the `files` module copies the bit as it finds it. A rewrite that drops it
   produces a script that silently cannot run.
 - **fastfetch's box is pinned to its logo, and the logo is pinned on purpose.** The four
-  columns in `etc/fastfetch/config.jsonc` (spine 23, label 29, separator 39, right 90) are
-  `gutter + 1/7/17/68`, and the gutter is `logo width + 6` of padding. Detection would give
-  a *different* logo — `ID=qubix_os_bluebuild` matches no builtin, so fastfetch falls back
-  to a 23-wide penguin — which is why `source: fedora_small` is written out. Changing the
-  logo without re-running `retune.sh` produces a box that does not close (DD-031).
+  columns in `etc/fastfetch/config.jsonc` (spine 45, label 51, separator 61, right 112) are
+  `gutter + 1/7/17/68`, and the gutter is `logo width + 6` of padding — the full `fedora`
+  mark is 38 wide, so 44. Changing the logo without re-running `retune.sh` produces a box
+  that does not close, and **deleting the `"logo"` block is a change of logo**: detection
+  tries `ID`, `NAME`, then `ID_LIKE`, and the base image's `ID_LIKE=fedora` matches, so the
+  block is not what chooses Fedora — it is what stops a fastfetch release or a base-image
+  change from choosing something else (DD-041; DD-031 said "penguin", which was wrong).
 - **Four files now carry the palette, and nothing enforces agreement.**
   `etc/niri/qubix-theme.kdl`, `usr/share/qubix-os/dms-theme.json`,
   `etc/zellij/config.kdl` and `usr/share/qubix-os/lazygit/config.yml` are the same

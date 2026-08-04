@@ -5,11 +5,11 @@
 #          in a copy of /etc/fastfetch/config.jsonc. See docs/shell.md.
 #
 # The box in that config is drawn with absolute cursor columns, so it has to know
-# where the logo ends. The shipped config is tuned for `fedora_small` (16 wide,
-# +2 left +4 right padding = a 22-column gutter); other logos differ (debian 27,
-# manjaro 28, mint 30, gentoo/rocky 35, arch 37, fedora 38, ubuntu/nixos 43,
-# kali 48 …). This measures the real gutter and rewrites the four column numbers
-# — nothing else about the layout changes.
+# where the logo ends. The shipped config is tuned for the full `fedora` mark
+# (38 wide, +2 left +4 right padding = a 44-column gutter); other logos differ
+# (fedora_small 16, debian 27, manjaro 28, mint 30, gentoo/rocky 35, arch 37,
+# ubuntu/nixos 43, kali 48 …). This measures the real gutter and rewrites the four
+# column numbers — nothing else about the layout changes.
 #
 #   usage:  retune.sh [-n] [config]
 #

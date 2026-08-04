@@ -411,18 +411,24 @@ Nothing in the shell environment affects this: fastfetch finds `/etc/fastfetch/`
 with no variable set and no wiring. If the file is not there, the running deployment predates
 it — `rpm-ostree status` shows which image is booted.
 
-#### It needs a 90-column terminal
+#### It needs a 112-column terminal
 
 The box is drawn with absolute cursor columns rather than by counting characters, because
-Nerd Font glyphs are not all one cell wide. Four columns are pinned — left spine 23, labels
-29, separator 39, right spine 90 — and all four are derived from the width of the logo.
-Below 90 columns, rows overrun the right edge.
+Nerd Font glyphs are not all one cell wide. Four columns are pinned — left spine 45, labels
+51, separator 61, right spine 112 — and all four are derived from the width of the logo,
+Fedora's full mark, which takes columns 1 to 44. Below 112 columns, rows overrun the right
+edge.
 
-The logo is **pinned to `fedora_small`**, not detected. Detection reads `ID=` from
-`os-release`, which this image rewrites to `qubix_os_bluebuild`, so fastfetch would fall
-back to its generic penguin and every column would be wrong. `fedora_small` is 16 columns
-wide; the full `fedora` mark is 38 and would push the right spine to 112 — wider than a
-WezTerm tiled to half the laptop panel.
+That is wider than Niri's default half column gives a WezTerm — around 100 columns on a
+1920px panel — so the box wants `Mod+R` (two-thirds) or `Mod+F` (maximised). If you would
+rather have a box that fits the half column, `fedora_small` is the same mark at 16 columns
+and puts the right spine back at 90; it is a one-line change plus `retune.sh`, below.
+
+The logo is **pinned**, not detected, even though detection would choose the same mark
+today. fastfetch tries `ID`, then `NAME`, then each word of `ID_LIKE`, then the kernel name;
+this image rewrites `ID` and `NAME`, and the base image's `ID_LIKE=fedora` is what matches.
+Pinning it means a fastfetch that one day ships a `qubix` logo, or a base image without
+`ID_LIKE`, cannot move all four columns without telling you (DD-041).
 
 To use a different logo, change `"source"` in your copy and then re-derive the four columns:
 
@@ -532,6 +538,6 @@ Configuration files, one hand-run tool, one boot service that touches `/etc/pass
 per account, and nothing under `$HOME`.
 
 Why each of these lives where it does: [`design-decisions.md`](design-decisions.md),
-DD-026, DD-030, DD-031, DD-032, DD-033, DD-035, DD-036, DD-037, DD-038, DD-039 and DD-040. What the recipe installs and in
+DD-026, DD-030, DD-031, DD-032, DD-033, DD-035, DD-036, DD-037, DD-038, DD-039, DD-040 and DD-041. What the recipe installs and in
 which module:
 [`recipe-reference.md`](recipe-reference.md).

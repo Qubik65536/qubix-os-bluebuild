@@ -20,28 +20,32 @@
 // which the terminal resolves *after* it has drawn the glyphs. Four columns
 // are fixed, so icon width cannot shift anything:
 //
-//   col  23   left spine   │      = logo gutter (22) + 1
-//   col  29   label start          first letter of every label lands here
-//   col  39   separator    ·
-//   col  90   right spine  │
+//   col  45   left spine   │      = logo gutter (44) + 1
+//   col  51   label start          first letter of every label lands here
+//   col  61   separator    ·
+//   col 112   right spine  │
 //
-// Each key jumps to col 90 to draw the right edge *first*, comes back to 23
-// for the spine, prints the icon, then jumps to 29 for the label. Keeping the
+// Each key jumps to col 112 to draw the right edge *first*, comes back to 45
+// for the spine, prints the icon, then jumps to 51 for the label. Keeping the
 // border inside the key means every module keeps its own default `format`.
 //
-// Needs a terminal ≥ 90 columns. Values get cols 42–89 (48 chars); anything
+// Needs a terminal ≥ 112 columns. Values get cols 64–111 (48 chars); anything
 // longer overruns the right spine, so keep formats tight.
 //
 // ── the logo gutter, and changing the logo ───────────────────────────────────
 // The only number that depends on the logo is the gutter, and the four columns
-// above are derived from it. `fedora_small` is 16 columns wide, +2 left +4 right
-// padding = 22, hence the spine at 23. The full `fedora` logo is 38 wide, which
-// would push the right spine to 112 — wider than a WezTerm tiled to half of a
-// 1920px panel, which is where this image spends most of its time. Hence small.
+// above are derived from it. The full `fedora` mark is 38 columns wide, +2 left
+// +4 right padding = 44, hence the spine at 45 and the right spine at 112.
+//
+// 112 is wider than the window this image opens by default: a WezTerm in Niri's
+// half-width column is around 100 columns on a 1920px panel, and the box overruns
+// it. Mod+R once (two-thirds) or Mod+F (maximised) is the room it needs. If you
+// would rather have a box that fits the half column, `fedora_small` is the same
+// mark at 16 columns — a 22-column gutter, right spine at 90 (DD-041).
 //
 // To use a different logo, change "source" below and then re-derive the columns:
 //
-//   cp /etc/fastfetch/config.jsonc ~/.config/fastfetch/config.jsonc
+//   qubix-config fastfetch                            # copy into ~/.config
 //   $EDITOR ~/.config/fastfetch/config.jsonc          # set "source"
 //   /usr/share/qubix-os/fastfetch/retune.sh           # rewrites all four columns
 //
@@ -61,13 +65,18 @@
   "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
 
   "logo": {
-    // Pinned, NOT auto-detected. Detection reads ID= from os-release, which this
-    // image rewrites to `qubix_os_bluebuild` (DD-003) — a name fastfetch has never
-    // heard of, so it falls back to its generic penguin — 23 columns wide, a
-    // 29-column gutter, and every column above then off by seven. Naming the logo
-    // is what makes the layout deterministic.
+    // Pinned, NOT auto-detected — though detection would land on this same mark
+    // today. fastfetch tries os-release ID, then NAME, then each word of ID_LIKE,
+    // then the kernel's name, and only then its generic penguin. This image
+    // rewrites ID to `qubix_os_bluebuild` and NAME to `QubixOS-BlueBuild` (DD-003),
+    // so the field still saying fedora is the base image's ID_LIKE — which is why
+    // deleting this block draws the *full* mark, not a penguin, and why the box
+    // below is tuned to its 44-column gutter rather than overlapping it (DD-041).
+    // Naming the logo is what keeps that deterministic: a fastfetch that one day
+    // ships a `qubix` logo, or a base image that drops ID_LIKE, would otherwise
+    // move all four columns without a word.
     // Qubix OS is Fedora Atomic underneath, so the Fedora mark is the honest one.
-    "source": "fedora_small",
+    "source": "fedora",
     "type": "builtin",
     "padding": { "top": 2, "left": 2, "right": 4 },
     "color": {
@@ -81,7 +90,7 @@
   },
 
   "display": {
-    "separator": "\u001b[39G·  ",
+    "separator": "\u001b[61G·  ",
     "color": {
       "title": "#be95ff",
       "separator": "#be95ff",
@@ -108,145 +117,145 @@
     // ── system ───────────────────────────────────────────────────────────────
     {
       "type": "custom",
-      "format": "{##be95ff}╭─ [ system ] ─────────────────────────────────────────────────────\u001b[90G╮"
+      "format": "{##be95ff}╭─ [ system ] ─────────────────────────────────────────────────────\u001b[112G╮"
     },
     {
       "type": "title",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##78a9ff}\uf007\u001b[29G",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##78a9ff}\uf007\u001b[51G",
       "format": "{##78a9ff}{user-name}{##be95ff} · {##08bdba}{host-name}"
     },
     {
       "type": "os",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##82cfff}\uf108\u001b[29Gos",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##82cfff}\uf108\u001b[51Gos",
       "format": "{name} {version} {##be95ff}·{##82cfff} {codename}",
       "outputColor": "#82cfff"
     },
     {
       "type": "host",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##33b1ff}\uf109\u001b[29Ghost",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##33b1ff}\uf109\u001b[51Ghost",
       "outputColor": "#33b1ff"
     },
     {
       "type": "kernel",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##3ddbd9}\uf013\u001b[29Gkernel",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##3ddbd9}\uf013\u001b[51Gkernel",
       "format": "{sysname} {release}",
       "outputColor": "#3ddbd9"
     },
     {
       "type": "initsystem",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##08bdba}\uf085\u001b[29Ginit",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##08bdba}\uf085\u001b[51Ginit",
       "outputColor": "#08bdba"
     },
     {
       "type": "bootmgr",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##08bdba}\uf0e7\u001b[29Gboot",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##08bdba}\uf0e7\u001b[51Gboot",
       "outputColor": "#08bdba"
     },
     {
       "type": "packages",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ff7eb6}\uf187\u001b[29Gpackages",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ff7eb6}\uf187\u001b[51Gpackages",
       "outputColor": "#ff7eb6"
     },
     {
       "type": "shell",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##3ddbd9}\uf120\u001b[29Gshell",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##3ddbd9}\uf120\u001b[51Gshell",
       "format": "{pretty-name} {version}",
       "outputColor": "#3ddbd9"
     },
     {
       "type": "terminal",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##82cfff}\uf2d0\u001b[29Gterm",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##82cfff}\uf2d0\u001b[51Gterm",
       "format": "{pretty-name} {version}",
       "outputColor": "#82cfff"
     },
     {
       "type": "terminalfont",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##78a9ff}\uf031\u001b[29Gtermfont",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##78a9ff}\uf031\u001b[51Gtermfont",
       "outputColor": "#78a9ff"
     },
     {
       // Linux: desktop environment · macOS: Aqua
       "type": "de",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##42be65}\uf009\u001b[29Gde",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##42be65}\uf009\u001b[51Gde",
       "format": "{pretty-name} {version}",
       "outputColor": "#42be65"
     },
     {
       "type": "wm",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##be95ff}\uf2d2\u001b[29Gwm",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##be95ff}\uf2d2\u001b[51Gwm",
       "format": "{pretty-name} {version}",
       "outputColor": "#be95ff"
     },
     {
       // Linux only (gdm/sddm/…)
       "type": "lm",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##33b1ff}\uf090\u001b[29Glm",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##33b1ff}\uf090\u001b[51Glm",
       "outputColor": "#33b1ff"
     },
     {
       "type": "theme",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ee5396}\uf1fc\u001b[29Gtheme",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ee5396}\uf1fc\u001b[51Gtheme",
       "outputColor": "#ee5396"
     },
     {
       // Linux only (icon theme)
       "type": "icons",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ff7eb6}\uf03e\u001b[29Gicons",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ff7eb6}\uf03e\u001b[51Gicons",
       "outputColor": "#ff7eb6"
     },
     {
       // Linux: system UI font · macOS: system + user font
       "type": "font",
       "format": "{font1}", // {combined} lists them all, but it overruns the box
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##82cfff}\uf1dc\u001b[29Gfont",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##82cfff}\uf1dc\u001b[51Gfont",
       "outputColor": "#82cfff"
     },
 
     // ── hardware ─────────────────────────────────────────────────────────────
     {
       "type": "custom",
-      "format": "{##be95ff}├─ [ hardware ] ───────────────────────────────────────────────────\u001b[90G┤"
+      "format": "{##be95ff}├─ [ hardware ] ───────────────────────────────────────────────────\u001b[112G┤"
     },
     {
       "type": "cpu",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##3ddbd9}\uf2db\u001b[29Gcpu",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##3ddbd9}\uf2db\u001b[51Gcpu",
       "format": "{name} {##be95ff}·{##3ddbd9} {cores-logical} cores {##be95ff}·{##3ddbd9} {freq-max}",
       "outputColor": "#3ddbd9",
       "showPeCoreCount": true
     },
     {
       "type": "cpuusage",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##82cfff}\uf080\u001b[29Gusage",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##82cfff}\uf080\u001b[51Gusage",
       "format": "{avg}",
       "outputColor": "#82cfff",
       "separate": false
     },
     {
       "type": "loadavg",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##08bdba}\uf0e4\u001b[29Gload",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##08bdba}\uf0e4\u001b[51Gload",
       "outputColor": "#08bdba",
       "compact": true
     },
     {
       "type": "gpu",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##42be65}\udb82\udcae\u001b[29Ggpu",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##42be65}\udb82\udcae\u001b[51Ggpu",
       "outputColor": "#42be65"
     },
     {
       "type": "memory",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ff7eb6}\uf1c0\u001b[29Gmemory",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ff7eb6}\uf1c0\u001b[51Gmemory",
       "format": "{used} / {total} {##be95ff}·{##ff7eb6} {percentage}",
       "outputColor": "#ff7eb6"
     },
     {
       "type": "swap",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ee5396}\uf0ec\u001b[29Gswap",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ee5396}\uf0ec\u001b[51Gswap",
       "format": "{used} / {total} {##be95ff}·{##ee5396} {percentage}",
       "outputColor": "#ee5396"
     },
     {
       "type": "disk",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##82cfff}\uf0a0\u001b[29Gdisk",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##82cfff}\uf0a0\u001b[51Gdisk",
       "format": "{size-used} / {size-total} {##be95ff}·{##82cfff} {size-percentage} {##be95ff}·{##82cfff} {filesystem}",
       "outputColor": "#82cfff",
       "folders": "/",
@@ -255,31 +264,31 @@
     },
     {
       "type": "display",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##78a9ff}\udb80\udf79\u001b[29Gdisplay",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##78a9ff}\udb80\udf79\u001b[51Gdisplay",
       "format": "{width}x{height} @ {refresh-rate}Hz {##be95ff}·{##78a9ff} {inch}\" {##be95ff}·{##78a9ff} {ppi} ppi",
       "outputColor": "#78a9ff"
     },
     {
       "type": "battery",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##42be65}\uf240\u001b[29Gbattery",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##42be65}\uf240\u001b[51Gbattery",
       "format": "{capacity} {##be95ff}·{##42be65} {status} {##be95ff}·{##42be65} {cycle-count} cycles",
       "outputColor": "#42be65"
     },
     {
       "type": "poweradapter",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ff7eb6}\uf1e6\u001b[29Gpower",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ff7eb6}\uf1e6\u001b[51Gpower",
       "format": "{watts}W {##be95ff}·{##ff7eb6} {name}",
       "outputColor": "#ff7eb6"
     },
     {
       "type": "sound",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##be95ff}\uf028\u001b[29Gsound",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##be95ff}\uf028\u001b[51Gsound",
       "format": "{name} {##be95ff}·{##be95ff} {volume-percentage}",
       "outputColor": "#be95ff"
     },
     {
       "type": "bluetooth",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##33b1ff}\uf293\u001b[29Gbt",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##33b1ff}\uf293\u001b[51Gbt",
       "format": "{name} {##be95ff}·{##33b1ff} {battery-percentage}",
       "outputColor": "#33b1ff"
     },
@@ -287,17 +296,17 @@
     // ── network ──────────────────────────────────────────────────────────────
     {
       "type": "custom",
-      "format": "{##be95ff}├─ [ network ] ────────────────────────────────────────────────────\u001b[90G┤"
+      "format": "{##be95ff}├─ [ network ] ────────────────────────────────────────────────────\u001b[112G┤"
     },
     {
       "type": "wifi",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##3ddbd9}\uf1eb\u001b[29Gwifi",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##3ddbd9}\uf1eb\u001b[51Gwifi",
       "format": "{ssid} {##be95ff}·{##3ddbd9} {signal-quality} {##be95ff}·{##3ddbd9} {protocol}",
       "outputColor": "#3ddbd9"
     },
     {
       "type": "localip",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##82cfff}\uf0e8\u001b[29Glan",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##82cfff}\uf0e8\u001b[51Glan",
       "format": "{ipv4} {##be95ff}·{##82cfff} {ifname}",
       "outputColor": "#82cfff",
       "showIpv4": true,
@@ -307,7 +316,7 @@
     },
     {
       "type": "dns",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##78a9ff}\uf0ac\u001b[29Gdns",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##78a9ff}\uf0ac\u001b[51Gdns",
       "outputColor": "#78a9ff",
       "showType": "ipv4"
     },
@@ -318,7 +327,7 @@
       // default, so it is worth knowing rather than discovering. Delete this block
       // to stay fully offline; see docs/shell.md.
       "type": "publicip",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ee5396}\uf0c2\u001b[29Gwan",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ee5396}\uf0c2\u001b[51Gwan",
       "outputColor": "#ee5396",
       "timeout": 800
     },
@@ -326,84 +335,84 @@
     // ── toolchain ────────────────────────────────────────────────────────────
     {
       "type": "custom",
-      "format": "{##be95ff}├─ [ toolchain ] ──────────────────────────────────────────────────\u001b[90G┤"
+      "format": "{##be95ff}├─ [ toolchain ] ──────────────────────────────────────────────────\u001b[112G┤"
     },
     // A probe that finds nothing prints nothing, and fastfetch drops the
     // row entirely — absent toolchains simply do not appear.
     {
       "type": "editor",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##82cfff}\uf044\u001b[29Geditor",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##82cfff}\uf044\u001b[51Geditor",
       "format": "{name} {version}",
       "outputColor": "#82cfff"
     },
     {
       "type": "command",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##be95ff}\uf1d3\u001b[29Ggit",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##be95ff}\uf1d3\u001b[51Ggit",
       "text": "command -v git >/dev/null 2>&1 || exit 0; git --version | awk '{print $3}'",
       "outputColor": "#be95ff"
     },
     {
       // honours $CC, else cc/gcc/clang; prints the toolchain name + version
       "type": "command",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##78a9ff}\ue61e\u001b[29Gc/c++",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##78a9ff}\ue61e\u001b[51Gc/c++",
       "text": "for c in ${CC:-} cc gcc clang; do command -v $c >/dev/null 2>&1 && break; c=; done; case $c in '') exit 0;; esac; $c --version 2>/dev/null | awk 'NR==1{ n = ($0 ~ /Apple clang/) ? \"Apple Clang\" : (($0 ~ /clang/) ? \"Clang\" : \"GCC\"); if (match($0, /[Vv]ersion [0-9][0-9.]*/)) v = substr($0, RSTART+8, RLENGTH-8); else for (i=1;i<=NF;i++) if ($i ~ /^[0-9][0-9.]*$/) { v=$i; break }; print n, v }'",
       "outputColor": "#78a9ff"
     },
     {
       // vendor comes from the runtime banner (Temurin, Zulu, Corretto, GraalVM …)
       "type": "command",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ee5396}\ue738\u001b[29Gjava",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ee5396}\ue738\u001b[51Gjava",
       "text": "command -v java >/dev/null 2>&1 || exit 0; o=$(java -version 2>&1); v=$(printf %s\\n \"$o\" | tr -d '\\042' | awk 'NR==1{print $3}'); case $o in *Temurin*) n=Temurin;; *Zulu*) n=Zulu;; *Corretto*) n=Corretto;; *GraalVM*) n=GraalVM;; *Microsoft*) n=Microsoft;; *Semeru*|*IBM*) n=Semeru;; *Oracle*|*'Java(TM)'*) n=Oracle;; *Homebrew*) n=Homebrew;; *OpenJDK*) n=OpenJDK;; *) n=Java;; esac; printf '%s %s\\n' \"$n\" \"$v\"",
       "outputColor": "#ee5396"
     },
     {
       "type": "command",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##33b1ff}\ue73c\u001b[29Gpython",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##33b1ff}\ue73c\u001b[51Gpython",
       "text": "p=python3; command -v $p >/dev/null 2>&1 || p=python; command -v $p >/dev/null 2>&1 || exit 0; $p -V 2>&1 | awk '{print $2}'",
       "outputColor": "#33b1ff"
     },
     {
       "type": "command",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ff7eb6}\ue7a8\u001b[29Grust",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ff7eb6}\ue7a8\u001b[51Grust",
       "text": "command -v rustc >/dev/null 2>&1 || exit 0; rustc -V | awk '{print $2}'",
       "outputColor": "#ff7eb6"
     },
     {
       "type": "command",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##3ddbd9}\ue626\u001b[29Ggo",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##3ddbd9}\ue626\u001b[51Ggo",
       "text": "command -v go >/dev/null 2>&1 || exit 0; go version | awk '{print substr($3,3)}'",
       "outputColor": "#3ddbd9"
     },
     {
       "type": "command",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##42be65}\ue718\u001b[29Gnode",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##42be65}\ue718\u001b[51Gnode",
       "text": "command -v node >/dev/null 2>&1 || exit 0; node -v | tr -d v",
       "outputColor": "#42be65"
     },
     {
       "type": "custom",
-      "format": "{##be95ff}├─ [ session ] ────────────────────────────────────────────────────\u001b[90G┤"
+      "format": "{##be95ff}├─ [ session ] ────────────────────────────────────────────────────\u001b[112G┤"
     },
     {
       "type": "uptime",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##42be65}\uf017\u001b[29Guptime",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##42be65}\uf017\u001b[51Guptime",
       "outputColor": "#42be65"
     },
     {
       "type": "processes",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##ff7eb6}\uf0ae\u001b[29Gprocs",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##ff7eb6}\uf0ae\u001b[51Gprocs",
       "outputColor": "#ff7eb6"
     },
     {
       "type": "locale",
-      "key": "\u001b[90G{##be95ff}│\u001b[23G│  {##3ddbd9}\uf1ab\u001b[29Glocale",
+      "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##3ddbd9}\uf1ab\u001b[51Glocale",
       "outputColor": "#3ddbd9"
     },
 
     // ── palette ──────────────────────────────────────────────────────────────
     {
       "type": "custom",
-      "format": "{##be95ff}╰──────────────────────────────────────────────────────────────────\u001b[90G╯"
+      "format": "{##be95ff}╰──────────────────────────────────────────────────────────────────\u001b[112G╯"
     },
     { "type": "break" },
     {

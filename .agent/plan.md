@@ -816,6 +816,12 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     config path as an argument instead of assuming it sits beside the script. Its `perl`
     dependency is satisfied: Fedora's `git`, already in the package list, requires
     `/usr/bin/perl`.
+    **Superseded in part by IMG-031 (2026-08-03).** The two paragraphs above about *which*
+    logo are wrong on both counts: detection reaches `ID_LIKE=fedora` and picks the full
+    mark, never the penguin, and the fallback measures 30 wide rather than 23. The shipped
+    logo is now `fedora`, the box is 112 columns, and the criterion below about fitting a
+    half-tiled WezTerm no longer holds — see DD-041. Everything here about *where* the config
+    goes still stands.
   - **Acceptance criteria:**
     - `fastfetch` is installed, and nothing runs it automatically — no login banner, no
       shell startup cost
@@ -1264,6 +1270,40 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/shell.md` and `.agent/context/` cover it
     - On the rebased image, `fastfetch` draws the Qubix box *(open — needs a build and
       hardware)*
+
+- [ ] **IMG-031** — Draw the full Fedora mark, and move the box out of its way
+  - **Category:** Image content
+  - **Depends on:** IMG-020
+  - **Notes:** Requested 2026-08-03: the `"logo"` block can go, but with it gone fastfetch
+    draws the **full** Fedora mark and the box — pinned at columns 23/29/39/90 — is written
+    on top of it, because the full mark occupies columns 1–44.
+    **DD-031's reason for pinning was wrong, and this is how it was found.** It claimed
+    detection falls back to the generic penguin because `ID=qubix_os_bluebuild` matches no
+    builtin logo. Detection does not stop at `ID`: fastfetch tries `ID`, then `NAME`, then
+    each word of `ID_LIKE`, then the kernel's name, then `unknown`
+    (`logoGetBuiltinDetected`, `src/logo/logo.c`). DD-003 rewrites `ID` and `NAME`, so the
+    field that still says fedora is `ID_LIKE` — by elimination, since the mark that appeared
+    is Fedora's and no other step can produce it — which is why deleting the block draws the
+    full 38-column mark and not a penguin.
+    Measured with fastfetch 2.61.0 against this config's padding (+2 left, +4 right):
+    `fedora` 44-column gutter, `fedora_small` 22, `unknown` 36 — so DD-031's "23 wide,
+    29-column gutter" for the fallback was stale too.
+    The columns were re-derived by running the image's own `retune.sh` against the config,
+    which is the first time that tool has been used for the job it was written for.
+  - **Acceptance criteria:**
+    - The full `fedora` mark is what the box is drawn beside, and the two do not overlap
+    - All four columns are re-derived from the 44-column gutter — spine 45, label 51,
+      separator 61, right spine 112 — in every key, in `display.separator`, and in the four
+      rule lines
+    - The logo stays **pinned**, so a fastfetch that ships a `qubix` logo or a base image
+      that drops `ID_LIKE` cannot move the columns silently
+    - The config's header comment states the real detection order, and says the box now
+      needs a 112-column terminal — more than Niri's default half column gives it
+    - `retune.sh` describes the logo the shipped config is actually tuned for
+    - A `DD-###` supersedes the logo half of DD-031, including its wrong fallback reasoning;
+      `docs/shell.md` and `.agent/context/` follow
+    - On the rebased image, `fastfetch` draws the box beside the full mark *(open — needs a
+      build; verified locally by rendering the config through a 130-column pty)*
 
 ### Image variants
 
