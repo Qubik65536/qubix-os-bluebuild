@@ -14,7 +14,7 @@ and *why*; `.agent/` answers *what do I need to know right now to touch this fil
 | `README.md` | Index of everything, plus the documentation rules | Starting anywhere |
 | `overview.md` | What Qubix OS is, upstream lineage, the full delta over Aurora DX, goals/non-goals | You need the big picture |
 | `architecture.md` | Commit → CI → image → rebase pipeline; module order and constraints; the `files/` overlay mapping; unused extension points | Changing how the image is assembled |
-| `design-decisions.md` | `DD-001`…`DD-042` — every "why" in the project | Before questioning any convention |
+| `design-decisions.md` | `DD-001`…`DD-044` — every "why" in the project | Before questioning any convention |
 | `recipe-reference.md` | Per-file and per-module reference for `recipes/`, incl. unused-but-available modules | Editing a recipe |
 | `variants.md` | The published images (standard, CachyOS kernel), their requirements, how to switch, how the kernel swap works | Adding a variant, or answering "which image should I run?" |
 | `desktops.md` | The two sessions (Plasma, Niri), switching, Niri config and keybinds, default terminal, default browser (DD-023), the `#56728B` colour theme and how it is delivered (DD-022, DD-025), the pinned display scale (DD-024), and the "Niri session shows nothing" procedure, which leads with the Xwayland Video Bridge and then splits a stale panel from a dead compositor from a dead shell (IMG-012) | Touching either desktop session |
@@ -22,7 +22,7 @@ and *why*; `.agent/` answers *what do I need to know right now to touch this fil
 | `branding.md` | Asset → image path → consumer map, grouped by source artwork; logo-change procedure; logo green vs. the Niri accent | Touching anything under `files/system/` |
 | `build-and-release.md` | CI triggers, concurrency, permissions, signing, tags, failure triage | Changing CI or debugging a build |
 | `usage.md` | Install, update, rollback, verify, ISO, uninstall | Answering a user-facing question |
-| `contributing.md` | The four-part contract, the task workflow, and the commit rules (incl. the no-issue-reference rule, DD-020) | Before making any change |
+| `contributing.md` | The four-part contract, the task workflow incl. the three plan sections and ticking in the implementing commit (DD-044), and the commit rules (incl. the no-issue-reference rule, DD-020) | Before making any change |
 | `glossary.md` | Project terminology | Writing docs, to stay consistent |
 
 ## Gotchas

@@ -2522,3 +2522,57 @@ was compiled for.
   2.0 release replaces these shell scripts with a Go binary. The build asserts that
   `distrobox-create` still names `/etc/distrobox/distrobox.conf`, so that change fails CI
   with a note to re-check rather than producing containers that quietly come up bare.
+
+---
+
+## DD-044 — A plan section for work that is finished but unconfirmed
+
+**Status:** Accepted
+
+**Extends:** [DD-011](#dd-011--documentation-plan-and-context-cache-are-part-of-the-deliverable),
+whose plan contract this refines
+
+**Implements:** `AGT-006`
+
+**Context.** There is no local build (`AGENTS.md` §6), so nearly every image task ends in a
+criterion of the shape *"on the rebased image, X works"*. Nobody can tick that from a
+checkout. The convention up to now was to leave the whole task `[ ]` until somebody rebased
+a machine and looked — which is correct about the criterion and wrong about the task.
+
+The cost compounded quietly. By 2026-08-04, `plan.md` held **twenty-two** tasks in **Open**
+whose code, documentation, decision records and context entries had all shipped, sitting in
+the same list as `MNT-001` (replace the template `CODEOWNERS`), which nobody had touched.
+The two are indistinguishable at a glance, and *the list of what to work on next* is the one
+question the file exists to answer. An agent reading it in a fresh session would reasonably
+start re-implementing something already in the image.
+
+**Decision.** Split the tracker three ways, and tick in the commit that earns the tick.
+
+| Section | Holds | Leaves when |
+|---|---|---|
+| **Done** | Every criterion met | — |
+| **Awaiting confirmation** | Shipped and documented; the only criterion left needs a built image on hardware | Somebody confirms it, and records the date in the criterion |
+| **Open** | Not started, or in progress | Its implementing commit lands |
+
+The confirmation criterion stays in the task, and stays unmet until it is met — it is not
+dropped, and "shipped" is not redefined as "done". What changes is that a task waiting on a
+person with a laptop no longer looks like a task waiting on a contributor.
+
+**The tick moves in the same commit as the work.** A sweep that ticks boxes later is a
+second source of truth about what is finished, maintained by hand, and it drifts between
+sweeps — which is exactly what happened here.
+
+**Consequences.**
+- **Open answers "what should I pick up?"** and nothing else. Anything in it is genuinely
+  unstarted or in progress.
+- **Awaiting confirmation is a queue for the person with the hardware**, not for a
+  contributor. It is a list of things to *look at*, in one place, instead of a criterion
+  buried in the twelfth bullet of a task.
+- **Confirmations are dated** — `*(confirmed YYYY-MM-DD)*` — so a later regression report can
+  be placed against the build that was actually checked. `IMG-011` already did this by hand;
+  it is now the form.
+- **A task can be confirmed in pieces**, and when it is, it stays in Awaiting confirmation
+  with the confirmed criteria dated individually. Partial confirmation is not completion.
+- Cost: one more move per task, and a section that is empty whenever the machine is current
+  — as it is at the time of this record. An empty section is the intended steady state, not
+  a sign the layout is unused.

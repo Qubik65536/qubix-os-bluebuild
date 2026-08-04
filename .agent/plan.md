@@ -9,6 +9,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
   **acceptance criteria**.
 - A task is **done only when every acceptance criterion is met.** Only then does `[ ]`
   become `[x]`.
+- **Tick it in the commit that earns it.** A box left `[ ]` after its work has shipped is
+  indistinguishable from work nobody has started, so the tick and the move between sections
+  belong in the same commit as the change — never in a later sweep.
 - **Never start a task whose dependencies are unticked.**
 - Tasks with **no shared dependencies and no dependency relationship** between them **may
   be worked in parallel**.
@@ -24,6 +27,24 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
 | `BRD` | Branding assets |
 | `MNT` | Maintenance / cleanup |
 | `AGT` | Agent tooling (`AGENTS.md`, plan, context cache) |
+
+### Sections
+
+| Section | Holds |
+|---|---|
+| **Done** | Every acceptance criterion met. |
+| **Awaiting confirmation** | Shipped, documented, and complete except for a criterion that can only be checked on a built image running on real hardware. |
+| **Open** | Not started, or in progress. |
+
+There is no local build (`AGENTS.md` §6), so most image work reaches a last criterion that
+nobody can tick from a checkout. That criterion is a **confirmation**, not a task: the work
+is finished and the change is in the image. A task therefore moves
+
+- **Open → Awaiting confirmation** in the commit that implements it, and
+- **Awaiting confirmation → Done** when the person with the hardware confirms it, with the
+  date recorded in the criterion — `*(confirmed YYYY-MM-DD)*`.
+
+Nothing stays in **Open** merely because CI has not run yet.
 
 ### Task template
 
@@ -199,6 +220,34 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - Each entry states purpose, essential details, gotchas, and what to update on change
     - Entries are summaries, not copies of the source
 
+- [x] **AGT-006** — Separate work that is finished from work that is unconfirmed
+  - **Category:** Agent tooling
+  - **Depends on:** AGT-003
+  - **Notes:** Found on 2026-08-04 while auditing the tracker against the commits. Every
+    commit since `c55107b` shipped its files, its docs, its `DD-###` and its context entries
+    — and left its task `[ ]`, because each ends in a criterion that needs a built image on
+    real hardware, which no checkout can satisfy. Twenty-two tasks accumulated in **Open**
+    that way, alongside `MNT-001`, which nobody has started. The section that is supposed to
+    answer "what should I pick up next?" could not.
+    The criterion is right and stays; the *placement* was wrong. Splitting the tracker gives
+    a shipped-but-unchecked task somewhere to wait that is not the backlog, and ticking in
+    the implementing commit stops the tracker needing a periodic sweep to be true. See
+    DD-044.
+    All twenty-two were confirmed on the machine on 2026-08-04, so the new section starts
+    empty — which is its intended steady state, not a sign it is unused.
+  - **Acceptance criteria:**
+    - `plan.md` has three sections — Done, Awaiting confirmation, Open — and states what
+      each holds and what moves a task between them
+    - Every task whose only unmet criterion was an on-hardware check is ticked and dated
+      `*(confirmed YYYY-MM-DD)*`, or sits in Awaiting confirmation if it is not
+    - **Open contains only unstarted or in-progress work**, verified task by task against
+      the tree
+    - The rule that the tick lands in the same commit as the work is stated in `AGENTS.md`,
+      `plan.md` and `docs/contributing.md`, in one form
+    - A `DD-###` records why a criterion nobody can check locally is not grounds for leaving
+      finished work in the backlog
+    - `.agent/context/agent-files.md` carries the three-section layout
+
 ### Code comments
 
 - [x] **DOC-012** — Comment the major sections of every config, script, and workflow
@@ -254,6 +303,122 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - The shipped Niri config carries DankMaterialShell's keybinds
     - Plasma is unaffected — no DankMaterialShell component runs in a Plasma session
     - `docs/desktops.md`, `.agent/context/`, and a `DD-###` record cover the change
+
+- [x] **IMG-012** — Stop the Xwayland Video Bridge taking over the Niri session
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Reported 2026-08-01 against the `latest`-based standard image: a Niri login
+    showed an empty desktop — no wallpaper, no DankMaterialShell bar, no application
+    windows — while niri itself stayed healthy the whole time.
+    **Cause, identified by the user on the machine:** `xwaylandvideobridge`, the "Wayland
+    to X Recording bridge". It XDG-autostarts, `niri.service` pulls in
+    `xdg-desktop-autostart.target`, and the bridge is designed to be invisible but leaves
+    that to the compositor — KDE ships a KWin rule, niri has none, so the window just opens
+    and takes the session (<https://github.com/niri-wm/niri/issues/2367>).
+    Every symptom follows from that, and none of them were display faults: the session
+    opened on niri's hotkey-overlay cheatsheet (so niri composited *and* presented), binds
+    and DMS's IPC answered throughout, and hammering a keybind or switching workspaces
+    brought everything up at once and correct.
+    **First fix** was a `window-rule` in `files/system/etc/niri/config.kdl` matching
+    `app-id=^xwaylandvideobridge$` — floating, unfocused, non-fullscreen, one pixel, corner,
+    zero opacity (DD-019). It stopped the window covering the session, and **was not
+    enough**: a hidden window is still a window, so it stayed in niri's toplevel list and
+    went on appearing in DankMaterialShell's bar as a running application. Neither end can
+    filter it — niri has no `skip-taskbar` equivalent, and DMS's Running Apps widget offers
+    app-id substitutions but no exclusion list.
+    **Second fix, and the one that settles it:** ship
+    `files/system/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` — upstream's entry
+    plus `NotShowIn=niri;` — so the bridge does not autostart here. The window rule stays as
+    a second line of defence for a hand-started bridge. DD-021 supersedes DD-019 and records
+    the cost: X11 apps cannot capture the screen in the Niri session.
+    Dead ends, recorded so they are not re-proposed:
+    - **Panel Self Refresh — tested and refuted on the machine.** A window running
+      `watch -n0.1 date` updated smoothly; after quitting it and letting the screen go
+      quiet, `Mod+T` showed a new WezTerm normally. The panel takes frames from an idle
+      screen. **`amdgpu.dcdebugmask=0x10` is not the fix and must not be shipped.**
+    - **Quickshell falling back to the `xcb` QPA platform.** `dankgo/shellapp/env.go` sets
+      `QT_QPA_PLATFORM=wayland;xcb` only when unset, so it is a real possibility — but it
+      costs layer-shell and nothing else, and would not have hidden application windows.
+    - **`dms.service` failing to claim `org.freedesktop.Notifications`** (it is `Type=dbus`
+      on that name). Same objection: it explains a missing shell, not a missing desktop.
+    Established by inspection and still true, worth keeping if the *shell alone* ever goes
+    missing:
+    - **The layer rule does not hide the bar.** niri's `place_within_backdrop()`
+      (`src/layer/mapped.rs`) returns false unless the surface is on the **Background**
+      layer *and* ignores the exclusive zone. DMS's bar is `dms:bar` on Top/Overlay, so it
+      never matches `^quickshell$`.
+    - **The backdrop does not swallow the wallpaper.** `src/niri.rs` renders backdrop layer
+      surfaces in the normal path too, beneath the workspaces, so with
+      `background-color "transparent"` the wallpaper shows outside the overview. Rule plus
+      transparent background is upstream DMS's own documented setup.
+    - **The unit wiring is sound.** Fedora's `niri.desktop` runs `niri-session`, which does
+      `systemctl --user --wait start niri.service`, so the `/usr/lib/systemd/user/` drop-in
+      is evaluated; `Wants=` pulls a *disabled* unit in regardless, and the order resolves
+      to niri → `graphical-session.target` → dms.
+    - **No environment race.** `niri --session` runs `systemctl --user import-environment`
+      and **waits for it** before sending `READY=1`.
+  - **Acceptance criteria:**
+    - `/etc/niri/config.kdl` carries a window rule that hides `xwaylandvideobridge`, with a
+      comment explaining what the bridge is and why it is hidden rather than removed
+    - `/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` stops it autostarting under
+      Niri and **only** under Niri — a Plasma login still gets the bridge
+    - No KDE package is removed or disabled to achieve either (DD-013 holds)
+    - `DD-019`, `DD-021`, `docs/desktops.md`, and `.agent/context/files-system.md` cover the
+      change, including what the Niri session loses
+    - A Niri login on the rebased image comes up with wallpaper, bar, and working windows,
+      and **no bridge in the bar**, on a fresh account, with no per-user setup
+      *(confirmed 2026-08-04)*
+
+- [x] **IMG-013** — Give the Xwayland Video Bridge a start/stop control in Niri
+  - **Category:** Image content
+  - **Depends on:** IMG-012
+  - **Notes:** IMG-012 stopped the bridge autostarting under Niri (DD-021), which leaves X11
+    screen capture available but only by typing `xwaylandvideobridge` into a terminal. That
+    is a poor trade for the person who actually wants to share their screen to Discord.
+    One gotcha decides the shape of this. **`pkill xwaylandvideobridge` never matches.**
+    `pkill`/`pgrep` match `/proc/PID/comm`, which the kernel truncates to 15 characters;
+    the name is 19, so the pattern silently finds nothing. Matching has to be `-f`, against
+    the full command line — and a bare `pkill -f xwaylandvideobridge` then matches the
+    *shell running the pkill*, because that shell's own command line contains the string.
+    `-x -f` with an anchored pattern avoids both traps.
+    That logic wants one home rather than being copy-pasted into a keybind and a desktop
+    entry, hence a script rather than an inline `spawn-sh`.
+  - **Acceptance criteria:**
+    - A toggle exists as a niri keybind, and in the application launcher for anyone who
+      does not remember keybinds
+    - Both entry points run the same command, so the stop half always matches what the
+      start half launched
+    - It reports what it did through a desktop notification — a keybind has nowhere to
+      print to
+    - Nothing is added to a Plasma session, where the bridge still autostarts
+    - `docs/desktops.md`, DD-021's consequences, and `.agent/context/files-system.md` cover it
+    - The script is executable in the built image and the toggle works from both entry
+      points *(confirmed 2026-08-04)*
+
+- [x] **BRD-002** — Give the Niri session a theme built from `#56728B`
+  - **Category:** Branding
+  - **Depends on:** —
+  - **Notes:** Requested 2026-08-01. The Niri session currently borrows the logo green
+    `#47603b` for its focus ring and pairs it with a neutral grey `#3c3c3c`; everything else
+    niri can colour is left at its default. That is one borrowed colour, not a theme.
+    `#56728B` is `hsl(208, 24%, 44%)`. Deriving the rest of the palette by holding hue and
+    saturation and moving only lightness keeps every surface visibly the same colour, which
+    is the whole point of theming from one hex.
+    **DMS still wins where it overlaps.** `/etc/niri/config.kdl` ends with
+    `include optional=true "~/.config/niri/dms/colors.kdl"`, and niri includes override what
+    came before them (DD-015). A user who turns on DankMaterialShell's dynamic theming gets
+    matugen's wallpaper-derived colours over the top of this. That is deliberate and stays.
+  - **Acceptance criteria:**
+    - Every colour niri accepts is set from one derived palette: focus ring, border, shadow,
+      tab indicator, insert hint, and the overview backdrop
+    - `#56728B` itself is the focused-window colour, not a shade of it
+    - The palette is written down with its derivation, so the next colour can be produced
+      rather than guessed
+    - Features that are off by default — border, shadow — stay off, but are pre-coloured so
+      turning them on is one word and still matches
+    - `background-color "transparent"` is untouched; DMS's wallpaper still shows through
+    - A `DD-###` records the departure from the logo green, and `docs/branding.md` no longer
+      implies `#47603b` is the only project colour
 
 ### Image variants
 
@@ -369,7 +534,7 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - DD-002 is superseded, not rewritten, by a record explaining the trade that changed
     - `docs/`, `README.md`, `AGENTS.md`, and `.agent/context/recipe.md` no longer describe
       the project as tracking `beta`
-    - The user confirms the rebased image reaches a login screen — **confirmed 2026-08-01**,
+    - The user confirms the rebased image reaches a login screen *(confirmed 2026-08-01)* —
       the machine now boots to the greeter and logs in
 
 ### Build assertions
@@ -392,132 +557,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       snippet was run twice against Fedora's real `/etc/zshrc`, and the second run exits 1)*
     - The trap is written down where the next assertion will be added
 
----
-
-## Open
-
-### Desktop sessions
-
-- [ ] **IMG-012** — Stop the Xwayland Video Bridge taking over the Niri session
-  - **Category:** Image content
-  - **Depends on:** —
-  - **Notes:** Reported 2026-08-01 against the `latest`-based standard image: a Niri login
-    showed an empty desktop — no wallpaper, no DankMaterialShell bar, no application
-    windows — while niri itself stayed healthy the whole time.
-    **Cause, identified by the user on the machine:** `xwaylandvideobridge`, the "Wayland
-    to X Recording bridge". It XDG-autostarts, `niri.service` pulls in
-    `xdg-desktop-autostart.target`, and the bridge is designed to be invisible but leaves
-    that to the compositor — KDE ships a KWin rule, niri has none, so the window just opens
-    and takes the session (<https://github.com/niri-wm/niri/issues/2367>).
-    Every symptom follows from that, and none of them were display faults: the session
-    opened on niri's hotkey-overlay cheatsheet (so niri composited *and* presented), binds
-    and DMS's IPC answered throughout, and hammering a keybind or switching workspaces
-    brought everything up at once and correct.
-    **First fix** was a `window-rule` in `files/system/etc/niri/config.kdl` matching
-    `app-id=^xwaylandvideobridge$` — floating, unfocused, non-fullscreen, one pixel, corner,
-    zero opacity (DD-019). It stopped the window covering the session, and **was not
-    enough**: a hidden window is still a window, so it stayed in niri's toplevel list and
-    went on appearing in DankMaterialShell's bar as a running application. Neither end can
-    filter it — niri has no `skip-taskbar` equivalent, and DMS's Running Apps widget offers
-    app-id substitutions but no exclusion list.
-    **Second fix, and the one that settles it:** ship
-    `files/system/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` — upstream's entry
-    plus `NotShowIn=niri;` — so the bridge does not autostart here. The window rule stays as
-    a second line of defence for a hand-started bridge. DD-021 supersedes DD-019 and records
-    the cost: X11 apps cannot capture the screen in the Niri session.
-    Dead ends, recorded so they are not re-proposed:
-    - **Panel Self Refresh — tested and refuted on the machine.** A window running
-      `watch -n0.1 date` updated smoothly; after quitting it and letting the screen go
-      quiet, `Mod+T` showed a new WezTerm normally. The panel takes frames from an idle
-      screen. **`amdgpu.dcdebugmask=0x10` is not the fix and must not be shipped.**
-    - **Quickshell falling back to the `xcb` QPA platform.** `dankgo/shellapp/env.go` sets
-      `QT_QPA_PLATFORM=wayland;xcb` only when unset, so it is a real possibility — but it
-      costs layer-shell and nothing else, and would not have hidden application windows.
-    - **`dms.service` failing to claim `org.freedesktop.Notifications`** (it is `Type=dbus`
-      on that name). Same objection: it explains a missing shell, not a missing desktop.
-    Established by inspection and still true, worth keeping if the *shell alone* ever goes
-    missing:
-    - **The layer rule does not hide the bar.** niri's `place_within_backdrop()`
-      (`src/layer/mapped.rs`) returns false unless the surface is on the **Background**
-      layer *and* ignores the exclusive zone. DMS's bar is `dms:bar` on Top/Overlay, so it
-      never matches `^quickshell$`.
-    - **The backdrop does not swallow the wallpaper.** `src/niri.rs` renders backdrop layer
-      surfaces in the normal path too, beneath the workspaces, so with
-      `background-color "transparent"` the wallpaper shows outside the overview. Rule plus
-      transparent background is upstream DMS's own documented setup.
-    - **The unit wiring is sound.** Fedora's `niri.desktop` runs `niri-session`, which does
-      `systemctl --user --wait start niri.service`, so the `/usr/lib/systemd/user/` drop-in
-      is evaluated; `Wants=` pulls a *disabled* unit in regardless, and the order resolves
-      to niri → `graphical-session.target` → dms.
-    - **No environment race.** `niri --session` runs `systemctl --user import-environment`
-      and **waits for it** before sending `READY=1`.
-  - **Acceptance criteria:**
-    - `/etc/niri/config.kdl` carries a window rule that hides `xwaylandvideobridge`, with a
-      comment explaining what the bridge is and why it is hidden rather than removed
-    - `/etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` stops it autostarting under
-      Niri and **only** under Niri — a Plasma login still gets the bridge
-    - No KDE package is removed or disabled to achieve either (DD-013 holds)
-    - `DD-019`, `DD-021`, `docs/desktops.md`, and `.agent/context/files-system.md` cover the
-      change, including what the Niri session loses
-    - A Niri login on the rebased image comes up with wallpaper, bar, and working windows,
-      and **no bridge in the bar**, on a fresh account, with no per-user setup
-      *(open — needs a build and hardware)*
-
-- [ ] **IMG-013** — Give the Xwayland Video Bridge a start/stop control in Niri
-  - **Category:** Image content
-  - **Depends on:** IMG-012
-  - **Notes:** IMG-012 stopped the bridge autostarting under Niri (DD-021), which leaves X11
-    screen capture available but only by typing `xwaylandvideobridge` into a terminal. That
-    is a poor trade for the person who actually wants to share their screen to Discord.
-    One gotcha decides the shape of this. **`pkill xwaylandvideobridge` never matches.**
-    `pkill`/`pgrep` match `/proc/PID/comm`, which the kernel truncates to 15 characters;
-    the name is 19, so the pattern silently finds nothing. Matching has to be `-f`, against
-    the full command line — and a bare `pkill -f xwaylandvideobridge` then matches the
-    *shell running the pkill*, because that shell's own command line contains the string.
-    `-x -f` with an anchored pattern avoids both traps.
-    That logic wants one home rather than being copy-pasted into a keybind and a desktop
-    entry, hence a script rather than an inline `spawn-sh`.
-  - **Acceptance criteria:**
-    - A toggle exists as a niri keybind, and in the application launcher for anyone who
-      does not remember keybinds
-    - Both entry points run the same command, so the stop half always matches what the
-      start half launched
-    - It reports what it did through a desktop notification — a keybind has nowhere to
-      print to
-    - Nothing is added to a Plasma session, where the bridge still autostarts
-    - `docs/desktops.md`, DD-021's consequences, and `.agent/context/files-system.md` cover it
-    - The script is executable in the built image and the toggle works from both entry
-      points *(open — needs a build and hardware; the overlay carries mode 100755, but
-      nothing here verifies what the `files` module produced)*
-
-- [ ] **BRD-002** — Give the Niri session a theme built from `#56728B`
-  - **Category:** Branding
-  - **Depends on:** —
-  - **Notes:** Requested 2026-08-01. The Niri session currently borrows the logo green
-    `#47603b` for its focus ring and pairs it with a neutral grey `#3c3c3c`; everything else
-    niri can colour is left at its default. That is one borrowed colour, not a theme.
-    `#56728B` is `hsl(208, 24%, 44%)`. Deriving the rest of the palette by holding hue and
-    saturation and moving only lightness keeps every surface visibly the same colour, which
-    is the whole point of theming from one hex.
-    **DMS still wins where it overlaps.** `/etc/niri/config.kdl` ends with
-    `include optional=true "~/.config/niri/dms/colors.kdl"`, and niri includes override what
-    came before them (DD-015). A user who turns on DankMaterialShell's dynamic theming gets
-    matugen's wallpaper-derived colours over the top of this. That is deliberate and stays.
-  - **Acceptance criteria:**
-    - Every colour niri accepts is set from one derived palette: focus ring, border, shadow,
-      tab indicator, insert hint, and the overview backdrop
-    - `#56728B` itself is the focused-window colour, not a shade of it
-    - The palette is written down with its derivation, so the next colour can be produced
-      rather than guessed
-    - Features that are off by default — border, shadow — stay off, but are pre-coloured so
-      turning them on is one word and still matches
-    - `background-color "transparent"` is untouched; DMS's wallpaper still shows through
-    - A `DD-###` records the departure from the logo green, and `docs/branding.md` no longer
-      implies `#47603b` is the only project colour
-
 ### Applications
 
-- [ ] **IMG-014** — Make Ungoogled Chromium the default browser and drop Firefox
+- [x] **IMG-014** — Make Ungoogled Chromium the default browser and drop Firefox
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Requested 2026-08-01. DD-006 chose *Flatpak over RPM* and left *which
@@ -546,9 +588,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       `docs/overview.md`, `docs/architecture.md`, `docs/recipe-reference.md`, `README.md`
       and `.agent/context/` cover the change, including the manual uninstall on rebase
     - On the rebased image, a link clicked in each session opens Ungoogled Chromium on a
-      fresh account with no per-user setup *(open — needs a build and hardware)*
+      fresh account with no per-user setup *(confirmed 2026-08-04)*
 
-- [ ] **BRD-003** — Pin the built-in panel to scale 1
+- [x] **BRD-003** — Pin the built-in panel to scale 1
   - **Category:** Branding
   - **Depends on:** —
   - **Notes:** Requested 2026-08-01: the Niri session comes up at **1.25** on the laptop
@@ -571,7 +613,7 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       costs on HiDPI hardware
     - `docs/desktops.md` and `.agent/context/files-system.md` cover it
 
-- [ ] **BRD-004** — Make the theme apply by default and survive every rebase
+- [x] **BRD-004** — Make the theme apply by default and survive every rebase
   - **Category:** Branding
   - **Depends on:** BRD-002
   - **Notes:** BRD-002 defined the palette; it did not make it *arrive*. Two gaps, one per
@@ -604,7 +646,7 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
 
 ### Terminal environment
 
-- [ ] **IMG-015** — Ship a configured interactive shell: zsh, starship, atuin, bat, yazi
+- [x] **IMG-015** — Ship a configured interactive shell: zsh, starship, atuin, bat, yazi
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Requested 2026-08-02. `starship` has been installed since DD-007 and **never
@@ -659,9 +701,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       shipped in the image. IMG-019 used `/etc/zshenv`, which runs too early
     - `docs/shell.md`, a `DD-###`, `.agent/context/`, and `docs/recipe-reference.md` cover it
     - On the rebased image a fresh login gets the prompt, history search, and both plugins
-      *(open — needs a build and hardware)*
+      *(confirmed 2026-08-04)*
 
-- [ ] **IMG-016** — Ship Neovim with LazyVim, owned by the user
+- [x] **IMG-016** — Ship Neovim with LazyVim, owned by the user
   - **Category:** Image content
   - **Depends on:** IMG-015
   - **Notes:** Requested 2026-08-02, with the explicit requirement that **edits to the
@@ -684,9 +726,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/shell.md`, a `DD-###`, and `.agent/context/` cover it, including what first
       launch needs the network for
     - On the rebased image, `nvim` starts LazyVim, installs its plugins, and an edit to
-      `~/.config/nvim` survives the next rebase *(open — needs a build and hardware)*
+      `~/.config/nvim` survives the next rebase *(confirmed 2026-08-04)*
 
-- [ ] **IMG-017** — Make zsh the login shell
+- [x] **IMG-017** — Make zsh the login shell
   - **Category:** Image content
   - **Depends on:** IMG-015
   - **Notes:** Requested 2026-08-02, reversing the position IMG-015 took. The login shell is
@@ -716,9 +758,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       comments, `docs/shell.md`, `docs/usage.md` and `.agent/context/` no longer say the
       opposite
     - On the rebased image, a login lands in zsh with the prompt and plugins
-      *(open — needs a build and hardware)*
+      *(confirmed 2026-08-04)*
 
-- [ ] **IMG-018** — Make the seeded Neovim config updatable from upstream
+- [x] **IMG-018** — Make the seeded Neovim config updatable from upstream
   - **Category:** Image content
   - **Depends on:** IMG-016
   - **Notes:** Requested 2026-08-02. IMG-016 seeded the starter as **plain files**, so the
@@ -745,9 +787,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       documented, along with what to do after an OS rebase bumps Neovim
     - DD-027 is superseded, not rewritten
     - On the rebased image, `git -C ~/.config/nvim pull` and `:Lazy update` both work
-      *(open — needs a build and hardware)*
+      *(confirmed 2026-08-04)*
 
-- [ ] **IMG-019** — Replace the runtime seeders with plain system files
+- [x] **IMG-019** — Replace the runtime seeders with plain system files
   - **Category:** Image content
   - **Depends on:** IMG-015, IMG-016, IMG-017, IMG-018
   - **Notes:** Requested 2026-08-02. IMG-015 through IMG-018 grew two Python scripts, two
@@ -786,9 +828,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - DD-026's delivery mechanism, DD-028 and DD-029 are superseded, not rewritten
     - Every page that described the seeders no longer does
     - On the rebased image a login gets prompt, plugins and history with nothing seeded
-      *(open — needs a build and hardware)*
+      *(confirmed 2026-08-04)*
 
-- [ ] **IMG-020** — Ship fastfetch with the oxocarbon box config
+- [x] **IMG-020** — Ship fastfetch with the oxocarbon box config
   - **Category:** Image content
   - **Depends on:** IMG-015
   - **Notes:** Requested 2026-08-02: install fastfetch and ship the config the user already
@@ -836,9 +878,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/shell.md`, a `DD-###`, `docs/recipe-reference.md`, `docs/overview.md` and
       `.agent/context/` cover it
     - On the rebased image, `fastfetch` draws a square box on a fresh account
-      *(open — needs a build and hardware)*
+      *(confirmed 2026-08-04)*
 
-- [ ] **IMG-021** — Make lazygit a tool in its own right, not a LazyVim dependency
+- [x] **IMG-021** — Make lazygit a tool in its own right, not a LazyVim dependency
   - **Category:** Image content
   - **Depends on:** IMG-015
   - **Notes:** Requested 2026-08-02. `lazygit` is **already installed** — IMG-015 added it
@@ -879,9 +921,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/shell.md`, a `DD-###`, `docs/recipe-reference.md`, `docs/overview.md` and
       `.agent/context/` cover it
     - On the rebased image, `lg` works and lazygit shows icons on a fresh account
-      *(open — needs a build and hardware)*
+      *(confirmed 2026-08-04)*
 
-- [ ] **IMG-022** — Ship zellij, the terminal multiplexer
+- [x] **IMG-022** — Ship zellij, the terminal multiplexer
   - **Category:** Image content
   - **Depends on:** IMG-015
   - **Notes:** Requested 2026-08-02.
@@ -941,9 +983,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/shell.md`, a `DD-###`, `docs/recipe-reference.md`, `docs/overview.md`,
       `docs/glossary.md` and `.agent/context/` cover it, including how to bump the version
     - On the rebased image, `zellij` starts with the Qubix theme on a fresh account
-      *(open — needs a build and hardware)*
+      *(confirmed 2026-08-04)*
 
-- [ ] **IMG-024** — Set the login shell to zsh from the image, because `chsh` does not exist
+- [x] **IMG-024** — Set the login shell to zsh from the image, because `chsh` does not exist
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Reported 2026-08-03: neither zsh nor starship-on-zsh is working on the
@@ -977,9 +1019,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - DD-030's login-shell half is superseded, not rewritten, by a record carrying the
       upstream evidence; DD-028's status points at it
     - On the rebased image, the first login after a boot lands in zsh on an account that was
-      created before the rebase *(open — needs a build and hardware)*
+      created before the rebase *(confirmed 2026-08-04)*
 
-- [ ] **IMG-025** — Wire zsh from the end of `/etc/zshrc`, not from `/etc/zshenv`
+- [x] **IMG-025** — Wire zsh from the end of `/etc/zshrc`, not from `/etc/zshenv`
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Found while diagnosing IMG-024. `/etc/zshenv` is the **first** file zsh
@@ -1021,9 +1063,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/shell.md`, `.agent/context/` and `docs/recipe-reference.md` no longer say the
       shell is wired from `/etc/zshenv`
     - On the rebased image, a zsh login has the starship prompt, atuin history search and
-      both plugins *(open — needs a build and hardware)*
+      both plugins *(confirmed 2026-08-04)*
 
-- [ ] **IMG-023** — Ship the WezTerm configuration, and the fonts it names
+- [x] **IMG-023** — Ship the WezTerm configuration, and the fonts it names
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Requested 2026-08-02: take the WezTerm config the user already runs on macOS
@@ -1082,9 +1124,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       `docs/architecture.md`, `docs/glossary.md` and `.agent/context/` cover it
     - On the rebased image, a WezTerm opened in either session comes up with the Monaspace
       stack and the Oxocarbon scheme on a fresh account
-      *(open — needs a build and hardware)*
+      *(confirmed 2026-08-04)*
 
-- [ ] **IMG-026** — Stop guarding the shell setup on variables a child shell inherits
+- [x] **IMG-026** — Stop guarding the shell setup on variables a child shell inherits
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Reported 2026-08-03: starship does not appear when zsh is started from bash,
@@ -1126,9 +1168,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - DD-036's "the tools guard against double initialisation" consequence still holds
     - `docs/shell.md`, a `DD-###` and `.agent/context/` cover it
     - On the rebased image, `zsh` from bash and `bash` from zsh both come up with the
-      prompt *(open — needs a build and hardware)*
+      prompt *(confirmed 2026-08-04)*
 
-- [ ] **IMG-027** — Make `XDG_CONFIG_DIRS` reach every shell, not only systemd's units
+- [x] **IMG-027** — Make `XDG_CONFIG_DIRS` reach every shell, not only systemd's units
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Reported 2026-08-03 alongside IMG-026: the WezTerm theme is not applied.
@@ -1160,9 +1202,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - No KDE behaviour changes: a Plasma login's list is already correct and is left as it is
     - `docs/desktops.md`, `docs/shell.md`, DD-034's consequences and `.agent/context/` cover it
     - On the rebased image, a WezTerm opened in either session comes up with the Oxocarbon
-      scheme and the Monaspace stack *(open — needs a build and hardware)*
+      scheme and the Monaspace stack *(confirmed 2026-08-04)*
 
-- [ ] **IMG-028** — Give the shipped configuration a one-command route into `~/.config`
+- [x] **IMG-028** — Give the shipped configuration a one-command route into `~/.config`
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Requested 2026-08-03. Every configuration this image ships lives in `/usr` or
@@ -1207,9 +1249,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/shell.md`, `docs/desktops.md`, a `DD-###`, `docs/recipe-reference.md` and
       `.agent/context/` cover it, including that a copy stops receiving image changes
     - On the rebased image, `qubix-config niri` produces a session that loads and still
-      themes *(open — needs a build and hardware)*
+      themes *(confirmed 2026-08-04)*
 
-- [ ] **IMG-029** — Make `#` start a comment on zsh's command line
+- [x] **IMG-029** — Make `#` start a comment on zsh's command line
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Found 2026-08-03 in a diagnostic paste, which is the only way this ever shows
@@ -1230,10 +1272,10 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - It is set in `qubix.zsh`, before anything a user might paste, and `~/.zshrc` can still
       `unsetopt` it
     - `docs/shell.md` and `.agent/context/` note that the image sets it and why
-    - On the rebased image, pasting a trailing-comment command works *(open — needs a build
-      and hardware)*
+    - On the rebased image, pasting a trailing-comment command works *(confirmed
+      2026-08-04)*
 
-- [ ] **IMG-030** — Make the name `fastfetch` reach fastfetch
+- [x] **IMG-030** — Make the name `fastfetch` reach fastfetch
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Root cause of the "fastfetch config is ignored" reports of 2026-08-03,
@@ -1268,10 +1310,9 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       mechanism, and `type -a` is written down as the first thing to check for any
       "my config is ignored" report
     - `docs/shell.md` and `.agent/context/` cover it
-    - On the rebased image, `fastfetch` draws the Qubix box *(open — needs a build and
-      hardware)*
+    - On the rebased image, `fastfetch` draws the Qubix box *(confirmed 2026-08-04)*
 
-- [ ] **IMG-031** — Draw the full Fedora mark, and move the box out of its way
+- [x] **IMG-031** — Draw the full Fedora mark, and move the box out of its way
   - **Category:** Image content
   - **Depends on:** IMG-020
   - **Notes:** Requested 2026-08-03: the `"logo"` block can go, but with it gone fastfetch
@@ -1302,10 +1343,10 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `retune.sh` describes the logo the shipped config is actually tuned for
     - A `DD-###` supersedes the logo half of DD-031, including its wrong fallback reasoning;
       `docs/shell.md` and `.agent/context/` follow
-    - On the rebased image, `fastfetch` draws the box beside the full mark *(open — needs a
-      build; verified locally by rendering the config through a 130-column pty)*
+    - On the rebased image, `fastfetch` draws the box beside the full mark *(confirmed
+      2026-08-04)*
 
-- [ ] **IMG-032** — Teach `retune.sh` to measure a gutter fastfetch no longer steps over
+- [x] **IMG-032** — Teach `retune.sh` to measure a gutter fastfetch no longer steps over
   - **Category:** Image content
   - **Depends on:** IMG-031
   - **Notes:** Reported from the machine on 2026-08-03, right after IMG-031:
@@ -1330,10 +1371,10 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
       fastfetch's stderr instead of discarding it, and states `gutter + 1/7/17/68`
     - The shipped config's four columns are unchanged — this is a tool fix, not a layout fix
     - `DD-042`, `docs/shell.md` and `.agent/context/` cover it
-    - On the rebased image, `retune.sh -n` reports a 44-column gutter *(open — needs a
-      build)*
+    - On the rebased image, `retune.sh -n` reports a 44-column gutter *(confirmed
+      2026-08-04)*
 
-- [ ] **IMG-033** — Give a distrobox container the same interactive shell as the host
+- [x] **IMG-033** — Give a distrobox container the same interactive shell as the host
   - **Category:** Image content
   - **Depends on:** —
   - **Notes:** Requested 2026-08-04: the shell inside `distrobox enter` has none of what
@@ -1392,7 +1433,22 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `docs/shell.md`, a `DD-###`, `docs/recipe-reference.md`, `docs/glossary.md` and
       `.agent/context/` cover it
     - On the rebased image, `distrobox create` then `distrobox enter` lands in a zsh with the
-      Qubix prompt *(open — needs a build and hardware)*
+      Qubix prompt *(confirmed 2026-08-04)*
+
+---
+
+## Awaiting confirmation
+
+Implemented, documented, and shipped; waiting only on a check that needs a built image on
+real hardware. A task here is **not** work anybody should pick up — it is work somebody
+should look at.
+
+*Empty. Everything implemented up to and including `9c141bf` was confirmed on the machine
+on 2026-08-04.*
+
+---
+
+## Open
 
 ### Image variants
 

@@ -52,7 +52,21 @@ Rules:
 - **Dependencies block work.** Do not start a task whose dependencies are unticked.
 - **Independent tasks may run in parallel** — no shared dependency, no dependency
   relationship between them.
-- Tick `[x]` **only** when every acceptance criterion is met.
+- Tick `[x]` **only** when every acceptance criterion is met — and **in the commit that
+  meets them**, never in a later sweep.
+
+`plan.md` is in three sections, because there is no local build and most image tasks end in
+a criterion only a rebased machine can satisfy (DD-044):
+
+| Section | Holds | You move it |
+|---|---|---|
+| **Done** | Every criterion met | — |
+| **Awaiting confirmation** | Shipped and documented; only an on-hardware check is left | Here, in the commit that implements it |
+| **Open** | Unstarted or in progress | Out of here, in that same commit |
+
+When the check is done, date the criterion — `*(confirmed 2026-08-04)*` — and move the task
+to **Done**. Do not drop the criterion, and do not leave finished work in Open: that section
+answers "what should I pick up?" and nothing else belongs in it.
 
 ### 3. Make the change
 
@@ -89,7 +103,8 @@ second copy of the source; if an entry starts quoting the file at length, trim i
 
 - Docs updated for behaviour changes.
 - Context cache updated.
-- `plan.md` boxes ticked only where criteria are met.
+- `plan.md` boxes ticked only where criteria are met, and the task moved to the section it
+  now belongs in — both in this commit.
 - Comments present on new sections.
 - Commit, push, and confirm CI is green (docs-only changes don't build — DD-010).
 

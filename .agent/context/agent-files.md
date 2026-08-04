@@ -43,6 +43,11 @@ drift, and drift is worse than absence.
 - Task shape: checkbox · `TYPE-###` ID · category · dependencies · acceptance criteria.
 - Prefixes: `DOC`, `BLD`, `IMG`, `BRD`, `MNT`, `AGT`.
 - **Done only when the acceptance criteria are met**, then tick `[x]`.
+- **Three sections** (DD-044): **Done** · **Awaiting confirmation** (shipped and documented,
+  waiting only on a check that needs a built image on hardware) · **Open** (unstarted or in
+  progress). Open → Awaiting confirmation in the implementing commit; Awaiting confirmation
+  → Done when somebody confirms it, dated `*(confirmed YYYY-MM-DD)*` in the criterion.
+- **The tick lands in the commit that earns it**, not in a later sweep.
 - **Never start a task with unticked dependencies.** Independent tasks may run in parallel.
 - IDs are permanent and never reused.
 
@@ -61,6 +66,9 @@ details · Gotchas · Update when**. Index in `.agent/context/README.md`.
   in prose, keep the link in a file.
 - Never add instructions to the pointer files.
 - Ticking a box without meeting the acceptance criteria defeats the whole mechanism.
+- **A finished task left in Open is the same failure one step earlier.** Twenty-two of them
+  accumulated there before 2026-08-04 because each ended in an on-hardware criterion; the
+  backlog stopped meaning anything. Move it to Awaiting confirmation in the same commit.
 - Context entries are summaries. If one grows into a copy of the source, trim it and link
   to `docs/`.
 

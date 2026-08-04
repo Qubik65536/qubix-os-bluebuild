@@ -69,6 +69,14 @@ All work is tracked in [`.agent/plan.md`](.agent/plan.md).
   and **acceptance criteria**.
 - A task is **done only when its acceptance criteria are met** — then, and only then,
   change `[ ]` to `[x]`.
+- **Tick it in the commit that earns it.** Ticking boxes in a later sweep makes the tracker
+  a second, hand-maintained source of truth that drifts between sweeps. The tick and the
+  move between sections belong in the same commit as the change. See DD-044.
+- `plan.md` has three sections. **Done** is every criterion met. **Awaiting confirmation** is
+  shipped and documented, waiting only on a check that needs a built image on real hardware
+  — a task moves there in the commit that implements it, and to Done when somebody confirms
+  it, dated `*(confirmed YYYY-MM-DD)*`. **Open** is unstarted or in-progress work, and
+  nothing else.
 - **Never start a task whose dependencies are unfinished.**
 - Tasks with no shared dependencies and no dependency relation between them **may be
   worked in parallel**.
@@ -112,7 +120,9 @@ tables over prose for reference material, and consistent terminology
 
 7. Update `docs/` for any behaviour change.
 8. Update `.agent/context/` for any file/module you touched.
-9. Tick `[x]` in `plan.md` only for tasks whose acceptance criteria are now met.
+9. Tick `[x]` in `plan.md` only for tasks whose acceptance criteria are now met, and move a
+   task that is finished except for an on-hardware check into **Awaiting confirmation** —
+   in this commit, not a later one.
 10. Make sure new/edited code carries section comments.
 11. Print `0x4A0000` on the last line of your reply.
 
