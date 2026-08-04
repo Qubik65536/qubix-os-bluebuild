@@ -2419,3 +2419,73 @@ which is why the first report carried no information — and states the arithmet
 - **Version-sniffing without a version number.** Neither reading asks what fastfetch it is
   talking to, so a build that emits the old form, the new form, or a future third form is
   handled or reported, not silently mis-measured.
+
+---
+
+## DD-043 — Distrobox guests: serve the Qubix shell from the host via `/run/host`, not from packages installed in the guest
+
+**Status:** Accepted
+
+**Implements:** `IMG-033`
+
+**Context.** Distrobox shares `$HOME` between the host and every guest, but `/usr/share`
+is container-local by default. A new Distrobox guest therefore starts without
+`/usr/share/qubix-os/shell/`, without `starship`, without `atuin`, and without the zsh
+plugins — the user gets whichever shell the guest image ships, not the Qubix experience
+they have on the host.
+
+Several approaches were evaluated:
+
+| Approach | Problem |
+|---|---|
+| Install all tools in every guest via `additional-packages` | Requires per-container setup by the user; duplicates large packages for every container; stays stale when the host updates |
+| Mount `/usr/share/qubix-os` and `/usr/bin/starship` etc. individually | Requires knowing which binaries to list; the list rots when tools are added or removed |
+| Write a per-user `~/.distroboxrc` pointing at a hand-written hook | Mutates `$HOME`; requires manual setup per user; `~/.distroboxrc` is not system-managed |
+| Store a full zshrc in `/etc/skel/` or write to `~/.zshrc` | Mutates `$HOME`; conflicts with whatever the user already has |
+| Source plugins from `/run/host/usr/share/…` at shell startup | Works; keeps the guest thin; a host rebase updates the guest automatically; does not mutate `$HOME` |
+
+The chosen approach is the last one. Distrobox mounts the host root at `/run/host` inside
+every standard container. The zsh drop-in (`qubix-distrobox.zsh`) sources plugins and
+helpers from `/run/host/usr/share/…` and finds `starship`/`atuin` from
+`/run/host/usr/bin` when the guest does not have them. Since `$HOME` is shared, atuin's
+database is the same on host and guest with no extra setup.
+
+**Decision.** Use two complementary mechanisms:
+
+1. **`/etc/distrobox/distrobox.conf`** sets `container_init_hook`, the system-wide
+   default that Distrobox reads before the per-user `~/.distroboxrc`. The hook runs
+   inside every new guest at creation time; it installs zsh via the guest's native
+   package manager, drops `/etc/profile.d/qubix-distrobox-env.sh` (environment
+   variables), and places `/etc/zshrc.d/90-qubix.zsh` (or appends to `/etc/zshrc` on
+   guests without that directory). All three targets are container-local `/etc` files
+   that do not touch `$HOME`.
+
+2. **The runtime drop-in** (`/usr/share/qubix-os/distrobox/qubix-distrobox.zsh`) and
+   the **env file** (`qubix-distrobox-env.sh`) live on the HOST. The drop-in and env
+   file installed in the guest both source from `/run/host/usr/share/qubix-os/…`, so
+   a host rebase updates the guest's shell experience without any action inside the
+   container.
+
+The init hook runs only at container-creation time, so it is not a start-up overhead.
+
+**Consequences.**
+
+- Guests created **after** the image is rebased with this change pick up the Qubix zsh
+  experience automatically. Guests created **before** do not receive the hook; the fix is
+  to recreate the container (`distrobox rm` + `distrobox create`). This is documented in
+  `docs/shell.md`.
+- `--unshare-all` containers do not get the `/run/host` bind mount by default. The
+  drop-in's guard (`[[ -d /run/host/usr ]]`) silently skips the entire setup in that
+  case, leaving the guest's native shell untouched. This is the correct behaviour: an
+  `--unshare-all` container is intentionally isolated.
+- The guest is kept thin: only `zsh` is installed. All plugins, `starship`, and `atuin`
+  are served from the host. A user who wants the guest to work offline without
+  `/run/host` can install those packages in the guest manually.
+- Users can opt out by setting `container_init_hook` in their own `~/.distroboxrc`, which
+  Distrobox sources last and which therefore wins over `/etc/distrobox/distrobox.conf`.
+- Distrobox's `container_init_hook` config key was confirmed in version 1.8.0's
+  source (`distrobox-create`, line 66 and surrounding precedence chain). The system
+  config path `/etc/distrobox/distrobox.conf` is one of six paths in that chain.
+- The init script installs zsh using `dnf`, `apt-get`, `pacman`, `zypper`, or `apk`.
+  Any other distribution's package manager is not covered; the script warns and exits
+  cleanly. This covers the vast majority of Distrobox-compatible images.

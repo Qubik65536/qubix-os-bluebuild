@@ -46,6 +46,10 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/fastfetch/config.jsonc` | fastfetch, when a user runs it | The system-wide default box. **The only system-wide path fastfetch reads** — its search path has no `/usr` entry (DD-031) |
 | `usr/bin/qubix-config` | nobody — run by hand | Copies any shipped config into `~/.config`, lists them, diffs a copy against the image, and `--check`s its own paths. **Nothing runs it** — it is the alternative to a seeder, not one (DD-039). Mode `100755` |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Reads the gutter **two ways** — a cursor step on fastfetch ≤ 2.63, leading spaces on ≥ 2.64, which reworked logo printing (DD-042) — so it is coupled to how fastfetch renders and needs re-checking when that changes. Mode `100755` in the overlay |
+| `etc/distrobox/distrobox.conf` | distrobox-create (on the host) | System-wide Distrobox defaults. Sets `container_init_hook` to the init script path so every new guest automatically receives the Qubix zsh setup (DD-043) |
+| `usr/share/qubix-os/distrobox/qubix-distrobox-init.sh` | distrobox-init inside the guest, called via `/run/host` | Runs at container creation; installs zsh in the guest, drops `/etc/profile.d/qubix-distrobox-env.sh` and the zsh drop-in into the guest's `/etc/`. Mode `100755` |
+| `usr/share/qubix-os/distrobox/qubix-distrobox.zsh` | zsh inside the guest, at login | The guest's interactive zsh setup: reads plugins, starship, atuin, and helpers **from the host** via `/run/host/usr/share/qubix-os/…`. A host rebase updates it with no action in the guest |
+| `usr/share/qubix-os/distrobox/qubix-distrobox-env.sh` | every login shell inside the guest | Exports `STARSHIP_CONFIG`, `ATUIN_*`, `LG_CONFIG_FILE`, `EDITOR`/`VISUAL` — same values as the host, with paths via `/run/host` |
 
 **Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, and one system
 service that touches `/etc/passwd` (DD-030, DD-031, DD-035). An earlier design also seeded a
