@@ -494,6 +494,30 @@ modules:
                 exit 1; \
             fi
 
+      #    4i. Assert the Distrobox init hook and drop-ins are present and correct.
+      #
+      #        /etc/distrobox/distrobox.conf sets container_init_hook, which Distrobox
+      #        reads from every config file in its search list. The hook is
+      #        /usr/share/qubix-os/distrobox/qubix-distrobox-init.sh, executed inside
+      #        the guest at creation time via the /run/host bind mount.
+      #
+      #        This assertion verifies:
+      #          1. The config file is present and declares the hook path.
+      #          2. The init script exists and is executable (Distrobox requires this).
+      #          3. The init script is syntactically valid (sh -n).
+      #          4. The runtime drop-in (qubix-distrobox.zsh) and the env file are
+      #             present; both are served to the guest at runtime from /run/host.
+      #
+      #        Ordering: after `files`, which ships all four paths.
+      - |
+        RUN set -eu; \
+            grep -q 'container_init_hook' /etc/distrobox/distrobox.conf; \
+            test -x /usr/share/qubix-os/distrobox/qubix-distrobox-init.sh; \
+            sh -n /usr/share/qubix-os/distrobox/qubix-distrobox-init.sh; \
+            test -f /usr/share/qubix-os/distrobox/qubix-distrobox.zsh; \
+            test -f /usr/share/qubix-os/distrobox/qubix-distrobox-env.sh; \
+            echo "distrobox integration: all assertions passed"
+
   # 5. Enable the one system service this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already
   #    exist — the only thing in the terminal environment that cannot be delivered as a

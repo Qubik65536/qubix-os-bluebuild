@@ -1333,6 +1333,42 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image, `retune.sh -n` reports a 44-column gutter *(open — needs a
       build)*
 
+- [x] **IMG-033** — Distrobox: give every new guest the Qubix zsh experience automatically
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** On the host, zsh is wired from /etc/zshrc and tools are served from
+    /usr/share/qubix-os/shell/. Distrobox guests share $HOME but not the host's
+    /usr/share packages, so they start with no plugins, no Starship, and no Atuin.
+    The fix uses two mechanisms:
+      1. `/etc/distrobox/distrobox.conf` sets `container_init_hook`, which Distrobox
+         reads at container creation and runs inside every new guest as the container
+         user. The hook installs zsh in the guest via its native package manager, then
+         drops `/etc/profile.d/qubix-distrobox-env.sh` (environment variables) and
+         either `/etc/zshrc.d/90-qubix.zsh` or an appended line in `/etc/zshrc`
+         (interactive zsh setup).
+      2. The runtime drop-in and env file both source from the HOST's files via
+         `/run/host/usr/share/qubix-os/…` — so a host rebase updates the guest's
+         shell experience with no action inside the container.
+    Plugins (zsh-autosuggestions, zsh-syntax-highlighting) and tools (starship, atuin)
+    are sourced from the host via /run/host when the guest lacks them.
+    Because $HOME is shared, atuin's database is the same on host and guest.
+    Existing containers are NOT affected; docs/shell.md documents the migration path.
+  - **Acceptance criteria:**
+    - `/etc/distrobox/distrobox.conf` is present and sets `container_init_hook` to
+      the init script path
+    - The init script is executable and syntactically valid (`sh -n`)
+    - The drop-in and env file exist at `/usr/share/qubix-os/distrobox/`
+    - The build asserts all four of the above (4i in common-base.yml)
+    - A new Distrobox container (Fedora or Ubuntu) created after rebasing gets an
+      interactive zsh with Starship, Atuin, zsh-autosuggestions, zsh-syntax-highlighting,
+      and the Qubix helpers, without any manual setup *(open — needs a build and hardware)*
+    - Existing containers are not touched; the limitation and migration path are documented
+    - `docs/shell.md` has a Distrobox section covering the design, limits, and existing-
+      container guidance
+    - `docs/design-decisions.md` DD-043 records the decision
+    - `.agent/context/files-system.md`, `.agent/context/recipe.md`, and
+      `.agent/context/docs.md` are updated
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

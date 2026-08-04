@@ -378,8 +378,36 @@ The seventh asserts that `qubix-config` still names files that exist:
 - **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm` and the packaged
   fonts; after the `files` module, which ships `/etc/zellij/config.kdl`,
   `/etc/xdg/wezterm/`, `/usr/share/qubix-os/shell/qubix.zsh`, `/usr/bin/qubix-config` and
-  every path that last one names. The fifth snippet must follow the fourth. Before the
-  identity rewrite, though nothing forces that.
+  every path that last one names. The fifth snippet (4f zshrc append) must follow the fourth.
+  The sixth (4g `qubix-config --check`) follows the fifth. The seventh (4h fastfetch alias)
+  and eighth (4i Distrobox) follow module 1. Before the identity rewrite, though nothing forces
+  that.
+
+The eighth asserts the Distrobox integration files are present and correct:
+
+```yaml
+    - |
+      RUN set -eu; \
+          grep -q 'container_init_hook' /etc/distrobox/distrobox.conf; \
+          test -x /usr/share/qubix-os/distrobox/qubix-distrobox-init.sh; \
+          sh -n /usr/share/qubix-os/distrobox/qubix-distrobox-init.sh; \
+          test -f /usr/share/qubix-os/distrobox/qubix-distrobox.zsh; \
+          test -f /usr/share/qubix-os/distrobox/qubix-distrobox-env.sh; \
+          echo "distrobox integration: all assertions passed"
+```
+
+- **`/etc/distrobox/distrobox.conf`** is the system-wide Distrobox configuration. The
+  assertion verifies that the hook variable is present so a typo in the config file fails
+  at build time rather than silently producing containers without the Qubix setup.
+- **`test -x`** verifies the init script is executable, because Distrobox calls it as a
+  subprocess and a non-executable file would silently do nothing.
+- **`sh -n`** parses the init script for syntax errors, so a broken hook fails in CI
+  rather than at someone's first `distrobox create`.
+- **The last two `test -f`** verify the runtime drop-in and the env file exist. Both are
+  served to the guest at runtime from `/run/host`; if either is missing the guest's shell
+  integration silently becomes a no-op.
+- **Ordering:** after `files`, which ships all four paths.
+- **Background:** DD-043.
 
 ### 5. `systemd` — enable the login-shell service
 
