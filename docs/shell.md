@@ -196,12 +196,13 @@ work is one hook: `/etc/distrobox/distrobox.conf` names
 `/usr/bin/qubix-distrobox-shell`, and distrobox runs it inside the container, as root, when
 the container is created (DD-043).
 
-The rule it follows is **text is linked, binaries are installed**:
+The rule it follows is **install it, or borrow it from the host, in that order**:
 
 | | Where it comes from | Why |
 |---|---|---|
-| starship, atuin, bat, zsh, the two plugin packages | The container's **own** repositories | starship and atuin are compiled against the host's glibc and cannot be run out of `/run/host` |
-| `shell/qubix.zsh`, `shell/common.sh`, `starship.toml`, the lazygit config, the completions | The **host**, through `/run/host` | They are plain text, and distrobox mounts the host's root filesystem inside every container |
+| zsh, the two plugin packages, starship, atuin, bat | The container's **own** repositories, first choice | A package built for that distribution always fits it better |
+| Whatever those repositories do not have | The **host**, through `/run/host` | Plain text always works; a host *binary* is linked only after `--version` proves the container can run it (DD-045) |
+| `shell/qubix.zsh`, `shell/common.sh`, `starship.toml`, the lazygit config, the completions | The **host**, always | They are plain text, and distrobox mounts the host's root filesystem inside every container |
 
 The link is one symlink — `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` — which is
 what makes every absolute path in the host's files resolve inside the container. **So a
@@ -225,14 +226,16 @@ replaces bash.
 
 ### What it cannot do
 
-**Debian and Ubuntu containers get no prompt and no history search.** Neither distribution
-packages starship or atuin, and this will not download binaries into a container behind your
-back. Everything else arrives — zsh, both plugins, bat, the aliases — and the script prints
-what it could not install rather than leaving you to notice. Fedora, Arch, Alpine and
-openSUSE containers get the lot.
+**A container with a different libc gets the text half only.** Alpine and Wolfi are musl;
+the host's starship and atuin are glibc binaries and will not run there at all, so they are
+left out and the reason is printed. Everything that is plain text still arrives — both
+plugins, the aliases, the configuration. Debian and Ubuntu package neither tool either, but
+their libc is glibc, so the host's binaries are borrowed and the prompt works.
 
 **Completions come from the host.** `/run/host/usr/share/zsh/site-functions` goes on
 `$fpath`, so the completion functions describe the host's tools, not the container's.
+`compinit` runs with `-u` in a container, because `compaudit` cannot establish ownership
+through the `/run/host` bind mount and would otherwise stop to ask at every shell (DD-045).
 
 **The history is one database, not two.** `$HOME` is shared, so the container's atuin reads
 and writes the same `~/.local/share/atuin/history.db` as the host's — which is usually what
@@ -241,6 +244,15 @@ host: the first run migrates the shared database, and the host's older atuin the
 live with it. A Fedora container tracks the same atuin the host does.
 
 **Container creation now needs the network** and takes a package transaction longer.
+
+**Where to look when something is missing.** The hook reports itself through the two line
+prefixes `distrobox create` and `distrobox enter` actually display — a `distrobox:` step
+while it works, and a yellow `Warning:` for anything it could not do. Everything the package
+manager said goes to `/var/tmp/qubix-distrobox-shell.log` **inside the container**, and the
+last few lines of it are printed when a tool is missing. Nothing it runs is allowed to write
+a line starting with `Error:`: distrobox's log watcher treats one as fatal and abandons the
+enter, which is exactly how a container that simply did not carry `starship` used to leave
+you with no shell at all (DD-045).
 
 ### Turning it off
 

@@ -46,7 +46,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/fastfetch/config.jsonc` | fastfetch, when a user runs it | The system-wide default box. **The only system-wide path fastfetch reads** — its search path has no `/usr` entry (DD-031) |
 | `usr/bin/qubix-config` | nobody — run by hand | Copies any shipped config into `~/.config`, lists them, diffs a copy against the image, and `--check`s its own paths. **Nothing runs it** — it is the alternative to a seeder, not one (DD-039). Mode `100755` |
 | `etc/distrobox/distrobox.conf` | distrobox on the host, every subcommand | `container_init_hook="/run/host/usr/bin/qubix-distrobox-shell"`. Last system-wide file in distrobox's config hierarchy; the RPM owns nothing here, and ublue-os-just's `*.ini` manifests are untouched. **Flags beat it** — `--init-hooks` and an assemble `init_hooks=` key replace the hook (DD-043) |
-| `usr/bin/qubix-distrobox-shell` | distrobox-init, **inside** a container, as root | Installs zsh, the plugins, starship, atuin and bat from the *container's* repositories; symlinks `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` and `/etc/profile.d/qubix-shell-env.sh` → the host's; appends the source block to the container's global `zshrc`. Idempotent, re-runnable by hand, **exits 0 from inside a container whatever happens** (DD-043). Mode `100755` |
+| `usr/bin/qubix-distrobox-shell` | distrobox-init, **inside** a container, as root | Installs zsh, the plugins, starship, atuin and bat from the *container's* repositories, then fills the gaps from `/run/host` — text always, a host binary only after `--version` proves the container can run it; symlinks `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` and `/etc/profile.d/qubix-shell-env.sh` → the host's; appends the source block to the container's global `zshrc`. Idempotent, re-runnable by hand, **exits 0 from inside a container whatever happens**, and **never prints a line starting with `Error:`** (DD-043, DD-045). Mode `100755` |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Reads the gutter **two ways** — a cursor step on fastfetch ≤ 2.63, leading spaces on ≥ 2.64, which reworked logo printing (DD-042) — so it is coupled to how fastfetch renders and needs re-checking when that changes. Mode `100755` in the overlay |
 
 **Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, and one system
@@ -74,6 +74,13 @@ Two constraints explain the rest of the layout:
   at `/usr/share/zsh/plugins/` on Arch and Alpine, and bat is `batcat` on Debian and Ubuntu.
   **The hook may never exit non-zero** — `distrobox-init` `eval`s it under `set -e`, so a
   failure aborts container creation.
+- **AND IT MAY NEVER PRINT A LINE STARTING WITH `Error:`** (DD-045). `distrobox enter`
+  follows the container's log and switches on each line's prefix: `Error:` is printed and
+  then **`exit 1`** — the enter is abandoned — `Warning:` prints yellow, `distrobox:` becomes
+  the displayed step name, and everything else is discarded, stdout and stderr alike. dnf
+  says `Error: Unable to find a match:` for a package a distribution does not carry, which is
+  why every package manager in that script runs with its output captured to a file, and why
+  the file is only echoed back re-prefixed. Anything added to that script inherits this rule.
 
 ## Branding
 

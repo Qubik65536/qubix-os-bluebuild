@@ -2576,3 +2576,88 @@ sweeps — which is exactly what happened here.
 - Cost: one more move per task, and a section that is empty whenever the machine is current
   — as it is at the time of this record. An empty section is the intended steady state, not
   a sign the layout is unused.
+
+## DD-045 — Nothing a container hook prints may start with `Error:`
+
+**Status:** Accepted
+
+**Amends:** [DD-043](#dd-043--give-a-distrobox-container-the-hosts-shell-link-the-text-install-the-binaries),
+whose design is unchanged; what it got wrong is what a hook may *say*, and what to do for a
+container that can install none of the tools
+
+**Implements:** `IMG-034`
+
+**Context.** Entering a cross-compilation container on the image DD-043 shipped:
+
+```
+Executing init hooks...   Error: Unable to find a match: zsh-autosuggestions
+                          zsh-syntax-highlighting starship atuin bat
+```
+
+and the enter stopped there. No shell, no `[ OK ]`, nothing further.
+
+DD-043 was careful that the hook could never *exit* non-zero, because `distrobox-init` runs
+under `set -o errexit`. That guarantee held and was beside the point. **`distrobox enter`
+follows the container's log while it initialises and switches on the start of every line**
+(`distrobox-enter`, the `while IFS= read -r line` loop):
+
+| Line begins with | What the watcher does |
+|---|---|
+| `Error:` | prints it in red, then **`exit 1`** — the enter is abandoned |
+| `Warning:` | prints it in yellow |
+| `distrobox:` | becomes the name of the setup step being displayed |
+| anything else | **discarded**, stdout and stderr alike |
+
+dnf says `Error: Unable to find a match: …` for a name a distribution does not carry. So a
+package this container was never going to have ended the enter from the *host* side, no
+matter what the hook did afterwards. Two smaller things are in the same paste: every
+`qubix-distrobox-shell: …` line was dropped for matching no prefix, so the script's own
+report was invisible; and the name-by-name retry did run, printing four more fatal lines
+into a log nobody was reading any more.
+
+The container was also the case DD-043 filed under "reported and skipped": a dnf container
+with **none** of the five packages. Correct in principle, useless in practice — a container
+with no starship is a container with no prompt, which is the feature.
+
+**Decision.** Three changes, all in `qubix-distrobox-shell`.
+
+**1. Capture, then re-prefix.** Every package manager runs with stdout and stderr captured
+to `/var/tmp/qubix-distrobox-shell.log`, and that log is only ever echoed back through
+`warn()`, which re-prefixes each line — a diagnostic that kills the enter would be a poor
+diagnostic. The rule is now in the script's header, because the next person to add a command
+there needs it before they add it.
+
+**2. Speak the watcher's language.** `distrobox: ` for progress, `Warning: ` for anything
+the user must see. Prefixing with the script's own name meant invisibility.
+
+**3. Borrow from the host what the container cannot install — after proving it runs.** Plain
+text is always safe, so the plugins now fall back to the host's copies. A host *binary* is
+glibc-linked: it runs in a Fedora-family container of a similar vintage, cannot run against
+musl (Alpine, Wolfi) at all, and fails on a missing symbol against an older glibc (Debian
+11). So `--version` is run **in the container** and the link is made only if it answers. The
+binary is linked into `/usr/local/bin`, which distrobox already puts on `$PATH` — rather than
+putting `/run/host/usr/bin` on `$PATH`, which would expose every host binary and make
+`command -v` lie about what the distribution has.
+
+**Consequences.**
+- **A container whose repositories carry none of this still gets the whole environment**, as
+  long as its libc can run the host's binaries. That is the common case: a Fedora-family
+  container on a Fedora host.
+- **An Alpine or Wolfi container gets the text half and says so.** The plugins, the aliases
+  and the configuration work; starship and atuin do not, and the reason is printed rather
+  than left as a shell that silently has no prompt.
+- **The skip-unavailable flag is kept separate from the install command** (`--skip-unavailable`
+  for dnf5, `--setopt=strict=0` for dnf4, `--ignore-unknown` for zypper). A manager that does
+  not know the flag fails *on the flag*, and the name-by-name pass that follows runs without
+  it — otherwise the fallback would fail identically to the thing it is a fallback for.
+- **`compinit` no longer stops to ask.** `compaudit` cannot establish ownership through the
+  `/run/host` bind mount — the host's root maps to an unknown user inside the container — so
+  the host's `site-functions` on `$fpath` made every shell prompt about insecure directories.
+  The guest block runs `compinit -u` itself, before the host file that would otherwise run it
+  plain. `-u` rather than `-C`: the directories are used, and the dump is still rebuilt.
+- **The build cannot test any of this.** The assertion in module 4i still only parses the
+  script and checks the config names it; running it in the build container would be running
+  it in a container, which is exactly the thing it is designed to modify.
+- **This is one more coupling to distrobox's internals** — its log watcher, on top of DD-043's
+  config path and `/run/host`. Worth knowing when its 2.0 rewrite lands: the prefixes are the
+  first thing to re-check.

@@ -1443,7 +1443,69 @@ Implemented, documented, and shipped; waiting only on a check that needs a built
 real hardware. A task here is **not** work anybody should pick up — it is work somebody
 should look at.
 
-*Empty. Everything implemented up to and including `9c141bf` was confirmed on the machine
+### Terminal environment
+
+- [ ] **IMG-034** — Stop a package a container does not have from ending `distrobox enter`
+  - **Category:** Image content
+  - **Depends on:** IMG-033
+  - **Notes:** Reported from the machine on 2026-08-04, entering a cross-compilation
+    container on the image IMG-033 shipped:
+    ```
+    Executing init hooks...   Error: Unable to find a match: zsh-autosuggestions
+                              zsh-syntax-highlighting starship atuin bat
+    ```
+    and the enter stopped there — no shell, no `[ OK ]`, no further output.
+    **The cause is not the missing packages.** It is that `distrobox enter` follows the
+    container's log while it initialises and **switches on the start of every line**
+    (`distrobox-enter`, the `while IFS= read -r line` loop): `Error:*` is printed in red and
+    followed by `exit 1`, `Warning:*` prints in yellow, `distrobox:*` becomes the name of
+    the setup step, and **everything else is discarded, stdout and stderr alike**. dnf says
+    `Error: Unable to find a match: …` for a name a distribution does not carry, so the
+    watcher on the HOST abandoned the enter — regardless of the hook's own exit status,
+    which IMG-033 was careful about and which was never the thing being tested.
+    Two more consequences of that loop, both visible in the paste: every
+    `qubix-distrobox-shell: …` line the script printed was **silently dropped**, because it
+    matched no prefix; and the per-package fallback did run, but each retry printed another
+    fatal `Error:` line into a log nobody was reading any more.
+    The guest is also the case IMG-033 called "reported and skipped": a dnf container with
+    **none** of the five packages. That path was correct in principle and useless in
+    practice — a container with no starship is a container with no prompt, which is the
+    whole point of the feature.
+    So, three changes:
+    - **Nothing may reach the log with an `Error:` prefix.** Every package manager runs with
+      its output captured to `/var/tmp/qubix-distrobox-shell.log`, and the log is only ever
+      echoed back through `warn()`, which re-prefixes each line — a diagnostic that killed
+      the enter would be a poor diagnostic.
+    - **Say it in the language the watcher reads.** `distrobox: ` for progress, `Warning: `
+      for anything the user must see. The script's own name as a prefix meant invisibility.
+    - **Borrow from the host what the container cannot install** — and prove it first.
+      Plain text (the plugins, the shell files, the configuration) is always safe. A host
+      *binary* is glibc-linked: it runs in a Fedora-family container, cannot run against
+      musl (Alpine, Wolfi) and fails on a symbol against an older glibc (Debian 11), so
+      `--version` is run in the container and the link is made only if it answers. It is
+      linked into `/usr/local/bin`, not reached by putting `/run/host/usr/bin` on `$PATH`,
+      which would expose every host binary and make `command -v` lie.
+    Also folded in, from the same family of bugs: `compaudit` cannot establish ownership
+    through the `/run/host` bind mount, so the host's `site-functions` on `$fpath` makes
+    `compinit` stop and ask at every shell. The guest block now runs `compinit -u` itself,
+    before the host file that would otherwise run it plain.
+  - **Acceptance criteria:**
+    - No line this hook produces, or any command it runs produces, can begin with `Error:`
+    - What it does and what it could not do are **visible** during `distrobox create` and
+      `distrobox enter`, using the two prefixes that loop displays
+    - A container whose repositories carry none of the tools still gets the prompt, the
+      history search and both plugins, from the host
+    - A host binary is never linked into a container that cannot execute it, and the reason
+      is reported when it is not
+    - `/run/host/usr/bin` is never put on the container's `$PATH`
+    - The skip-unavailable flag is separate from the install command, so a manager that does
+      not know the flag still gets the name-by-name pass
+    - `compinit` does not prompt about insecure directories in a container
+    - `DD-045` amends DD-043, and `docs/shell.md` and `.agent/context/` follow
+    - On the rebased image, `distrobox enter ungoogled-chromium-macos-cross` reaches a shell
+      with the Qubix prompt *(open — needs a build and hardware)*
+
+*Everything else implemented up to and including `9c141bf` was confirmed on the machine
 on 2026-08-04.*
 
 ---

@@ -14,11 +14,12 @@
 # $SHELL and gives the container user that shell) and it shares $HOME. That is the whole of
 # its help; the prompt, the history search and the plugins are this script's job.
 #
-# TEXT IS LINKED, BINARIES ARE INSTALLED. That line decides everything below. starship and
-# atuin are compiled against the host's glibc and cannot be run out of /run/host, so they
-# come from the container's own repositories. The shell files, the prompt configuration and
-# the completion functions are plain text, so they are read from the host where they already
-# are — live, through /run/host, which distrobox mounts the host's root filesystem at.
+# INSTALL IT, OR BORROW IT FROM THE HOST, IN THAT ORDER. The container's own package is
+# always better: it is built for this distribution. What the container cannot install is
+# taken from /run/host — plain text (the shell files, the plugins, the configuration) always,
+# and a host BINARY only after it has been run in here once to prove it can be. A Fedora
+# binary does not run against musl or an older glibc, and `--version` is the only honest test
+# of that.
 #
 # WHY NOTHING IS COPIED. One symlink, /usr/share/qubix-os -> /run/host/usr/share/qubix-os,
 # makes every absolute path in the host's shell files resolve inside the container — and so
@@ -26,22 +27,54 @@
 # changes the container's shell too, with nothing to re-run and nothing to go stale. It is
 # DD-030 one level down.
 #
-# IT MUST NEVER FAIL. distrobox-init runs with `set -o errexit` and eval's this hook, so a
-# non-zero exit aborts container creation and leaves a half-built container. Every step is
-# therefore best-effort: whatever cannot be done is reported and skipped, and the script
-# exits 0 from inside a container no matter what happened. The only non-zero exits are the
-# two preconditions below, which can fail only when a human runs it in the wrong place.
+# ── EVERYTHING IT PRINTS IS READ BY A MACHINE ────────────────────────────────────────────
+# `distrobox enter` follows the container's log while it initialises and switches on the
+# start of each line (distrobox-enter, the `while IFS= read -r line` loop):
 #
-# See docs/shell.md and docs/design-decisions.md DD-043.
+#     Error:*      printed in red, and `exit 1` — THE ENTER IS ABANDONED
+#     Warning:*    printed in yellow
+#     distrobox:*  becomes the name of the setup step being shown
+#     anything else is discarded, stdout and stderr alike
+#
+# Two consequences, and they are the shape of this script:
+#
+#   1. NO OUTPUT OF OURS, AND NONE OF ANY COMMAND WE RUN, MAY BEGIN WITH `Error:`. dnf
+#      prints `Error: Unable to find a match: …` for a package a distribution does not have,
+#      which is an ordinary thing to happen in a container and used to kill the enter. So
+#      every package manager runs with its output captured to a file, and the file is only
+#      ever echoed back through warn(), which re-prefixes each line.
+#   2. Only the two prefixes above are visible at all, which is why say() and warn() use
+#      them rather than this script's own name. Run by hand, the prefixes are noise; run by
+#      distrobox, they are the difference between being seen and not existing.
+#
+# IT MUST ALSO NEVER EXIT NON-ZERO. distrobox-init runs with `set -o errexit` and eval's
+# this hook, so a failure aborts container creation and leaves a half-built container. Every
+# step is best-effort and the script exits 0 from inside a container whatever happened. The
+# only non-zero exits are the two preconditions below, which can fail only when a human runs
+# it in the wrong place.
+#
+# See docs/shell.md and docs/design-decisions.md DD-043, DD-045.
 
 set -u
 
 HOST_ROOT=/run/host
 QUBIX_SHARE=/usr/share/qubix-os
 HOST_SHARE="$HOST_ROOT$QUBIX_SHARE"
+PKG_LOG=/var/tmp/qubix-distrobox-shell.log
 
-log() { printf 'qubix-distrobox-shell: %s\n' "$*"; }
-warn() { printf 'qubix-distrobox-shell: %s\n' "$*" >&2; }
+# A step distrobox will show, and a warning distrobox will show in yellow. Never `Error:`.
+say() { printf 'distrobox: qubix-shell: %s\n' "$*"; }
+warn() { printf 'Warning: qubix-shell: %s\n' "$*"; }
+
+# Echo a captured log back safely: every line is re-prefixed, so a package manager's own
+# `Error:` line cannot reach distrobox's watcher and end the enter.
+warn_log() {
+    [ -s "$PKG_LOG" ] || return 0
+    warn "the last few lines of $PKG_LOG:"
+    tail -n 5 "$PKG_LOG" 2>/dev/null | while IFS= read -r line; do
+        warn "  $line"
+    done
+}
 
 # ── Preconditions ─────────────────────────────────────────────────────────────
 # Refuse to run on the host. Everything below writes to /etc and /usr as though they were a
@@ -67,57 +100,77 @@ if [ ! -d "$HOST_SHARE" ]; then
     exit 0
 fi
 
+say "setting up the Qubix shell"
+: >"$PKG_LOG" 2>/dev/null || PKG_LOG=/dev/null
+
 # ── What the container needs of its own ───────────────────────────────────────
 # Three binaries, two plugin scripts that belong beside the container's own zsh, and zsh
 # itself for the case where the container was created while the host account was on bash.
 #
-# ONE LIST FOR EVERY DISTRIBUTION, INSTALLED BEST-EFFORT. These names are the same in
-# Fedora, Arch, Alpine and openSUSE; Debian and Ubuntu package neither starship nor atuin,
-# so there the batch install fails and the per-package pass reports the two that are missing
-# and installs the rest. That fallback is the whole reason this is not
-# `container_additional_packages` in distrobox.conf: distrobox installs that list in one
-# transaction, under `set -e`, and one unknown name would abort the container.
+# ONE LIST FOR EVERY DISTRIBUTION, AND MISSING NAMES ARE NORMAL. These are all in Fedora,
+# Arch and Alpine; Debian and Ubuntu have neither starship nor atuin, and a minimal RHEL or
+# UBI container has none of the five. Whatever a container cannot install is filled in from
+# the host below, or reported. This is why the list is never handed to
+# `container_additional_packages` in distrobox.conf: distrobox installs that in one
+# transaction under `set -e`, and one unknown name would abort the container.
 PACKAGES="zsh zsh-autosuggestions zsh-syntax-highlighting starship atuin bat"
 
 # ── The container's package manager ───────────────────────────────────────────
 # In the order a container that has two of them should be driven: dnf5 before dnf (Fedora
 # 41+ answers to both names). apt-get, pacman and apk are refreshed first, because toolbox
 # images ship without a package index and their install would otherwise fail on every name.
+#
+# SKIP-UNAVAILABLE WHERE THE MANAGER HAS IT (dnf5's `--skip-unavailable`, dnf4's
+# `strict=0`, zypper's `--ignore-unknown`): one transaction then installs what exists and
+# ignores the rest, which is both faster and quieter than finding out name by name. The
+# others get the name-by-name pass below instead.
+#
+# THE FLAG IS KEPT SEPARATE FROM THE COMMAND on purpose: an older manager that does not
+# know the flag fails on the flag, not on the packages, and the name-by-name pass below
+# would fail identically if it inherited it. It runs without.
 install_cmd=""
+skip_flag=""
 if command -v dnf5 >/dev/null 2>&1; then
     install_cmd="dnf5 install -y"
+    skip_flag="--skip-unavailable"
 elif command -v dnf >/dev/null 2>&1; then
     install_cmd="dnf install -y"
+    skip_flag="--setopt=strict=0"
 elif command -v microdnf >/dev/null 2>&1; then
     install_cmd="microdnf install -y"
 elif command -v apt-get >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive
     export DEBIAN_FRONTEND
-    apt-get update -qq || warn "apt-get update failed; using whatever package lists are here"
+    apt-get update -qq >>"$PKG_LOG" 2>&1 || warn "apt-get update failed; see $PKG_LOG"
     install_cmd="apt-get install -y --no-install-recommends"
 elif command -v pacman >/dev/null 2>&1; then
-    pacman -Sy --noconfirm || warn "pacman -Sy failed; using whatever databases are here"
+    pacman -Sy --noconfirm >>"$PKG_LOG" 2>&1 || warn "pacman -Sy failed; see $PKG_LOG"
     install_cmd="pacman -S --needed --noconfirm"
 elif command -v zypper >/dev/null 2>&1; then
+    zypper --non-interactive refresh >>"$PKG_LOG" 2>&1 || warn "zypper refresh failed"
     install_cmd="zypper --non-interactive install"
+    skip_flag="--ignore-unknown"
 elif command -v apk >/dev/null 2>&1; then
-    apk update || warn "apk update failed; using whatever indexes are here"
+    apk update >>"$PKG_LOG" 2>&1 || warn "apk update failed; see $PKG_LOG"
     install_cmd="apk add"
 fi
 
-missing=""
+# EVERY PACKAGE MANAGER RUNS WITH ITS OUTPUT CAPTURED. See the header: one `Error:` line in
+# the container's log ends `distrobox enter`, and "this distribution does not carry starship"
+# is not an error worth ending anything over.
 if [ -z "$install_cmd" ]; then
-    warn "no package manager I recognise here; install these yourself: $PACKAGES"
-    missing="$PACKAGES"
+    warn "no package manager I recognise here; whatever the host can lend is used instead"
 else
-    log "installing from the container's own repositories: $PACKAGES"
-    # Unquoted on purpose: both variables are word lists, not single arguments.
+    say "installing what this distribution has: $PACKAGES"
+    # Unquoted on purpose: all three are word lists, not single arguments.
     # shellcheck disable=SC2086
-    if ! $install_cmd $PACKAGES; then
-        log "that failed as a batch — trying one package at a time"
+    if ! $install_cmd $skip_flag $PACKAGES >>"$PKG_LOG" 2>&1; then
+        # A manager with no skip-unavailable flag, one that does not know the flag we tried,
+        # or a transaction that failed for its own reasons. Name by name, and without the
+        # flag, so one name a distribution does not carry costs the others nothing.
         for pkg in $PACKAGES; do
             # shellcheck disable=SC2086
-            $install_cmd "$pkg" || missing="$missing $pkg"
+            $install_cmd "$pkg" >>"$PKG_LOG" 2>&1 || :
         done
     fi
 fi
@@ -129,21 +182,47 @@ fi
 # The plugins install to /usr/share/<name>/ on Fedora, Debian and Ubuntu, and to
 # /usr/share/zsh/plugins/<name>/ on Arch and Alpine. shell/qubix.zsh names the first, so
 # anything else gets a link at the name it looks for. The file is SEARCHED FOR rather than
-# guessed at from a list of distributions, because that list would be wrong for the next one.
+# guessed at from a list of distributions, because that list would be wrong for the next one
+# — and if this container has no copy at all, the host's is plain zsh and does just as well.
 for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
     [ -e "/usr/share/$plugin/$plugin.zsh" ] && continue
-    found="$(find /usr/share -maxdepth 4 -name "$plugin.zsh" 2>/dev/null | head -n 1)"
-    [ -n "$found" ] || continue
-    found_dir="$(dirname "$found")"
-    ln -sfn "$found_dir" "/usr/share/$plugin" && log "/usr/share/$plugin -> $found_dir"
+    src="$(find /usr/share -maxdepth 4 -name "$plugin.zsh" 2>/dev/null | head -n 1)"
+    if [ -z "$src" ] && [ -r "$HOST_ROOT/usr/share/$plugin/$plugin.zsh" ]; then
+        src="$HOST_ROOT/usr/share/$plugin/$plugin.zsh"
+    fi
+    [ -n "$src" ] || continue
+    src_dir="$(dirname "$src")"
+    ln -sfn "$src_dir" "/usr/share/$plugin" && say "$plugin from $src_dir"
 done
 
 # Debian and Ubuntu install bat as `batcat`, because the name `bat` belongs to another
 # package there. shell/common.sh looks for `bat`, so give it one.
 if ! command -v bat >/dev/null 2>&1 && command -v batcat >/dev/null 2>&1; then
     install -d -m 0755 /usr/local/bin
-    ln -sfn "$(command -v batcat)" /usr/local/bin/bat && log "/usr/local/bin/bat -> batcat"
+    ln -sfn "$(command -v batcat)" /usr/local/bin/bat && say "bat from batcat"
 fi
+
+# ── What the container could not install, borrowed from the host ──────────────
+# ONLY AFTER IT HAS BEEN PROVED TO RUN IN HERE. These are dynamically linked against the
+# host's glibc: a Fedora-family container of a similar vintage runs them, musl (Alpine,
+# Wolfi) cannot run them at all, and an older glibc (Debian 11) fails on a missing symbol.
+# `--version` costs one exec and is the difference between a prompt and a shell that prints
+# a loader error before every command.
+#
+# Linked into /usr/local/bin — which distrobox puts on $PATH — rather than by putting
+# /run/host/usr/bin on $PATH, which would expose every host binary to the container and make
+# `command -v` lie about what this distribution has.
+for tool in starship atuin bat; do
+    command -v "$tool" >/dev/null 2>&1 && continue
+    host_bin="$HOST_ROOT/usr/bin/$tool"
+    [ -x "$host_bin" ] || continue
+    if "$host_bin" --version >/dev/null 2>&1; then
+        install -d -m 0755 /usr/local/bin
+        ln -sfn "$host_bin" "/usr/local/bin/$tool" && say "$tool from the host binary"
+    else
+        warn "the host $tool will not run in this container (different libc), so it is left out"
+    fi
+done
 
 # ── The host's configuration, at the path its own files name ──────────────────
 # The single symlink the design rests on. With it, /usr/share/qubix-os/shell/qubix.zsh,
@@ -153,7 +232,7 @@ fi
 if [ -L "$QUBIX_SHARE" ] || [ ! -e "$QUBIX_SHARE" ]; then
     install -d -m 0755 /usr/share
     if ln -sfn "$HOST_SHARE" "$QUBIX_SHARE"; then
-        log "$QUBIX_SHARE -> $HOST_SHARE"
+        say "$QUBIX_SHARE from $HOST_SHARE"
     else
         warn "could not link $QUBIX_SHARE; the shell setup below will find nothing"
     fi
@@ -175,7 +254,7 @@ elif [ -e "$env_file" ] && [ ! -L "$env_file" ]; then
     warn "$env_file exists and is not a symlink — leaving it alone"
 else
     install -d -m 0755 /etc/profile.d
-    ln -sfn "$host_env_file" "$env_file" && log "$env_file -> $host_env_file"
+    ln -sfn "$host_env_file" "$env_file" || warn "could not link $env_file"
 fi
 
 # ── zsh ───────────────────────────────────────────────────────────────────────
@@ -198,11 +277,10 @@ if ! command -v zsh >/dev/null 2>&1; then
     warn "zsh is not installed here, so the zsh half is skipped"
 elif [ -z "$zsh_etc" ]; then
     warn "no global zsh startup file in /etc or /etc/zsh, so I cannot tell which zsh reads"
-    warn "the zsh half is skipped"
 else
     zshrc="$zsh_etc/zshrc"
     if grep -q 'qubix-os/shell/qubix.zsh' "$zshrc" 2>/dev/null; then
-        log "$zshrc already carries the Qubix block"
+        say "$zshrc already carries the Qubix block"
     else
         # Appended, exactly as the host's own /etc/zshrc is appended to at build time, and
         # with the same backup-and-parse-check: the container is left as it was if the
@@ -221,10 +299,17 @@ else
             '# LAST IN THIS FILE, and before ~/.zshrc, for the same reasons as on the host: see' \
             '# docs/shell.md. Your own ~/.zshrc runs after it and still wins.' \
             '#' \
-            '# The host completion functions go on $fpath first, because the file below runs' \
-            '# compinit. They are plain zsh, so they work in any container.' \
+            '# The host completion functions go on $fpath, and compinit is run HERE rather than' \
+            '# left to the file below, with -u. compaudit cannot establish ownership through the' \
+            '# /run/host bind mount — the host root maps to an unknown user in here — so it calls' \
+            '# that directory insecure and compinit stops to ask, at every single shell. -u is' \
+            '# the answer to a question that has already been answered: the directory belongs to' \
+            '# the host image this container is running on.' \
             'if [[ -d /run/host/usr/share/zsh/site-functions ]]; then' \
             '    fpath=(/run/host/usr/share/zsh/site-functions $fpath)' \
+            'fi' \
+            'if ! (( $+functions[compdef] )); then' \
+            '    autoload -Uz compinit && compinit -u' \
             'fi' \
             'if [[ -r /usr/share/qubix-os/shell/qubix.zsh ]]; then' \
             '    source /usr/share/qubix-os/shell/qubix.zsh' \
@@ -232,7 +317,7 @@ else
             >>"$zshrc"
         if zsh -n "$zshrc" 2>/dev/null; then
             rm -f "$zshrc.qubix-bak"
-            log "wired zsh from the end of $zshrc"
+            say "zsh wired from the end of $zshrc"
         elif mv "$zshrc.qubix-bak" "$zshrc" 2>/dev/null; then
             warn "$zshrc does not parse with the Qubix block; put it back as it was"
         else
@@ -266,8 +351,8 @@ if [ -n "$zsh_path" ] && command -v usermod >/dev/null 2>&1; then
             *) continue ;;
         esac
 
-        if usermod -s "$zsh_path" "$name"; then
-            log "$name -> $zsh_path, because the host account uses $host_shell"
+        if usermod -s "$zsh_path" "$name" >>"$PKG_LOG" 2>&1; then
+            say "$name now logs in to $zsh_path, as on the host"
         else
             warn "could not make $zsh_path the login shell for $name"
         fi
@@ -275,8 +360,9 @@ if [ -n "$zsh_path" ] && command -v usermod >/dev/null 2>&1; then
 fi
 
 # ── What the container ended up with ──────────────────────────────────────────
-# Said out loud, because a tool that is quietly absent is the failure mode of every guard in
-# the shell files: they skip what is not installed, silently and by design.
+# Reality, not the installer's exit codes: every line above is best-effort, and a tool that
+# is quietly absent is the failure mode of every guard in the shell files, which skip what
+# is not installed by design.
 have=""
 lack=""
 for tool in zsh starship atuin bat; do
@@ -294,9 +380,10 @@ for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
     fi
 done
 
-log "in this container:${have:- nothing}"
-[ -n "$lack" ] && log "not here:$lack — the shell setup skips whatever is missing"
-[ -n "$missing" ] && log "packages this distribution does not have:$missing"
-log "open a new shell, or exit and re-enter, to use it"
+say "ready:${have:- nothing}"
+if [ -n "$lack" ]; then
+    warn "not available in this container:$lack — the shell setup skips what is missing"
+    warn_log
+fi
 
 exit 0

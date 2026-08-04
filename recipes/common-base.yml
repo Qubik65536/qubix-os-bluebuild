@@ -517,6 +517,13 @@ modules:
       #        to check the script exists at that path in THIS image, which is where the
       #        container will find it.
       #
+      #        THE SCRIPT IS PARSED AND NEVER RUN. It exists to modify the container it runs
+      #        in, and a build IS a container: it would append its block to this image's
+      #        /etc/zshrc, on top of the one module 4f just added. `sh -n` is as far as a
+      #        build can go, which is why the rest of its guarantees — never exiting
+      #        non-zero, never printing a line starting with `Error:` (DD-045) — are stated
+      #        in its header and checked by reading rather than by running.
+      #
       #        Ordering: after `files`, which ships both the config and the script.
       - |
         RUN set -eu; \
