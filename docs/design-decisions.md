@@ -2489,3 +2489,33 @@ The init hook runs only at container-creation time, so it is not a start-up over
 - The init script installs zsh using `dnf`, `apt-get`, `pacman`, `zypper`, or `apk`.
   Any other distribution's package manager is not covered; the script warns and exits
   cleanly. This covers the vast majority of Distrobox-compatible images.
+
+---
+
+## DD-044 — Trust the Distrobox host completion path during guest compinit
+
+**Status:** Accepted
+
+**Implements:** `IMG-034`
+
+**Context.** The Distrobox zsh drop-in adds the host's
+`/run/host/usr/share/zsh/site-functions` to `$fpath` so guests receive the image's
+zsh-completions and zellij completions. `compinit` calls `compaudit`, which cannot
+establish ownership through the `/run/host` bind mount and prompts interactively about
+an insecure directory on every guest shell startup. Ignoring the reported path would
+also remove the host completion directory from `$fpath`, defeating the integration.
+
+**Decision.** Run `compinit -C` in the Distrobox drop-in after it adds the host
+completion directory. The system drop-in runs before `~/.zshrc`; at that point,
+`$fpath` contains only the guest image's package-managed directories and the
+host-provided directory. User-added completion paths are not present when the audit is
+skipped.
+
+**Consequences.**
+
+- Standard Distrobox guests start zsh without a `compinit` prompt and retain the host's
+  completion functions.
+- The guest drop-in deliberately does not audit the system-controlled `$fpath`. A user
+  who adds completion paths later in `~/.zshrc` remains responsible for those paths.
+- This exception is limited to Distrobox guests. Host zsh continues to run ordinary
+  `compinit`, including its ownership audit.

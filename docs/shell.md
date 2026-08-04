@@ -545,6 +545,12 @@ runs inside every new guest at the end of container initialisation:
    `atuin`) that the guest does not have locally are found there. This means a host
    rebase updates the guest's shell experience with no action inside the container.
 
+The host completion directory is also added to zsh's `$fpath`. Distrobox's bind mount
+prevents `compaudit` from proving that path's ownership, so the guest drop-in runs
+`compinit -C` after it constructs `$fpath`; this prevents a false insecure-directory
+prompt while retaining host-provided completions. It runs before `~/.zshrc`, while
+`$fpath` contains only guest package directories and the host directory (DD-044).
+
 Because `$HOME` is shared between the host and every guest, atuin's history database
 is the same on both — you get the full host history in any guest automatically.
 

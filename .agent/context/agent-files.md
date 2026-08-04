@@ -45,6 +45,8 @@ drift, and drift is worse than absence.
 - **Done only when the acceptance criteria are met**, then tick `[x]`.
 - **Never start a task with unticked dependencies.** Independent tasks may run in parallel.
 - IDs are permanent and never reused.
+- `IMG-034` tracks the Distrobox `compinit` prompt fix and depends on the completed
+  Distrobox integration task `IMG-033`.
 
 ### `.agent/context/` — this cache
 
