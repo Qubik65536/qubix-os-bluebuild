@@ -61,9 +61,13 @@ setopt interactive_comments
 #
 # The guest's own /usr/share/zsh/site-functions is already on the default $fpath
 # and is not removed here; both are available.
+#
+# compaudit cannot establish ownership through Distrobox's /run/host bind mount and
+# therefore marks this host-owned directory insecure. Skip that redundant audit after
+# this system drop-in has constructed $fpath, before a user's ~/.zshrc can add paths.
 fpath=("$_qubix_host/usr/share/zsh/site-functions" $fpath)
 if ! (( $+functions[compdef] )); then
-    autoload -Uz compinit && compinit
+    autoload -Uz compinit && compinit -C
 fi
 
 # ── atuin ─────────────────────────────────────────────────────────────────────
