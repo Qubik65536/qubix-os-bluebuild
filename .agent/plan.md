@@ -1369,7 +1369,7 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - `.agent/context/files-system.md`, `.agent/context/recipe.md`, and
       `.agent/context/docs.md` are updated
 
-- [ ] **IMG-034** — Prevent Distrobox guest compinit security prompts
+- [x] **IMG-034** — Prevent Distrobox guest compinit security prompts
   - **Category:** Image content
   - **Depends on:** IMG-033
   - **Notes:** The host completion directory arrives through Distrobox's `/run/host` bind
