@@ -440,6 +440,13 @@ To use a different logo, change `"source"` in your copy and then re-derive the f
 It measures the gutter fastfetch actually emits for your logo, rewrites the columns, and
 updates the comment block that documents them. `fastfetch --list-logos` shows the choices.
 
+It reads that gutter two ways, because fastfetch 2.64.0 changed how it draws one: up to
+2.63 the logo was a block followed by a cursor step (`ESC[<n>C`), and from 2.64 the logo and
+the modules share a line, so the gutter is that many literal spaces (DD-042). If it ever
+prints `could not measure the logo gutter`, the message names the command it ran and what it
+looked for — and the columns are `gutter + 1` (spine), `+ 7` (labels), `+ 17` (separator),
+`+ 68` (right spine) if you would rather set them by hand.
+
 #### The one row that leaves the machine
 
 The `wan` row uses fastfetch's `publicip` module, which asks `ipinfo.io/json` for the
@@ -538,6 +545,6 @@ Configuration files, one hand-run tool, one boot service that touches `/etc/pass
 per account, and nothing under `$HOME`.
 
 Why each of these lives where it does: [`design-decisions.md`](design-decisions.md),
-DD-026, DD-030, DD-031, DD-032, DD-033, DD-035, DD-036, DD-037, DD-038, DD-039, DD-040 and DD-041. What the recipe installs and in
+DD-026, DD-030, DD-031, DD-032, DD-033, DD-035, DD-036, DD-037, DD-038, DD-039, DD-040, DD-041 and DD-042. What the recipe installs and in
 which module:
 [`recipe-reference.md`](recipe-reference.md).

@@ -1305,6 +1305,34 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image, `fastfetch` draws the box beside the full mark *(open — needs a
       build; verified locally by rendering the config through a 130-column pty)*
 
+- [ ] **IMG-032** — Teach `retune.sh` to measure a gutter fastfetch no longer steps over
+  - **Category:** Image content
+  - **Depends on:** IMG-031
+  - **Notes:** Reported from the machine on 2026-08-03, right after IMG-031:
+    `retune: could not measure the logo gutter`.
+    fastfetch **2.64.0** reworked built-in logo printing to go line by line. The
+    `ESC[<gutter>C` step the script grepped for does not exist any more; the gutter is now
+    `<gutter>` literal spaces at the start of each module line. The image tracks Fedora's
+    fastfetch, which is past 2.64, so the tool DD-031 shipped for this job could not do it
+    on the image it ships in.
+    Confirmed against two binaries rather than reasoned about: the installed 2.61.0 emits
+    `ESC[1G ESC[20A ESC[44C`; an upstream 2.66.0 release tarball emits 44 spaces.
+    The new reading needs `--logo-padding-top 1`, or the first line carries the logo's first
+    row as well as the padding and the gutter could only be recovered by counting art —
+    which fails on any logo glyph that is not one byte and one column wide.
+    **The box was never affected**; that was checked first. CHA is absolute, so the shipped
+    config renders identically under both binaries.
+  - **Acceptance criteria:**
+    - `retune.sh` measures the gutter on fastfetch ≤ 2.63 *and* ≥ 2.64, verified end to end
+      against both binaries, including on a config with the `"logo"` block deleted
+      *(done — both rewrite 23/29/39/90 to the same numbers for the same logo)*
+    - The failure path names both forms, prints the command to run by hand, echoes
+      fastfetch's stderr instead of discarding it, and states `gutter + 1/7/17/68`
+    - The shipped config's four columns are unchanged — this is a tool fix, not a layout fix
+    - `DD-042`, `docs/shell.md` and `.agent/context/` cover it
+    - On the rebased image, `retune.sh -n` reports a 44-column gutter *(open — needs a
+      build)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

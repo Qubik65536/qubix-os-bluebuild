@@ -2352,3 +2352,70 @@ costs one line and makes the layout a property of the config rather than of the 
   command on. Here it took two: `fastfetch --logo <name> --structure Break` for every width
   in the table above, and a read of `logoGetBuiltinDetected` for the order the fields are
   tried in. Both are cheap next to a claim that stood in three files.
+
+---
+
+## DD-042 — Measure the logo gutter two ways, because fastfetch changed how it draws one
+
+**Status:** Accepted
+
+**Amends:** [DD-031](#dd-031--ship-fastfetchs-config-in-etc-with-the-logo-pinned), which
+shipped `retune.sh`; the tool's job is unchanged, only how it reads the gutter
+
+**Implements:** `IMG-032`
+
+**Context.** On the machine, immediately after
+[DD-041](#dd-041--draw-the-full-fedora-mark-and-move-the-box-to-its-gutter):
+
+```
+$ /usr/share/qubix-os/fastfetch/retune.sh
+retune: could not measure the logo gutter
+```
+
+The tool asks fastfetch to draw the logo with no modules and reads the gutter out of the
+result. Until fastfetch 2.64.0 that meant one escape sequence: the logo was printed as a
+block, then the cursor stepped back up and across with `ESC[1G ESC[<height>A
+ESC[<gutter>C`, and `ESC[<n>C` was the number. 2.64.0 "reworks the built-in logo printing
+logic — ASCII logos and modules are now printed line by line". There is no step to read any
+more; each module line simply begins with `<gutter>` literal spaces. The image tracks
+Fedora's fastfetch, which is well past 2.64, so the tool DD-031 shipped for exactly this job
+could not do it on the image it ships in.
+
+Both forms were confirmed by running the same command under two binaries — the installed
+2.61.0 and an upstream 2.66.0 release tarball:
+
+| fastfetch | First line of `--structure Break` output | Gutter is |
+|---|---|---|
+| 2.61.0 | `…logo art…` `ESC[1G` `ESC[20A` `ESC[44C` | the `C` parameter |
+| 2.66.0 | `ESC[m` + 44 spaces | the count of spaces |
+
+**Decision.** Read both, old form first, and take whichever answers.
+
+The new form is only exact because the measurement run now passes
+**`--logo-padding-top 1`**. Without it the first line of output carries the logo's first row
+*and* the padding, so the gutter could only be recovered by counting art — which breaks on
+the first logo that uses a glyph that is not one byte and one column wide, the very problem
+CHA exists to avoid (DD-031). Pushing the logo down one line makes that first line the
+gutter and nothing else, so the count is of spaces only.
+
+**The failure now explains itself.** It names both forms it looked for, prints the exact
+command to run by hand, echoes fastfetch's own stderr — previously sent to `/dev/null`,
+which is why the first report carried no information — and states the arithmetic
+(`gutter + 1 / 7 / 17 / 68`) so a human can finish the job without the tool.
+
+**Consequences.**
+- **The box itself was never affected.** CHA is absolute positioning; it does not care
+  whether fastfetch reaches a column by stepping or by printing spaces. The shipped config
+  renders identically under 2.61.0 and 2.66.0 — columns 45, 51, 61, 112 in both — which was
+  checked before touching the tool, because "the layout is broken" and "the tool that
+  measures the layout is broken" call for different fixes.
+- **A tool that reads another program's output is coupled to that program's rendering**, and
+  this one now carries two readings of it. That is the cost of measuring rather than
+  assuming; the alternative — hardcoding widths per logo name — would have been wrong in a
+  quieter way, since the numbers would drift with upstream's ASCII art and nothing would
+  say so.
+- **`--logo-padding-top` is now load-bearing for measurement.** If it is ever removed, the
+  new-form reading loses its exactness and the error message is what will say so.
+- **Version-sniffing without a version number.** Neither reading asks what fastfetch it is
+  talking to, so a build that emits the old form, the new form, or a future third form is
+  handled or reported, not silently mis-measured.

@@ -37,13 +37,67 @@ command -v perl >/dev/null || { echo "retune: perl not found" >&2; exit 1; }
 [ -f "$CONFIG" ] || { echo "retune: $CONFIG not found" >&2; exit 1; }
 
 # ── measure ──────────────────────────────────────────────────────────────────
-# Print the logo with no modules; fastfetch emits ESC[<gutter>C to step past it.
-GUTTER=$(fastfetch --pipe false -c "$CONFIG" --structure Break 2>/dev/null |
+# Print the logo with no modules and read the gutter out of what fastfetch draws.
+# HOW it draws it changed in fastfetch 2.64.0, which reworked built-in logo
+# printing to go line by line (DD-042):
+#
+#   <= 2.63   the logo is drawn as a block, then the cursor is stepped back up
+#             and across:  ESC[1G ESC[<h>A ESC[<gutter>C
+#   >= 2.64   logo and modules share a line, and the gutter is <gutter> literal
+#             spaces at the start of it
+#
+# Both are read, old form first. Whichever answers is the gutter; they agree
+# where both are available (measured on 2.61.0 and 2.66.0: fedora 44,
+# fedora_small 22, unknown 36, arch 43).
+#
+# `--logo-padding-top 1` is what makes the new form exact: it pushes the logo
+# down a line, so the first line of output is the gutter and nothing else. Read
+# without it, that line also carries the logo's first row, and the gutter would
+# have to be recovered by counting art — wrong the moment a logo uses a glyph
+# that is not one byte and one column wide.
+ERR=$(mktemp) || { echo "retune: could not create a temporary file" >&2; exit 1; }
+trap 'rm -f "$ERR"' EXIT INT TERM
+
+OUT=$(fastfetch --pipe false -c "$CONFIG" --logo-padding-top 1 --structure Break \
+          2>"$ERR") || true
+
+# Old form: an explicit cursor step, anywhere in the output.
+GUTTER=$(printf '%s\n' "$OUT" |
          LC_ALL=C awk '{ if (match($0, /\033\[[0-9]+C/)) {
                             print substr($0, RSTART+2, RLENGTH-3); exit } }')
 
+# New form: the first line that is nothing but escapes and spaces. Logo lines
+# carry art, so they are skipped; the module line is pure gutter.
+[ -n "$GUTTER" ] || GUTTER=$(printf '%s\n' "$OUT" | LC_ALL=C awk '
+  { line = $0; col = 0
+    while (length(line) > 0) {
+      if (match(line, /^\033\[[0-9;?]*[a-zA-Z]/)) {          # any escape
+        fin = substr(line, RSTART + RLENGTH - 1, 1)
+        num = substr(line, 3, RLENGTH - 3) + 0
+        if (fin == "C") col += (num == 0 ? 1 : num)          # cursor forward
+        else if (fin == "G") col = (num == 0 ? 0 : num - 1)  # absolute column
+        line = substr(line, RLENGTH + 1)
+      } else if (substr(line, 1, 1) == " ") {
+        col++; line = substr(line, 2)
+      } else { col = 0; break }                              # art: not this line
+    }
+    if (col > 0) { print col; exit } }')
+
 case "${GUTTER:-}" in
-  ''|*[!0-9]*) echo "retune: could not measure the logo gutter" >&2; exit 1 ;;
+  ''|*[!0-9]*)
+    echo "retune: could not measure the logo gutter" >&2
+    echo "retune: no cursor step (fastfetch <= 2.63) and no leading spaces" >&2
+    echo "retune: (fastfetch >= 2.64) in the output of" >&2
+    echo "retune:   fastfetch --pipe false -c $CONFIG \\" >&2
+    echo "retune:       --logo-padding-top 1 --structure Break" >&2
+    if [ -s "$ERR" ]; then
+        echo "retune: fastfetch said:" >&2
+        sed 's/^/retune:   /' "$ERR" >&2
+    fi
+    echo "retune: run that command by hand to see what it prints. If fastfetch" >&2
+    echo "retune: has changed how it draws the gutter again, the four columns" >&2
+    echo "retune: are gutter+1 (spine), +7 (label), +17 (separator), +68 (right)." >&2
+    exit 1 ;;
 esac
 
 # Layout, all derived from the gutter.
