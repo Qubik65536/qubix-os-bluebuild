@@ -49,6 +49,7 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | System information | fastfetch's box, as the system-wide default. Run by hand, never automatically; `~/.config/fastfetch/` still wins (DD-031) | `files/system/etc/fastfetch/config.jsonc` |
 | Editor | Neovim is `$EDITOR`. Its config is not shipped: `~/.config/nvim` is the user's, from a one-line `git clone` (DD-030) | `files/system/etc/profile.d/qubix-shell-env.sh` |
 | Login shell | zsh for new accounts, and for existing ones a boot service sets it once per account — Aurora deletes `chsh`, so there is no manual path (DD-035) | `files/system/etc/default/useradd`, `files/system/usr/bin/qubix-default-shell` |
+| Containers | Every distrobox container gets the same shell: an init hook installs the binaries from the container's own repositories and links the rest from `/run/host` (DD-043) | `files/system/etc/distrobox/distrobox.conf`, `files/system/usr/bin/qubix-distrobox-shell` |
 | Packages removed | `firefox`, `firefox-langpacks` — no Firefox in either form (DD-023) | `recipe.yml` (`dnf`) |
 | Default terminal | WezTerm, for KDE and for the `$TERMINAL` convention | `files/system/etc/xdg/kdeglobals`, `files/system/usr/lib/environment.d/` |
 | Terminal configuration | WezTerm's font stack, colour scheme and window settings, system-wide. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` still wins (DD-034) | `files/system/etc/xdg/wezterm/` |

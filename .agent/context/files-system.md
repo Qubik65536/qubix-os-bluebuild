@@ -45,6 +45,8 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/zellij/config.kdl` | zellij, when a user starts it | The Qubix theme. **The only system-wide path zellij reads**; `~/.config/zellij/` shadows it wholesale (DD-033) |
 | `etc/fastfetch/config.jsonc` | fastfetch, when a user runs it | The system-wide default box. **The only system-wide path fastfetch reads** — its search path has no `/usr` entry (DD-031) |
 | `usr/bin/qubix-config` | nobody — run by hand | Copies any shipped config into `~/.config`, lists them, diffs a copy against the image, and `--check`s its own paths. **Nothing runs it** — it is the alternative to a seeder, not one (DD-039). Mode `100755` |
+| `etc/distrobox/distrobox.conf` | distrobox on the host, every subcommand | `container_init_hook="/run/host/usr/bin/qubix-distrobox-shell"`. Last system-wide file in distrobox's config hierarchy; the RPM owns nothing here, and ublue-os-just's `*.ini` manifests are untouched. **Flags beat it** — `--init-hooks` and an assemble `init_hooks=` key replace the hook (DD-043) |
+| `usr/bin/qubix-distrobox-shell` | distrobox-init, **inside** a container, as root | Installs zsh, the plugins, starship, atuin and bat from the *container's* repositories; symlinks `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` and `/etc/profile.d/qubix-shell-env.sh` → the host's; appends the source block to the container's global `zshrc`. Idempotent, re-runnable by hand, **exits 0 from inside a container whatever happens** (DD-043). Mode `100755` |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Reads the gutter **two ways** — a cursor step on fastfetch ≤ 2.63, leading spaces on ≥ 2.64, which reworked logo printing (DD-042) — so it is coupled to how fastfetch renders and needs re-checking when that changes. Mode `100755` in the overlay |
 
 **Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, and one system
@@ -64,6 +66,14 @@ Two constraints explain the rest of the layout:
   crucially it is after the `profile.d` loop, so `STARSHIP_CONFIG` and friends exist before
   the tools that read them start. `/etc/zshenv` held this until 2026-08-03 and ran too
   early; Fedora's file is not vendored, only appended to.
+- **A distrobox container gets the same environment, and the same way** (DD-043): the same
+  block appended to the container's global `zshrc`, the same `/etc/profile.d` file, both
+  pointing at the host's files through `/run/host`. Only the binaries — starship, atuin, bat
+  — are installed into the container, because they are compiled against the host's glibc.
+  Two gotchas live in `qubix-distrobox-shell` rather than in the shell files: the plugins are
+  at `/usr/share/zsh/plugins/` on Arch and Alpine, and bat is `batcat` on Debian and Ubuntu.
+  **The hook may never exit non-zero** — `distrobox-init` `eval`s it under `set -e`, so a
+  failure aborts container creation.
 
 ## Branding
 

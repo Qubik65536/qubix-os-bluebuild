@@ -46,7 +46,7 @@ described here or in `files/system/`.
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
   | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm` + its config's fonts (`ibm-plex-mono-fonts`, `ibm-plex-sans-fonts`, `google-noto-sans-cjk-fonts`) + `unzip`, `niri`, `dms` + fonts + `cliphist`, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `lazygit`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
-  | 4 | `containerfile` | `common-base.yml` | Eight snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `usermod` exists and `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses; install Monaspace Krypton NF + IBM Plex Math from pinned upstream archives, asserting both SHA-256s; assert `wezterm ls-fonts` resolves `/etc/xdg/wezterm/wezterm.lua` and all seven of its families; append the zsh wiring to Fedora's `/etc/zshrc`; assert `qubix-config --check` — every path that command names exists, and niri's relative theme include still matches; assert that `fastfetch` survives `/etc/profile.d` unaliased | after `dnf` (needs `zsh`, `git`, `unzip`, `wezterm`) and after `files` (needs `/etc/zellij`, `/etc/xdg/wezterm`, `/usr/share/qubix-os/shell/`); the WezTerm snippet after the font one — DD-026, DD-033, DD-034, DD-035, DD-036, DD-039, DD-040 |
+  | 4 | `containerfile` | `common-base.yml` | Nine snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `usermod` exists and `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses; install Monaspace Krypton NF + IBM Plex Math from pinned upstream archives, asserting both SHA-256s; assert `wezterm ls-fonts` resolves `/etc/xdg/wezterm/wezterm.lua` and all seven of its families; append the zsh wiring to Fedora's `/etc/zshrc`; assert `qubix-config --check` — every path that command names exists, and niri's relative theme include still matches; assert that `fastfetch` survives `/etc/profile.d` unaliased; assert the distrobox hook — distrobox is present, still reads `/etc/distrobox/distrobox.conf`, and that file names an executable `qubix-distrobox-shell` | after `dnf` (needs `zsh`, `git`, `unzip`, `wezterm`) and after `files` (needs `/etc/zellij`, `/etc/xdg/wezterm`, `/usr/share/qubix-os/shell/`); the WezTerm snippet after the font one — DD-026, DD-033, DD-034, DD-035, DD-036, DD-039, DD-040, DD-043 |
   | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service` | after `files`, which ships the unit — DD-035 |
   | 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
   | 7 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
@@ -171,6 +171,15 @@ described here or in `files/system/`.
   because `/etc/profile.d` is sourced alphabetically — fragile, and invisible when it breaks,
   so the snippet sources every file the way a shell does and then checks the alias is gone.
   Rehearsed against a `zzz-*.sh` that reinstates it.
+- **Snippet 4i guards a hook that runs in someone else's container** (DD-043).
+  `/etc/distrobox/distrobox.conf` points distrobox at
+  `/run/host/usr/bin/qubix-distrobox-shell`, which distrobox-init `eval`s as root inside
+  every container it creates. Three assertions: **distrobox is in the image** (it comes from
+  the base, not from the `dnf` module, so it could vanish silently); **`distrobox-create`
+  still names `/etc/distrobox/distrobox.conf`** — an implementation detail of a tool whose
+  2.0 rewrite is a Go binary, so a change fails CI instead of producing bare containers; and
+  **the config and the script agree**, read by sourcing the config the way distrobox does.
+  The hook itself may never exit non-zero: distrobox-init runs with `set -o errexit`.
 - **Nothing runs `qubix-config`, and nothing may be added that does.** It is the alternative
   to the runtime seeders IMG-019 removed, not a quieter version of them: an account that
   never runs it keeps tracking the image, which is the property the whole design is for

@@ -2419,3 +2419,106 @@ which is why the first report carried no information — and states the arithmet
 - **Version-sniffing without a version number.** Neither reading asks what fastfetch it is
   talking to, so a build that emits the old form, the new form, or a future third form is
   handled or reported, not silently mis-measured.
+
+## DD-043 — Give a distrobox container the host's shell: link the text, install the binaries
+
+**Status:** Accepted
+
+**Extends:** [DD-030](#dd-030--configure-the-shell-with-system-files-and-no-runtime-seeder),
+one level down — the same "point at the image, do not copy it" rule, applied inside a
+container
+
+**Implements:** `IMG-033`
+
+**Context.** A shell inside `distrobox enter` came up bare: no starship prompt, no atuin
+history search, no zsh plugins. It could not have been otherwise. A distrobox container is a
+different distribution with its own `/etc`, its own `/usr` and its own package manager, and
+every tool in [`shell.md`](shell.md) is a host package read from a host path.
+
+What distrobox does bring across, established against **1.8.2.5** — the version in both f43
+and f44, and the one `ublue-os/main`'s `packages.json` puts in every Universal Blue base
+image, Aurora DX included:
+
+| It brings | How | So |
+|---|---|---|
+| The shell | `distrobox-create` passes `--env SHELL=$(basename $SHELL)`; `distrobox-init` installs the package of that name and gives the container user that shell | A container created while the account is on zsh **has** zsh — one created before `qubix-default-shell.service` ran has bash |
+| `$HOME` | Bind-mounted, same path | `~/.zshrc` is the same file in both, which is exactly why nothing here writes to it |
+| The host's root filesystem | Mounted at `/run/host`, with `--security-opt label=disable` | Every file the image ships is *already there*, live |
+| Most of the environment | Every `printenv` line that is not `HOME`, `PATH`, `SHELL`, `XDG_*_DIRS` … is passed with `--env` | `STARSHIP_CONFIG` and `LG_CONFIG_FILE` **arrive**, naming host paths that do not exist inside |
+
+That last row is a bug on its own: `LG_CONFIG_FILE` naming a missing file is an error in
+lazygit, not a skip.
+
+**Decision.** Ship `/etc/distrobox/distrobox.conf` with a `container_init_hook`, and
+`/usr/bin/qubix-distrobox-shell` for it to run inside the container at creation.
+
+**Text is linked, binaries are installed.** starship and atuin are compiled against the
+host's glibc and cannot be run out of `/run/host`, so they come from the container's own
+repositories, along with the two plugin packages and zsh. Everything else — the shell files,
+`starship.toml`, the lazygit config, the completion functions — is plain text and is read
+from the host where it already is. One symlink does the whole of that half:
+
+```
+/usr/share/qubix-os -> /run/host/usr/share/qubix-os
+```
+
+With it, every absolute path in the host's own files resolves inside the container, and so
+do the two environment variables that arrive from the host. **A rebase therefore changes the
+container's shell too**, with nothing to re-run in it — DD-030's promise, one level down.
+Copies would have been stale the first time the image changed.
+
+**Why a hook and not `container_additional_packages`.** distrobox installs that list in one
+transaction, and `distrobox-init` runs with `set -o errexit`, so a single name the guest
+distribution does not have — Debian and Ubuntu package neither starship nor atuin — aborts
+container creation and leaves a half-built container. The script installs the batch, and on
+failure retries one package at a time and *reports* what the distribution does not have.
+
+**The hook may never fail**, for the same reason: it is `eval`'d under that `set -e`. Every
+step is best-effort and it exits 0 from inside a container whatever happened. It exits
+non-zero only when it is not in a container or not root — the two cases only a human can
+create.
+
+**Two distribution differences are absorbed by the script**, not by teaching a host file
+about every distribution: Arch and Alpine install the plugins to `/usr/share/zsh/plugins/`,
+and Debian and Ubuntu install bat as `batcat`. Both get a symlink at the name
+`shell/qubix.zsh` and `shell/common.sh` look for. The global zsh rc file is found the same
+way — `/etc/zshrc` on Fedora, `/etc/zsh/zshrc` on Debian, Arch and Alpine — by identifying
+the directory that already holds zsh's global startup files, since zsh will not say which it
+was compiled for.
+
+**Consequences.**
+- **A container created after this comes up with the prompt, the history search and both
+  plugins, with nothing typed into it.** Its zsh is wired the same way the host's is:
+  appended to the end of the global `zshrc`, before `~/.zshrc`, which still wins.
+- **An existing container is one command behind:**
+  `distrobox enter <name> -- sudo /run/host/usr/bin/qubix-distrobox-shell`. The script is
+  idempotent, and re-running it is also what moves a container user who is still on bash —
+  because the container predates the login shell being zsh — over to zsh. That follows the
+  host account, and replaces **only** bash, exactly as DD-035 does.
+- **`/etc/distrobox/distrobox.conf` replaces nothing.** The Fedora `distrobox` RPM owns no
+  file in that directory (checked against the package's file list), and `ublue-os-just`'s
+  `*.ini` assemble manifests, which do live there, are untouched.
+- **Command-line flags beat the config**, because distrobox parses them after sourcing it.
+  So `distrobox create --init-hooks '' …` opts one container out — and a `distrobox
+  assemble` manifest with its own `init_hooks=` key **replaces** this hook rather than
+  adding to it, which is worth knowing before wondering why one container came up bare.
+  Opting every container out is commenting one line in a file in `/etc`, which is writable
+  and survives a rebase.
+- **Container creation now needs the network and takes longer**, by one package transaction.
+  That is the price of the tools being real binaries.
+- **A guest whose repositories lack a tool gets everything else and is told.** The shell
+  files skip what is not installed — silently, by design — so the script says out loud what
+  it could not install and what is therefore missing.
+- **`zsh-completions` is not installed in the container**; the host's
+  `/run/host/usr/share/zsh/site-functions` is put on `$fpath` instead. Completion functions
+  are plain zsh, so they work in any container, but they describe the *host's* tools.
+- **One history database, because `$HOME` is shared.** The container's atuin writes to the
+  host's `~/.local/share/atuin/history.db`, which is the useful behaviour and also the one
+  risk worth stating: a container whose distribution ships a newer atuin migrates that
+  database on first run, and the host's atuin then has to read the migrated schema. A Fedora
+  container tracks the same package version the host does.
+- **This is coupled to distrobox's internals** — the config search path, `/run/host`, and
+  the hook running as root — which are implementation, not an interface anyone promised. The
+  2.0 release replaces these shell scripts with a Go binary. The build asserts that
+  `distrobox-create` still names `/etc/distrobox/distrobox.conf`, so that change fails CI
+  with a note to re-check rather than producing containers that quietly come up bare.

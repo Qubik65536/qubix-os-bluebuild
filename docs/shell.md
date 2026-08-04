@@ -28,6 +28,9 @@ it.
 [The login shell](#the-login-shell). Bash is fully configured either way: it gets the
 prompt, the aliases and `y`; the four zsh-only entries above are what it misses.
 
+**A distrobox container gets this too**, without being asked — see
+[Inside a distrobox container](#inside-a-distrobox-container).
+
 ## How it is delivered
 
 **Nothing is written into your home directory.** Every part of this ships as a file in the
@@ -175,6 +178,80 @@ this service exists to fix (DD-035). `usermod` is shadow-utils and is always pre
 does the same thing, and as root it does not prompt for a password. If you want `chsh`
 back, `rpm-ostree install util-linux-user` layers it, and `/usr/bin/zsh` is already listed
 in `/etc/shells` for it.
+
+## Inside a distrobox container
+
+**A container gets the same shell**, and you do not have to do anything to get it either.
+Create one and it comes up with the prompt, the history search and both plugins:
+
+```bash
+distrobox create --name dev
+distrobox enter dev
+```
+
+That is not free the way it looks. A container is a *different distribution* — its own
+`/etc`, its own `/usr`, its own package manager — and every tool on this page is a host
+package read from a host path, so a container's shell used to come up bare. What makes it
+work is one hook: `/etc/distrobox/distrobox.conf` names
+`/usr/bin/qubix-distrobox-shell`, and distrobox runs it inside the container, as root, when
+the container is created (DD-043).
+
+The rule it follows is **text is linked, binaries are installed**:
+
+| | Where it comes from | Why |
+|---|---|---|
+| starship, atuin, bat, zsh, the two plugin packages | The container's **own** repositories | starship and atuin are compiled against the host's glibc and cannot be run out of `/run/host` |
+| `shell/qubix.zsh`, `shell/common.sh`, `starship.toml`, the lazygit config, the completions | The **host**, through `/run/host` | They are plain text, and distrobox mounts the host's root filesystem inside every container |
+
+The link is one symlink — `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` — which is
+what makes every absolute path in the host's files resolve inside the container. **So a
+rebase changes your containers' shells too**, with nothing to re-run in them. Copies would
+have gone stale the first time the image changed.
+
+### A container you already have
+
+The hook runs at creation, so containers made before this shipped never saw it. One command
+catches one up, and it is safe to run again on any container:
+
+```bash
+distrobox enter <name> -- sudo /run/host/usr/bin/qubix-distrobox-shell
+```
+
+It is also the fix if a container is *in bash* — distrobox gives the container user the
+shell your account had when the container was created, so anything made before
+`qubix-default-shell.service` moved you to zsh has a bash user inside. Re-running it moves
+that user to zsh, follows your host account, and — like the host service — only ever
+replaces bash.
+
+### What it cannot do
+
+**Debian and Ubuntu containers get no prompt and no history search.** Neither distribution
+packages starship or atuin, and this will not download binaries into a container behind your
+back. Everything else arrives — zsh, both plugins, bat, the aliases — and the script prints
+what it could not install rather than leaving you to notice. Fedora, Arch, Alpine and
+openSUSE containers get the lot.
+
+**Completions come from the host.** `/run/host/usr/share/zsh/site-functions` goes on
+`$fpath`, so the completion functions describe the host's tools, not the container's.
+
+**The history is one database, not two.** `$HOME` is shared, so the container's atuin reads
+and writes the same `~/.local/share/atuin/history.db` as the host's — which is usually what
+you want, and is worth knowing if a container's distribution ships a *newer* atuin than the
+host: the first run migrates the shared database, and the host's older atuin then has to
+live with it. A Fedora container tracks the same atuin the host does.
+
+**Container creation now needs the network** and takes a package transaction longer.
+
+### Turning it off
+
+| For | Do |
+|---|---|
+| One container | `distrobox create --init-hooks '' --name <name>` — flags beat the config file |
+| Every container | Comment the `container_init_hook` line in `/etc/distrobox/distrobox.conf`. `/etc` is writable and your edit survives a rebase |
+
+One thing to know rather than to do: a `distrobox assemble` manifest with its own
+`init_hooks=` key **replaces** this hook instead of adding to it, so a container built from
+one comes up bare. `ublue-os-just`'s `/etc/distrobox/apps.ini` has such an entry.
 
 ## The tools
 
@@ -517,6 +594,8 @@ directory — which the image never writes to.
 | Use a different editor | `export EDITOR=…` in your rc file |
 | Switch to zsh, or back | `sudo usermod -s /usr/bin/zsh $USER` / `sudo usermod -s /bin/bash $USER` — not `chsh`, which this image does not have |
 | Update the Neovim config | `git -C ~/.config/nvim pull` |
+| Get all of this in a distrobox you already have | `distrobox enter <name> -- sudo /run/host/usr/bin/qubix-distrobox-shell` |
+| Leave containers as their own distribution built them | Comment `container_init_hook` in `/etc/distrobox/distrobox.conf`, or `distrobox create --init-hooks ''` for one |
 
 ## Files
 
@@ -537,14 +616,16 @@ directory — which the image never writes to.
 | `/etc/fastfetch/config.jsonc` | The fastfetch box. The only system-wide path fastfetch reads (DD-031) |
 | `/etc/profile.d/zz-qubix-fastfetch.sh` | Undoes Aurora's `fastfetch` alias, so the config above is reachable. Named to sort last (DD-040) |
 | `/usr/bin/qubix-config` | Copies any of these into `~/.config` on request. Nothing runs it (DD-039) |
+| `/etc/distrobox/distrobox.conf` | Names the hook below as `container_init_hook`, so every container distrobox creates runs it (DD-043) |
+| `/usr/bin/qubix-distrobox-shell` | Runs **inside** a container: installs the binaries from its own repositories, links everything else from `/run/host` (DD-043) |
 | `/usr/share/qubix-os/fastfetch/retune.sh` | Re-derives the box's four columns after a logo change. Run by hand, never automatically |
 | `/usr/share/zsh/site-functions/_*` | zsh-completions and zellij's completions, installed at build time |
 | `/usr/share/bash-completion/completions/zellij` | zellij's bash completions, generated by the binary that ships |
 
 Configuration files, one hand-run tool, one boot service that touches `/etc/passwd` once
-per account, and nothing under `$HOME`.
+per account, one script that runs inside containers, and nothing under `$HOME`.
 
 Why each of these lives where it does: [`design-decisions.md`](design-decisions.md),
-DD-026, DD-030, DD-031, DD-032, DD-033, DD-035, DD-036, DD-037, DD-038, DD-039, DD-040, DD-041 and DD-042. What the recipe installs and in
+DD-026, DD-030, DD-031, DD-032, DD-033, DD-035, DD-036, DD-037, DD-038, DD-039, DD-040, DD-041, DD-042 and DD-043. What the recipe installs and in
 which module:
 [`recipe-reference.md`](recipe-reference.md).

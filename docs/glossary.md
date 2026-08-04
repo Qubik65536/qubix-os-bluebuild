@@ -22,6 +22,7 @@ terms over synonyms.
 | **DD-###** | A design decision record in [`design-decisions.md`](design-decisions.md). |
 | **Delta** | What this repository changes relative to Aurora DX. Kept deliberately small. |
 | **Deployment** | An `rpm-ostree` bootable instance of an image. Several coexist; the previous one is the rollback target. |
+| **distrobox** | Runs another distribution's userspace in a container that shares your `$HOME` and sees the host root at `/run/host`. It comes from the base image. Containers get this image's terminal environment through an init hook — the binaries installed from their own repositories, everything else linked from the host (DD-043). See [`shell.md`](shell.md#inside-a-distrobox-container). |
 | **fastfetch** | The system-information screen, run by hand. Its box is configured system-wide in `/etc/fastfetch/config.jsonc` — fastfetch's search path has no `/usr` entry — and a `~/.config/fastfetch/config.jsonc` replaces it wholesale (DD-031). See [`shell.md`](shell.md). |
 | **Flatpak seeding** | Flatpaks are not baked into the image; a systemd unit installs them on first boot. Hence first boot needs network. |
 | **Fragment (configuration)** | A file this image ships that sets only the keys it cares about, letting everything else resolve from the files upstream already ships — `/etc/xdg/kdeglobals` (merged key by key) and `/etc/xdg/mimeapps.list` (resolved type by type). Never a wholesale replacement. |

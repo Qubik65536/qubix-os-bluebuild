@@ -1,0 +1,302 @@
+#!/bin/sh
+#
+# qubix-distrobox-shell — give a distrobox container the host's interactive shell.
+#
+# Runs INSIDE a container, as root. /etc/distrobox/distrobox.conf names it as
+# `container_init_hook`, so `distrobox create` runs it through distrobox-init at the end of
+# container setup, once. Running it again is how an existing container catches up:
+#
+#     distrobox enter <name> -- sudo /run/host/usr/bin/qubix-distrobox-shell
+#
+# WHY ANYTHING IS NEEDED. A container is a different distribution — its own /etc, its own
+# /usr, its own package manager — and every tool in docs/shell.md is a host package read
+# from a host path. distrobox brings across the SHELL (it installs the package named by
+# $SHELL and gives the container user that shell) and it shares $HOME. That is the whole of
+# its help; the prompt, the history search and the plugins are this script's job.
+#
+# TEXT IS LINKED, BINARIES ARE INSTALLED. That line decides everything below. starship and
+# atuin are compiled against the host's glibc and cannot be run out of /run/host, so they
+# come from the container's own repositories. The shell files, the prompt configuration and
+# the completion functions are plain text, so they are read from the host where they already
+# are — live, through /run/host, which distrobox mounts the host's root filesystem at.
+#
+# WHY NOTHING IS COPIED. One symlink, /usr/share/qubix-os -> /run/host/usr/share/qubix-os,
+# makes every absolute path in the host's shell files resolve inside the container — and so
+# do STARSHIP_CONFIG and LG_CONFIG_FILE, which the host exports into it. A rebase then
+# changes the container's shell too, with nothing to re-run and nothing to go stale. It is
+# DD-030 one level down.
+#
+# IT MUST NEVER FAIL. distrobox-init runs with `set -o errexit` and eval's this hook, so a
+# non-zero exit aborts container creation and leaves a half-built container. Every step is
+# therefore best-effort: whatever cannot be done is reported and skipped, and the script
+# exits 0 from inside a container no matter what happened. The only non-zero exits are the
+# two preconditions below, which can fail only when a human runs it in the wrong place.
+#
+# See docs/shell.md and docs/design-decisions.md DD-043.
+
+set -u
+
+HOST_ROOT=/run/host
+QUBIX_SHARE=/usr/share/qubix-os
+HOST_SHARE="$HOST_ROOT$QUBIX_SHARE"
+
+log() { printf 'qubix-distrobox-shell: %s\n' "$*"; }
+warn() { printf 'qubix-distrobox-shell: %s\n' "$*" >&2; }
+
+# ── Preconditions ─────────────────────────────────────────────────────────────
+# Refuse to run on the host. Everything below writes to /etc and /usr as though they were a
+# container's, and on the host that would mean appending a SECOND source block to the
+# /etc/zshrc the build already wired (common-base.yml, module 4f).
+#
+# /run/.containerenv is podman's, /.dockerenv is docker's, /run/.toolboxenv is written by
+# distrobox-init itself for toolbx compatibility.
+if [ ! -e /run/.containerenv ] && [ ! -e /.dockerenv ] && [ ! -e /run/.toolboxenv ]; then
+    warn "this is not a container — run it inside a distrobox, not on the host"
+    exit 1
+fi
+
+if [ "$(id -u)" -ne 0 ]; then
+    warn "must run as root: distrobox enter <name> -- sudo $0"
+    exit 1
+fi
+
+# From here on nothing exits non-zero. See the header.
+if [ ! -d "$HOST_SHARE" ]; then
+    warn "$HOST_SHARE is not there, so either the host root is not mounted at $HOST_ROOT"
+    warn "or this host is not Qubix OS. Leaving the container as distrobox built it."
+    exit 0
+fi
+
+# ── What the container needs of its own ───────────────────────────────────────
+# Three binaries, two plugin scripts that belong beside the container's own zsh, and zsh
+# itself for the case where the container was created while the host account was on bash.
+#
+# ONE LIST FOR EVERY DISTRIBUTION, INSTALLED BEST-EFFORT. These names are the same in
+# Fedora, Arch, Alpine and openSUSE; Debian and Ubuntu package neither starship nor atuin,
+# so there the batch install fails and the per-package pass reports the two that are missing
+# and installs the rest. That fallback is the whole reason this is not
+# `container_additional_packages` in distrobox.conf: distrobox installs that list in one
+# transaction, under `set -e`, and one unknown name would abort the container.
+PACKAGES="zsh zsh-autosuggestions zsh-syntax-highlighting starship atuin bat"
+
+# ── The container's package manager ───────────────────────────────────────────
+# In the order a container that has two of them should be driven: dnf5 before dnf (Fedora
+# 41+ answers to both names). apt-get, pacman and apk are refreshed first, because toolbox
+# images ship without a package index and their install would otherwise fail on every name.
+install_cmd=""
+if command -v dnf5 >/dev/null 2>&1; then
+    install_cmd="dnf5 install -y"
+elif command -v dnf >/dev/null 2>&1; then
+    install_cmd="dnf install -y"
+elif command -v microdnf >/dev/null 2>&1; then
+    install_cmd="microdnf install -y"
+elif command -v apt-get >/dev/null 2>&1; then
+    DEBIAN_FRONTEND=noninteractive
+    export DEBIAN_FRONTEND
+    apt-get update -qq || warn "apt-get update failed; using whatever package lists are here"
+    install_cmd="apt-get install -y --no-install-recommends"
+elif command -v pacman >/dev/null 2>&1; then
+    pacman -Sy --noconfirm || warn "pacman -Sy failed; using whatever databases are here"
+    install_cmd="pacman -S --needed --noconfirm"
+elif command -v zypper >/dev/null 2>&1; then
+    install_cmd="zypper --non-interactive install"
+elif command -v apk >/dev/null 2>&1; then
+    apk update || warn "apk update failed; using whatever indexes are here"
+    install_cmd="apk add"
+fi
+
+missing=""
+if [ -z "$install_cmd" ]; then
+    warn "no package manager I recognise here; install these yourself: $PACKAGES"
+    missing="$PACKAGES"
+else
+    log "installing from the container's own repositories: $PACKAGES"
+    # Unquoted on purpose: both variables are word lists, not single arguments.
+    # shellcheck disable=SC2086
+    if ! $install_cmd $PACKAGES; then
+        log "that failed as a batch — trying one package at a time"
+        for pkg in $PACKAGES; do
+            # shellcheck disable=SC2086
+            $install_cmd "$pkg" || missing="$missing $pkg"
+        done
+    fi
+fi
+
+# ── Two things distributions disagree about ───────────────────────────────────
+# Both are absorbed here rather than by teaching the host's shell files about every
+# distribution: those files are the host's, and they should go on describing the host.
+#
+# The plugins install to /usr/share/<name>/ on Fedora, Debian and Ubuntu, and to
+# /usr/share/zsh/plugins/<name>/ on Arch and Alpine. shell/qubix.zsh names the first, so
+# anything else gets a link at the name it looks for. The file is SEARCHED FOR rather than
+# guessed at from a list of distributions, because that list would be wrong for the next one.
+for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
+    [ -e "/usr/share/$plugin/$plugin.zsh" ] && continue
+    found="$(find /usr/share -maxdepth 4 -name "$plugin.zsh" 2>/dev/null | head -n 1)"
+    [ -n "$found" ] || continue
+    found_dir="$(dirname "$found")"
+    ln -sfn "$found_dir" "/usr/share/$plugin" && log "/usr/share/$plugin -> $found_dir"
+done
+
+# Debian and Ubuntu install bat as `batcat`, because the name `bat` belongs to another
+# package there. shell/common.sh looks for `bat`, so give it one.
+if ! command -v bat >/dev/null 2>&1 && command -v batcat >/dev/null 2>&1; then
+    install -d -m 0755 /usr/local/bin
+    ln -sfn "$(command -v batcat)" /usr/local/bin/bat && log "/usr/local/bin/bat -> batcat"
+fi
+
+# ── The host's configuration, at the path its own files name ──────────────────
+# The single symlink the design rests on. With it, /usr/share/qubix-os/shell/qubix.zsh,
+# /usr/share/qubix-os/starship.toml and /usr/share/qubix-os/lazygit/config.yml all mean the
+# host's copy — including when they arrive as STARSHIP_CONFIG or LG_CONFIG_FILE in the
+# environment distrobox passes in from the host shell.
+if [ -L "$QUBIX_SHARE" ] || [ ! -e "$QUBIX_SHARE" ]; then
+    install -d -m 0755 /usr/share
+    if ln -sfn "$HOST_SHARE" "$QUBIX_SHARE"; then
+        log "$QUBIX_SHARE -> $HOST_SHARE"
+    else
+        warn "could not link $QUBIX_SHARE; the shell setup below will find nothing"
+    fi
+else
+    warn "$QUBIX_SHARE exists and is not a symlink — leaving it alone"
+fi
+
+# ── The environment, and bash ─────────────────────────────────────────────────
+# The host's own /etc/profile.d file, linked rather than copied for the reason in the
+# header. It re-resolves STARSHIP_CONFIG, the ATUIN_* block and LG_CONFIG_FILE in every
+# shell (DD-037), so inside the container they are resolved against the shared $HOME and
+# the symlink above instead of being inherited from whichever host shell ran `distrobox
+# enter`. Its last block wires bash, which is how bash in a container gets the prompt too.
+env_file=/etc/profile.d/qubix-shell-env.sh
+host_env_file="$HOST_ROOT$env_file"
+if [ ! -e "$host_env_file" ]; then
+    warn "$host_env_file is missing on the host; bash here will get no prompt"
+elif [ -e "$env_file" ] && [ ! -L "$env_file" ]; then
+    warn "$env_file exists and is not a symlink — leaving it alone"
+else
+    install -d -m 0755 /etc/profile.d
+    ln -sfn "$host_env_file" "$env_file" && log "$env_file -> $host_env_file"
+fi
+
+# ── zsh ───────────────────────────────────────────────────────────────────────
+# WHERE THE GLOBAL RC FILE IS depends on how zsh was compiled: Fedora reads /etc/zshrc,
+# Debian, Arch and Alpine read /etc/zsh/zshrc. zsh will not say which, so the directory is
+# identified by the global startup files it already contains, and /etc/zsh is preferred
+# because it only exists on the distributions that use it.
+zsh_etc=""
+for dir in /etc/zsh /etc; do
+    for base in zshrc zshenv zprofile zlogin; do
+        if [ -f "$dir/$base" ]; then
+            zsh_etc="$dir"
+            break
+        fi
+    done
+    [ -n "$zsh_etc" ] && break
+done
+
+if ! command -v zsh >/dev/null 2>&1; then
+    warn "zsh is not installed here, so the zsh half is skipped"
+elif [ -z "$zsh_etc" ]; then
+    warn "no global zsh startup file in /etc or /etc/zsh, so I cannot tell which zsh reads"
+    warn "the zsh half is skipped"
+else
+    zshrc="$zsh_etc/zshrc"
+    if grep -q 'qubix-os/shell/qubix.zsh' "$zshrc" 2>/dev/null; then
+        log "$zshrc already carries the Qubix block"
+    else
+        # Appended, exactly as the host's own /etc/zshrc is appended to at build time, and
+        # with the same backup-and-parse-check: the container is left as it was if the
+        # result does not parse, rather than with a zsh that errors at every prompt.
+        [ -f "$zshrc" ] || : >"$zshrc"
+        cp -p "$zshrc" "$zshrc.qubix-bak"
+        printf '%s\n' \
+            '' \
+            '# ── Qubix OS ──────────────────────────────────────────────────────────────────' \
+            '# Appended by /run/host/usr/bin/qubix-distrobox-shell, which ran in here when' \
+            '# distrobox created this container — run it again (with sudo) to redo any of this.' \
+            '# Everything zsh gets interactively is in the file below, and' \
+            '# that file is the HOST copy, reached through the /usr/share/qubix-os symlink — so a' \
+            '# rebase of the host changes this container too, with nothing to re-run in here.' \
+            '#' \
+            '# LAST IN THIS FILE, and before ~/.zshrc, for the same reasons as on the host: see' \
+            '# docs/shell.md. Your own ~/.zshrc runs after it and still wins.' \
+            '#' \
+            '# The host completion functions go on $fpath first, because the file below runs' \
+            '# compinit. They are plain zsh, so they work in any container.' \
+            'if [[ -d /run/host/usr/share/zsh/site-functions ]]; then' \
+            '    fpath=(/run/host/usr/share/zsh/site-functions $fpath)' \
+            'fi' \
+            'if [[ -r /usr/share/qubix-os/shell/qubix.zsh ]]; then' \
+            '    source /usr/share/qubix-os/shell/qubix.zsh' \
+            'fi' \
+            >>"$zshrc"
+        if zsh -n "$zshrc" 2>/dev/null; then
+            rm -f "$zshrc.qubix-bak"
+            log "wired zsh from the end of $zshrc"
+        elif mv "$zshrc.qubix-bak" "$zshrc" 2>/dev/null; then
+            warn "$zshrc does not parse with the Qubix block; put it back as it was"
+        else
+            warn "$zshrc does not parse with the Qubix block, and I could not undo that"
+        fi
+    fi
+fi
+
+# ── The container user's login shell ──────────────────────────────────────────
+# distrobox gives the container user the shell the HOST account had AT CREATION TIME. A
+# container created before qubix-default-shell.service moved that account to zsh therefore
+# has a bash user in it, and re-running this script is how that is fixed.
+#
+# THE HOST ACCOUNT DECIDES, and only bash is ever replaced — the same rule
+# qubix-default-shell follows on the host (DD-035): an account on anything else chose it,
+# and a choice is not something to overrule. UID 1000–60000 is the human range, which is
+# what keeps root's shell out of this.
+zsh_path="$(command -v zsh 2>/dev/null)"
+if [ -n "$zsh_path" ] && command -v usermod >/dev/null 2>&1; then
+    while IFS=: read -r name _ uid _ _ _ shell; do
+        [ "${uid:-0}" -ge 1000 ] && [ "${uid:-0}" -lt 60000 ] || continue
+
+        case "$shell" in
+            /bin/bash | /usr/bin/bash) ;;
+            *) continue ;;
+        esac
+
+        host_shell="$(grep -m1 "^$name:" "$HOST_ROOT/etc/passwd" 2>/dev/null | cut -d: -f7)"
+        case "${host_shell:-}" in
+            */zsh) ;;
+            *) continue ;;
+        esac
+
+        if usermod -s "$zsh_path" "$name"; then
+            log "$name -> $zsh_path, because the host account uses $host_shell"
+        else
+            warn "could not make $zsh_path the login shell for $name"
+        fi
+    done </etc/passwd
+fi
+
+# ── What the container ended up with ──────────────────────────────────────────
+# Said out loud, because a tool that is quietly absent is the failure mode of every guard in
+# the shell files: they skip what is not installed, silently and by design.
+have=""
+lack=""
+for tool in zsh starship atuin bat; do
+    if command -v "$tool" >/dev/null 2>&1; then
+        have="$have $tool"
+    else
+        lack="$lack $tool"
+    fi
+done
+for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
+    if [ -r "/usr/share/$plugin/$plugin.zsh" ]; then
+        have="$have $plugin"
+    else
+        lack="$lack $plugin"
+    fi
+done
+
+log "in this container:${have:- nothing}"
+[ -n "$lack" ] && log "not here:$lack — the shell setup skips whatever is missing"
+[ -n "$missing" ] && log "packages this distribution does not have:$missing"
+log "open a new shell, or exit and re-enter, to use it"
+
+exit 0

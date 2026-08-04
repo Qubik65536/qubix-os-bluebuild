@@ -99,6 +99,12 @@ the machine, once per account, before logins are permitted (DD-035). To go back:
 `sudo usermod -s /bin/bash $USER` — and nothing will change it again. Not `chsh`; Aurora
 deletes it from the image. Bash keeps the prompt and the aliases either way.
 
+**A distrobox container gets the same shell**, without being asked: an init hook installs
+the tools from the container's own repositories and reads everything else from the host
+through `/run/host` (DD-043). A container you created *before* rebasing predates the hook —
+`distrobox enter <name> -- sudo /run/host/usr/bin/qubix-distrobox-shell` brings it up to
+date, and is safe to run again on any container.
+
 One thing is still worth doing once:
 
 - **Install the Neovim config:** `git clone https://github.com/LazyVim/starter ~/.config/nvim`,

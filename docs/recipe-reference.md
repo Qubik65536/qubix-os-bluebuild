@@ -92,6 +92,8 @@ substitution.
   | `/etc/zellij/config.kdl` | The zellij theme. `/etc/zellij` is zellij's only system-wide config dir, and `~/.config/zellij/` shadows it (DD-033) |
   | `/etc/fastfetch/config.jsonc` | The fastfetch box. fastfetch has no `/usr` config path, and `~/.config/fastfetch/` still wins (DD-031) |
   | `/usr/share/qubix-os/fastfetch/retune.sh` | Re-derives the box's columns after a logo change. Run by hand (DD-031) |
+  | `/etc/distrobox/distrobox.conf` | `container_init_hook`, so every container distrobox creates runs the script below. The distrobox RPM owns no file here (DD-043) |
+  | `/usr/bin/qubix-distrobox-shell` | Runs **inside** a container: installs the binaries from its repositories, links the rest from `/run/host` (DD-043) |
 
 - **Ordering:** no hard constraint. Kept first so content lands before anything that might
   read it.
@@ -207,9 +209,10 @@ No `repo` is specified, so Flathub is used by default.
 
 ### 4. `containerfile` — build steps no module covers
 
-*Defined in `common-base.yml`. Six snippets: zsh completions, the login-shell assertions,
-zellij, WezTerm's two upstream fonts, the WezTerm configuration assertion, and the zsh
-wiring appended to `/etc/zshrc`.*
+*Defined in `common-base.yml`. Nine snippets: zsh completions, the login-shell assertions,
+zellij, WezTerm's two upstream fonts, the WezTerm configuration assertion, the zsh wiring
+appended to `/etc/zshrc`, the `qubix-config` assertion, the `fastfetch` alias assertion, and
+the distrobox hook assertion.*
 
 ```yaml
 - type: containerfile
@@ -375,11 +378,49 @@ The seventh asserts that `qubix-config` still names files that exist:
 - **`bash -n` runs first**, so a syntax error fails for the right reason rather than making
   `--check` exit non-zero and hiding which problem it was.
 
+The eighth asserts that the name `fastfetch` reaches fastfetch (DD-040). Aurora's
+`/etc/profile.d/ublue-fastfetch.sh` aliases it to `ublue-fastfetch`, which passes its own
+`--config` — and an alias is resolved before `$PATH`, long before any config directory, so it
+beat both `/etc/fastfetch/config.jsonc` and the user's own. `zz-qubix-fastfetch.sh` in the
+overlay undoes that one alias.
+
+- **It asserts the result, not the ordering.** The fix depends on `/etc/profile.d` being
+  sourced alphabetically, which is a fragile thing to depend on and an invisible thing to
+  break — a vendor file named `zzz-*.sh` would restore the alias silently. So the snippet
+  sources *every* file in the directory the way a shell does and then asks whether the alias
+  survived. Rehearsed against a `zzz-*.sh` that reinstates it, which fails as intended.
+
+The ninth asserts that the distrobox hook can be reached and is what it claims (DD-043):
+
+```yaml
+    - |
+      RUN set -eu; \
+          command -v distrobox …; \
+          grep -q '/etc/distrobox/distrobox.conf' /usr/bin/distrobox-create; \
+          sh -n /usr/bin/qubix-distrobox-shell; \
+          test -x /usr/bin/qubix-distrobox-shell; \
+          hook="$(sh -c '. /etc/distrobox/distrobox.conf; printf %s "$container_init_hook"')"; \
+          … the hook must be /run/host/usr/bin/qubix-distrobox-shell, \
+            and that path minus /run/host must be executable in this image
+```
+
+- **distrobox comes from the base image**, not from the `dnf` module — `ublue-os/main`'s
+  `packages.json` installs it everywhere — so the config would become dead weight, silently,
+  if upstream ever dropped it.
+- **The `grep` guards an implementation detail.** distrobox's configuration search path is a
+  list inside a shell script, and its 2.0 release replaces those scripts with a Go binary. If
+  the path stops being read, this fails the build with a note to re-check it rather than
+  producing containers that come up bare.
+- **The hook is read the way distrobox reads it** — by sourcing the file — and the
+  `/run/host` prefix is stripped so the script is checked to exist at that path in *this*
+  image, which is where a container will look for it.
+
 - **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm` and the packaged
   fonts; after the `files` module, which ships `/etc/zellij/config.kdl`,
-  `/etc/xdg/wezterm/`, `/usr/share/qubix-os/shell/qubix.zsh`, `/usr/bin/qubix-config` and
-  every path that last one names. The fifth snippet must follow the fourth. Before the
-  identity rewrite, though nothing forces that.
+  `/etc/xdg/wezterm/`, `/usr/share/qubix-os/shell/qubix.zsh`, `/usr/bin/qubix-config`,
+  `/etc/distrobox/distrobox.conf`, `/usr/bin/qubix-distrobox-shell` and every path
+  `qubix-config` names. The fifth snippet must follow the fourth. Before the identity
+  rewrite, though nothing forces that.
 
 ### 5. `systemd` — enable the login-shell service
 

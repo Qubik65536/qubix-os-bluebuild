@@ -1333,6 +1333,67 @@ The task tracker for `qubix-os-bluebuild`. **All work exists here first.**
     - On the rebased image, `retune.sh -n` reports a 44-column gutter *(open — needs a
       build)*
 
+- [ ] **IMG-033** — Give a distrobox container the same interactive shell as the host
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Requested 2026-08-04: the shell inside `distrobox enter` has none of what
+    the host's has — no starship prompt, no atuin history search, no zsh plugins.
+    **It could not have.** A container is a different distribution with its own `/etc` and
+    its own `/usr`, and every one of those tools is a host package read from a host path.
+    Established against distrobox **1.8.2.5** — the version in both f43 and f44, and the one
+    `ublue-os/main`'s `packages.json` puts in every ublue base image, Aurora DX included:
+    - **The shell itself already crosses.** `distrobox-create` passes
+      `--env SHELL=$(basename $SHELL)`, and `distrobox-init` installs the package of that
+      name and gives the container user that shell (`shell_pkg`, then `useradd --shell`).
+      So a container created while the host account is on zsh has zsh — and one created
+      *before* `qubix-default-shell.service` ran has bash, which is the retrofit case.
+    - **The host's root filesystem is at `/run/host`**, either as `/:/run/host` or, on
+      podman+runc, mounted directory by directory. `--security-opt label=disable` is passed,
+      so nothing in there is denied by SELinux. `$HOME` is the same directory in both.
+    - **`/etc/distrobox/distrobox.conf` is the last system-wide file** in distrobox's config
+      hierarchy (`/usr/share` → `/usr/etc` → `/etc` → `~/.config` → `~/.distroboxrc`), and
+      the Fedora `distrobox` RPM **owns no file there** — verified against the package's file
+      list, so this replaces nothing. `ublue-os-just` ships `*.ini` assemble manifests in the
+      same directory and is untouched.
+    - **`container_init_hook` is eval'd as root inside the container**, at the end of
+      `distrobox-init`. Command-line flags are parsed *after* the config files are sourced,
+      so `distrobox create --init-hooks …` — and any `distrobox assemble` entry with an
+      `init_hooks=` key — overrides this. That is the per-container opt-out.
+    - **`distrobox-init` runs with `set -o errexit` and `eval`s the hook**, so a non-zero
+      exit from it aborts container setup and leaves a half-built container. This is why the
+      hook may never fail, and why the packages are installed one at a time when a batch
+      fails rather than through `container_additional_packages` (a single missing name there
+      — Debian and Ubuntu package neither starship nor atuin — would break creation).
+    **Text is linked, binaries are installed.** starship and atuin are compiled against the
+    host's glibc and cannot be run from `/run/host`; the plugins, the prompt configuration
+    and the shell files are plain text and can. One symlink,
+    `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os`, makes every absolute path in the
+    host's own shell files — and in `STARSHIP_CONFIG` and `LG_CONFIG_FILE`, which the host
+    exports into the container — resolve inside it, so a rebase changes the container's shell
+    too with nothing to re-run. That is DD-030 one level down.
+    Two distribution differences are absorbed by the script rather than by teaching a host
+    file about every distro: Arch and Alpine put the plugins in `/usr/share/zsh/plugins/`,
+    and Debian and Ubuntu install bat as `batcat`.
+  - **Acceptance criteria:**
+    - A container created after the rebase has the prompt, history search and both plugins,
+      with nothing typed into it
+    - Nothing is copied: the container reads the host's configuration live through
+      `/run/host`, so a rebase changes it too
+    - The hook cannot break `distrobox create` — every step is best-effort and it exits 0
+      from inside a container whatever happened
+    - It refuses to run on the host, where it would append a second block to `/etc/zshrc`
+    - Re-running it is how an existing container catches up, including one whose user is
+      still on bash because it predates the login shell being zsh
+    - A guest distribution whose repositories lack starship or atuin gets everything else,
+      and is told what it did not get
+    - There is an opt-out for one container and an opt-out for all of them, both documented
+    - The build asserts that distrobox is in the image, that the config names the script, and
+      that the script parses
+    - `docs/shell.md`, a `DD-###`, `docs/recipe-reference.md`, `docs/glossary.md` and
+      `.agent/context/` cover it
+    - On the rebased image, `distrobox create` then `distrobox enter` lands in a zsh with the
+      Qubix prompt *(open — needs a build and hardware)*
+
 ### Image variants
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time

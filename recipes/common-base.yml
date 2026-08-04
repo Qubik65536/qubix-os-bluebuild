@@ -494,6 +494,50 @@ modules:
                 exit 1; \
             fi
 
+      #    4i. Assert that the distrobox hook can be reached, and is what it claims.
+      #
+      #        /etc/distrobox/distrobox.conf points distrobox at
+      #        /run/host/usr/bin/qubix-distrobox-shell, which runs inside every container it
+      #        creates and gives that container the same prompt, history and plugins as the
+      #        host (DD-043). Three things have to hold for that to be more than a file.
+      #
+      #        DISTROBOX MUST BE HERE. It comes from the base image — ublue-os/main's
+      #        packages.json installs it in every Universal Blue image — so this is not
+      #        installed by the module above and would silently become dead weight if
+      #        upstream dropped it.
+      #
+      #        DISTROBOX MUST STILL READ THIS FILE. The config hierarchy is a list inside
+      #        distrobox-create, not an interface anyone promised: the 2.0 rewrite replaces
+      #        these shell scripts with a Go binary. Grepping for the path is what turns
+      #        "the hook stopped running" into a build failure that says to go and re-check
+      #        it, rather than a container that quietly comes up bare.
+      #
+      #        THE CONFIG AND THE SCRIPT MUST AGREE. The hook is read out of the file the
+      #        way distrobox reads it — by sourcing it — and the /run/host prefix is stripped
+      #        to check the script exists at that path in THIS image, which is where the
+      #        container will find it.
+      #
+      #        Ordering: after `files`, which ships both the config and the script.
+      - |
+        RUN set -eu; \
+            if ! command -v distrobox >/dev/null; then \
+                echo "distrobox is not in this image: /etc/distrobox/distrobox.conf is dead weight"; \
+                exit 1; \
+            fi; \
+            if ! grep -q '/etc/distrobox/distrobox.conf' /usr/bin/distrobox-create; then \
+                echo "distrobox-create no longer names /etc/distrobox/distrobox.conf"; \
+                echo "re-check its configuration search path before trusting the hook"; \
+                exit 1; \
+            fi; \
+            sh -n /usr/bin/qubix-distrobox-shell; \
+            test -x /usr/bin/qubix-distrobox-shell; \
+            hook="$(sh -c '. /etc/distrobox/distrobox.conf; printf %s "${container_init_hook:-}"')"; \
+            if [ "$hook" != "/run/host/usr/bin/qubix-distrobox-shell" ]; then \
+                echo "distrobox.conf does not name the guest setup script: ${hook:-<unset>}"; \
+                exit 1; \
+            fi; \
+            test -x "${hook#/run/host}"
+
   # 5. Enable the one system service this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already
   #    exist — the only thing in the terminal environment that cannot be delivered as a
