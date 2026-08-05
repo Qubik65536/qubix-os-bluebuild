@@ -14,7 +14,7 @@
 #
 # To keep a different theme:  systemctl --user mask qubix-dms-theme.service
 #
-# See docs/desktops.md and docs/design-decisions.md DD-025, DD-047.
+# See docs/desktops.md and docs/design-decisions.md DD-025, DD-048.
 
 [Unit]
 Description=Apply the Qubix DankMaterialShell theme and shell styling

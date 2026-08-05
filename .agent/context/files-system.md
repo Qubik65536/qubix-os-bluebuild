@@ -21,8 +21,8 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds; `eDP-1` pinned to `scale 1`; window rule hiding the Xwayland Video Bridge; `include`s the theme (DD-014, DD-015, DD-019, DD-024) |
 | `etc/niri/qubix-theme.kdl` | niri, via `include` | The `#56728B` palette for niri. **Separate so a personal config can include it** and keep tracking the image (DD-022, DD-025) |
 | `usr/share/qubix-os/dms-theme.json` | DankMaterialShell, as `customThemeFile` | The same palette for the shell. Watched by DMS, so a rebase reloads it live (DD-022, DD-025) |
-| `usr/bin/qubix-dms-theme` | `qubix-dms-theme.service` | Enforces the theme pointer every Niri login and migrates DMS's native floating-bar settings plus the canonical cube launcher once per preset version. Preserves widget arrays and unrelated settings; stamps completion under `$XDG_STATE_HOME/qubix-os/` (DD-025, DD-047). **Only executable in the overlay** |
-| `usr/lib/systemd/user/qubix-dms-theme.service` | systemd user manager | Runs the theme/preset seeder `Before=dms.service`; pulled in by `niri.service`, never enabled globally (DD-025, DD-047) |
+| `usr/bin/qubix-dms-theme` | `qubix-dms-theme.service` | Enforces the theme pointer every Niri login and migrates DMS's native floating-bar settings plus the canonical cube launcher once per preset version. Version 2 makes `BarCanvas` transparent while retaining rounded `BasePill` backgrounds without outlines. Preserves widget arrays and unrelated settings; stamps completion under `$XDG_STATE_HOME/qubix-os/` (DD-025, DD-048). **Only executable in the overlay** |
+| `usr/lib/systemd/user/qubix-dms-theme.service` | systemd user manager | Runs the theme/preset seeder `Before=dms.service`; pulled in by `niri.service`, never enabled globally (DD-025, DD-048) |
 | `etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` | XDG autostart / `systemd-xdg-autostart-generator` | **Replaces** the package's entry, adding `NotShowIn=niri;` so the bridge does not autostart under Niri (DD-021) |
 | `usr/bin/qubix-video-bridge` | `Mod+Shift+B` and the launcher entry below | Toggles the bridge, with a notification. **Only executable in the overlay** — the git mode bit is what makes it runnable (IMG-013) |
 | `usr/share/applications/qubix-video-bridge.desktop` | XDG application menu / DMS launcher | A **new** entry (upstream's is `NoDisplay=true`), `OnlyShowIn=niri;` (IMG-013) |
@@ -237,8 +237,10 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   the three custom-theme pointer keys every Niri login, but writes bar presentation only
   when its versioned state stamp is absent. It applies style keys to every valid bar and
   never replaces existing widget arrays. Remove the stamp and start the service to
-  reapply; mask the unit to opt out of future migrations and pointer enforcement
-  (DD-047).
+  reapply; mask the unit to opt out of future migrations and pointer enforcement.
+  `transparency=0` hides DMS's outer `BarCanvas`; `noBackground=false` retains each
+  rounded `BasePill`, and `widgetOutlineEnabled=false` avoids a second shape around it.
+  The corrected preset is version 2, so a version-1 stamp does not block it (DD-048).
 - **Niri has no global scale setting** and no output wildcard. `output` matches a connector
   name or a `"manufacturer model serial"` triple, so `etc/niri/config.kdl` names `eDP-1`
   to pin the laptop panel to `scale 1` (DD-024). On a machine whose panel is called

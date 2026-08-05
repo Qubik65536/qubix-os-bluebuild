@@ -2751,7 +2751,8 @@ a broken `zshrc`.
 
 ## DD-047 — Float each DMS bar component, but migrate presentation only once
 
-**Status:** Accepted
+**Status:** Superseded by
+[DD-048](#dd-048--make-the-bar-canvas-transparent-and-keep-each-component-background-rounded)
 
 **Implements:** `BRD-005`
 
@@ -2806,3 +2807,63 @@ DMS's upstream default groups.
 - The canonical PNG gains a consumer; no DMS source or artwork is duplicated.
 - Static checks can prove the merge and failure rules, but the final layout and logo still
   need confirmation in a Niri login from a built image.
+
+---
+
+## DD-048 — Make the bar canvas transparent and keep each component background rounded
+
+**Status:** Accepted
+
+**Implements:** `BRD-005`
+
+**Supersedes:** [DD-047](#dd-047--float-each-dms-bar-component-but-migrate-presentation-only-once)
+
+**Context.** The version-1 preset reached real hardware and produced the inverse of the
+approved design: one large coloured bar remained, while components had transparent
+centres inside square outlines. The setting names had been read as descriptions rather
+than traced to the rectangles that consume them.
+
+DMS source at commit
+[`2baf048`](https://github.com/AvengeMedia/DankMaterialShell/tree/2baf048293cfe4c34d9dad4fbcc2e8203ed9ba34)
+makes the layering explicit:
+
+- [`DankBarBody.qml`](https://github.com/AvengeMedia/DankMaterialShell/blob/2baf048293cfe4c34d9dad4fbcc2e8203ed9ba34/quickshell/Modules/DankBar/DankBarBody.qml)
+  passes `barConfig.transparency` as the alpha of the outer `BarCanvas`; `1` is opaque and
+  `0` is transparent.
+- [`BasePill.qml`](https://github.com/AvengeMedia/DankMaterialShell/blob/2baf048293cfe4c34d9dad4fbcc2e8203ed9ba34/quickshell/Modules/Plugins/BasePill.qml)
+  makes a component transparent **and sets its radius to zero** when `noBackground` is
+  true. When false, the component uses `Theme.cornerRadius` and its configured widget
+  background.
+- The widget outline is a second rectangle in `BasePill`. With version 1's transparent,
+  zero-radius component, that outline was the reported square.
+
+**Decision.** Preset version 2 corrects the layer ownership:
+
+| Scope | DMS setting | Value | Result |
+|---|---|---|---|
+| Per bar | `transparency` | `0.0` | Outer `BarCanvas` has no visible fill |
+| Per bar | `noBackground` | `false` | Each component retains its own fill and normal rounded corners |
+| Per bar | `widgetOutlineEnabled` | `false` | No second square or decorative shape around a component |
+| Per bar | `spacing` / `innerPadding` / `widgetPadding` | `8` / `4` / `8` | Component surfaces are visibly separated and comfortably padded |
+| Per bar | `widgetTransparency` | `0.96` | Component fill remains distinctly Slate without becoming heavy |
+| Per bar | `squareCorners` / `borderEnabled` / `shadowIntensity` | `false` / `false` / `0` | No square outer corners, border, or per-bar shadow override |
+| Global | `barElevationEnabled` | `false` | No global elevation shadow remains around the invisible canvas |
+| Global | `widgetBackgroundColor` | `sc` (`surfaceContainer`) | Components use the intended Slate surface |
+
+The cube launcher settings from DD-047 remain unchanged. `BAR_STYLE_VERSION` becomes `2`,
+so the new `$XDG_STATE_HOME/qubix-os/dms-bar-style-v2` stamp is absent even for accounts
+that already carry version 1. The correction therefore applies once on their next Niri
+login and then returns ownership of presentation settings to the user.
+
+**Consequences.**
+
+- The outer bar window and input region still exist, as DMS requires, but paint no
+  background or elevation. Only the rounded component backgrounds are visible.
+- DMS's global corner radius is not overwritten. The image gets its normal 16 px default;
+  a user who deliberately changes the global radius keeps that choice.
+- Old version-1 outline colour and thickness keys may remain inert in a settings file;
+  `widgetOutlineEnabled=false` ensures they paint nothing without deleting user data.
+- Widget order, unrelated settings, malformed-input handling, and atomic writes retain the
+  preservation rules from DD-047.
+- The corrected appearance still requires one more real-hardware confirmation before
+  `BRD-005` is done.

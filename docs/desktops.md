@@ -92,28 +92,31 @@ islands:
 ╭ cube ╮  ╭ 1  2  3 ╮  ╭ focused window ╮       ╭ music ╮  ╭ clock ╮       ╭ tray ╮  ╭ status ╮
 ```
 
-It uses DMS's native bar settings: `8` px component spacing, `4` px bar inset, `8` px
-widget padding, the Slate `surfaceContainer` role at 96% opacity, and a 1 px primary
-outline at 28% opacity. The bar itself has no background, border, or shadow. Existing
-left, centre, and right widget arrays are preserved; only the presentation keys are
-migrated. If DMS has no bar yet, its upstream default widget groups are seeded.
+It uses DMS's native bar settings: `8` px component spacing, `4` px bar inset, and `8` px
+widget padding. The outer `BarCanvas` is fully transparent; each component keeps a
+separate Slate `surfaceContainer` background at 96% opacity and DMS's normal rounded
+corners. There is no widget outline and the outer bar has no border or elevation shadow.
+Existing left, centre, and right widget arrays are preserved; only the presentation keys
+are migrated. If DMS has no bar yet, its upstream default widget groups are seeded.
 
 The launcher uses the full-colour canonical Qubix cube at
 `/usr/share/pixmaps/qubixos-logo.png`, enlarged by DMS's `+4` size offset. There is no
 second logo copy and no shell fork.
 
-Bar geometry is a user preference, so the preset runs **once per version**. Its stamp is
-`$XDG_STATE_HOME/qubix-os/dms-bar-style-v1` (or
-`~/.local/state/qubix-os/dms-bar-style-v1`); edits made afterward survive every login.
-To reapply version 1 after experimenting:
+Bar geometry is a user preference, so the preset runs **once per version**. The corrected
+preset's stamp is `$XDG_STATE_HOME/qubix-os/dms-bar-style-v2` (or
+`~/.local/state/qubix-os/dms-bar-style-v2`); edits made afterward survive every login.
+Version 2 applies automatically even if version 1 was stamped. To reapply it after
+experimenting:
 
 ```bash
-rm "${XDG_STATE_HOME:-$HOME/.local/state}/qubix-os/dms-bar-style-v1"
+rm "${XDG_STATE_HOME:-$HOME/.local/state}/qubix-os/dms-bar-style-v2"
 systemctl --user start qubix-dms-theme.service
 ```
 
 Masking `qubix-dms-theme.service` opts out of both future bar migrations and the
-image-managed Slate theme pointer. See DD-047 for the delivery and preservation rules.
+image-managed Slate theme pointer. See DD-048 for the corrected DMS semantics and
+preservation rules.
 
 ### When the Niri session shows nothing
 

@@ -1448,22 +1448,25 @@ should look at.
 - [ ] **BRD-005** — Give the Niri bar floating component capsules and the Qubix logo
   - **Category:** Branding
   - **Depends on:** BRD-004
-  - **Notes:** Approved 2026-08-05 after an ASCII design check. DankMaterialShell supports
-    the design natively through its per-bar settings: remove the continuous background,
-    retain a surface behind each widget, add spacing and a restrained outline, and point
-    the launcher widget at the canonical Qubix cube already shipped in
-    `/usr/share/pixmaps/qubixos-logo.png`. No DMS fork or duplicate artwork is needed.
+  - **Notes:** Approved 2026-08-05 after an ASCII design check. The first built preset was
+    rejected on hardware: it left DMS's large outer surface visible and turned component
+    backgrounds into square outlines. Current DMS source shows why — `noBackground`
+    controls each `BasePill`, while `transparency` controls the outer `BarCanvas`. Version
+    2 makes the canvas transparent, retains rounded component backgrounds, removes the
+    outlines, and keeps the canonical cube launcher. See DD-048.
   - **Acceptance criteria:**
     - The default Niri bar has no continuous background; each visible component is a
-      separate floating capsule with Qubix Slate surfaces, spacing, padding, and outline
+      separate adequately rounded Qubix Slate surface with spacing and padding
+    - Components have no square or decorative outline around their rounded background
     - The launcher capsule displays the canonical Qubix cube artwork
     - Existing widget ordering and unrelated DMS settings are preserved
-    - The preset is migrated once per version, so later user styling is not reset at login
+    - The corrected preset migrates once as version 2, including accounts stamped by
+      version 1, while later user styling is not reset at every login
     - Invalid DMS settings are never overwritten and the settings update remains atomic
     - `docs/desktops.md`, `docs/design-decisions.md`, and `.agent/context/files-system.md`
-      document the design, delivery, and opt-out/reapply behavior
-    - A Niri login on the built image shows the approved floating layout and logo on real
-      hardware
+      document the corrected DMS semantics and opt-out/reapply behavior
+    - A Niri login on the built image shows only the approved rounded component surfaces
+      and logo on real hardware
 
 ### Terminal environment
 

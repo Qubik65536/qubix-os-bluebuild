@@ -24,7 +24,7 @@ and opt out of future bar migrations, mask the unit:
 
     systemctl --user mask qubix-dms-theme.service
 
-See docs/desktops.md and docs/design-decisions.md DD-025, DD-047.
+See docs/desktops.md and docs/design-decisions.md DD-025, DD-048.
 """
 
 import json
@@ -33,7 +33,7 @@ import sys
 
 THEME_PATH = "/usr/share/qubix-os/dms-theme.json"
 LOGO_PATH = "/usr/share/pixmaps/qubixos-logo.png"
-BAR_STYLE_VERSION = 1
+BAR_STYLE_VERSION = 2
 
 # The three keys DMS reads to resolve a custom theme. "custom" is the literal value its
 # Theme.qml compares against — see its `readonly property string custom: "custom"`.
@@ -43,23 +43,21 @@ WANTED = {
     "customThemeFile": THEME_PATH,
 }
 
-# DMS native bar settings for the approved floating-component design. `noBackground`
-# removes the continuous strip; each BasePill keeps the `sc` (surfaceContainer) colour at
-# `widgetTransparency`. A low-alpha primary outline separates adjacent slate surfaces
-# without turning every widget into a bright focus target.
+# DMS native bar settings for the approved floating-component design. DMS's names are
+# easy to invert: `transparency` is the outer BarCanvas alpha, while `noBackground`
+# removes each BasePill's fill *and* rounding. Make the canvas transparent, retain rounded
+# pill fills, and let spacing separate them without an extra outline.
 BAR_STYLE = {
     "spacing": 8,
     "innerPadding": 4,
+    "transparency": 0.0,
     "widgetTransparency": 0.96,
     "squareCorners": False,
-    "noBackground": True,
+    "noBackground": False,
     "removeWidgetPadding": False,
     "widgetPadding": 8,
     "borderEnabled": False,
-    "widgetOutlineEnabled": True,
-    "widgetOutlineColor": "primary",
-    "widgetOutlineOpacity": 0.28,
-    "widgetOutlineThickness": 1,
+    "widgetOutlineEnabled": False,
     "shadowIntensity": 0,
 }
 
@@ -89,6 +87,7 @@ DEFAULT_BAR = {
 # not with WANTED above, so a later user choice is not reset on every login.
 BAR_GLOBALS = {
     "widgetBackgroundColor": "sc",
+    "barElevationEnabled": False,
     "launcherLogoMode": "custom",
     "launcherLogoCustomPath": LOGO_PATH,
     "launcherLogoColorOverride": "",
