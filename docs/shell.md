@@ -202,7 +202,8 @@ The rule it follows is **install it, or borrow it from the host, in that order**
 |---|---|---|
 | zsh, the two plugin packages, starship, atuin, bat | The container's **own** repositories, first choice | A package built for that distribution always fits it better |
 | Whatever those repositories do not have | The **host**, through `/run/host` | Plain text always works; a host *binary* is linked only after `--version` proves the container can run it (DD-045) |
-| `shell/qubix.zsh`, `shell/common.sh`, `starship.toml`, the lazygit config, the completions | The **host**, always | They are plain text, and distrobox mounts the host's root filesystem inside every container |
+| `shell/qubix.zsh`, `shell/common.sh`, `starship.toml`, the lazygit config | The **host**, always | They are plain text, and distrobox mounts the host's root filesystem inside every container |
+| Completion functions | The **container**, always | The host's cannot be trusted through `/run/host` — see [What it cannot do](#what-it-cannot-do) |
 
 The link is one symlink — `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` — which is
 what makes every absolute path in the host's files resolve inside the container. **So a
@@ -218,6 +219,26 @@ catches one up, and it is safe to run again on any container:
 distrobox enter <name> -- sudo /run/host/usr/bin/qubix-distrobox-shell
 ```
 
+**This is also how a container receives a change to the shell wiring itself.** A container
+is not rebuilt by a rebase, so the block the hook writes into its global `zshrc` would
+otherwise stay as it was on the day the container was created. The block is delimited by
+
+```
+# ── Qubix OS ──────────────────────────────────────────────────────────────────
+...
+# ── end of the Qubix OS block ─────────────────────────────────────────────────
+```
+
+and a re-run **replaces everything between those two lines** with the current image's
+version. Running it twice in a row changes nothing the second time. Edit inside the block
+and your edit is what the next run overwrites — put anything of your own in `~/.zshrc`,
+which runs afterwards and wins (DD-046).
+
+One migration happens once, on a container created before the end marker existed: that block
+has no end, so it is replaced *to the end of the file*, and anything you appended below it in
+the container's `zshrc` goes with it. The hook says so in yellow and leaves the file as it was
+next to it, as `<zshrc>.qubix-old`.
+
 It is also the fix if a container is *in bash* — distrobox gives the container user the
 shell your account had when the container was created, so anything made before
 `qubix-default-shell.service` moved you to zsh has a bash user inside. Re-running it moves
@@ -232,10 +253,22 @@ left out and the reason is printed. Everything that is plain text still arrives 
 plugins, the aliases, the configuration. Debian and Ubuntu package neither tool either, but
 their libc is glibc, so the host's binaries are borrowed and the prompt works.
 
-**Completions come from the host.** `/run/host/usr/share/zsh/site-functions` goes on
-`$fpath`, so the completion functions describe the host's tools, not the container's.
-`compinit` runs with `-u` in a container, because `compaudit` cannot establish ownership
-through the `/run/host` bind mount and would otherwise stop to ask at every shell (DD-045).
+**Completions are the container's own.** The host's are *not* put on `$fpath`, and cannot
+usefully be: `compaudit` cannot establish ownership through the `/run/host` bind mount — the
+host's root is an unmapped uid inside a rootless container — so it calls that directory
+insecure, and every `compinit` that is not given `-u` stops to ask
+
+```
+zsh compinit: insecure directories and files, run compaudit for list.
+Ignore insecure directories and files and continue [y] or abort compinit [n]?
+```
+
+at the top of every shell. `-u` on the image's own `compinit` did not settle that, because a
+later one asks again — Fedora's skeleton `~/.zshrc` calls `compinit` plainly, and `~/.zshrc`
+runs after `/etc/zshrc` — and answering `y` makes `compinit` drop the insecure directory from
+`$fpath` before it dumps, so those completions were being discarded anyway. What a container
+loses by this is `zsh-completions`, which Fedora does not package and the host installs from
+upstream; what it keeps is a shell that never asks a question (DD-046).
 
 **The history is one database, not two.** `$HOME` is shared, so the container's atuin reads
 and writes the same `~/.local/share/atuin/history.db` as the host's — which is usually what
@@ -345,7 +378,8 @@ interactive_comments` in your `~/.zshrc` puts it back.
 current Fedora, so it is installed at build time from a pinned upstream tag into
 `/usr/share/zsh/site-functions` — already on zsh's default `$fpath`. Its functions
 *shadow* zsh's own where both ship one for the same tool; that is what using
-zsh-completions means.
+zsh-completions means. This is the one part of the environment a distrobox container does
+**not** get from the host — see [What it cannot do](#what-it-cannot-do).
 
 ### bat, as `cat`
 
@@ -629,7 +663,7 @@ directory — which the image never writes to.
 | `/etc/profile.d/zz-qubix-fastfetch.sh` | Undoes Aurora's `fastfetch` alias, so the config above is reachable. Named to sort last (DD-040) |
 | `/usr/bin/qubix-config` | Copies any of these into `~/.config` on request. Nothing runs it (DD-039) |
 | `/etc/distrobox/distrobox.conf` | Names the hook below as `container_init_hook`, so every container distrobox creates runs it (DD-043) |
-| `/usr/bin/qubix-distrobox-shell` | Runs **inside** a container: installs the binaries from its own repositories, links everything else from `/run/host` (DD-043) |
+| `/usr/bin/qubix-distrobox-shell` | Runs **inside** a container: installs the binaries from its own repositories, links everything else from `/run/host`, and writes a delimited block into the container's global `zshrc` that a re-run replaces (DD-043, DD-046) |
 | `/usr/share/qubix-os/fastfetch/retune.sh` | Re-derives the box's four columns after a logo change. Run by hand, never automatically |
 | `/usr/share/zsh/site-functions/_*` | zsh-completions and zellij's completions, installed at build time |
 | `/usr/share/bash-completion/completions/zellij` | zellij's bash completions, generated by the binary that ships |

@@ -524,6 +524,13 @@ modules:
       #        non-zero, never printing a line starting with `Error:` (DD-045) — are stated
       #        in its header and checked by reading rather than by running.
       #
+      #        BOTH BLOCK MARKERS MUST SURVIVE AN EDIT. The script writes its block into the
+      #        container's zshrc between them and deletes that range on the next run, which
+      #        is the only way a fix reaches a container that already exists (DD-046). Lose
+      #        the end marker and a re-run appends a second block instead of replacing the
+      #        first — in a file no build can look at. Grepping for the two literals is the
+      #        only part of that a build can check.
+      #
       #        Ordering: after `files`, which ships both the config and the script.
       - |
         RUN set -eu; \
@@ -538,6 +545,13 @@ modules:
             fi; \
             sh -n /usr/bin/qubix-distrobox-shell; \
             test -x /usr/bin/qubix-distrobox-shell; \
+            for marker in "# ── Qubix OS ──" "# ── end of the Qubix OS block ──"; do \
+                if ! grep -qF -- "$marker" /usr/bin/qubix-distrobox-shell; then \
+                    echo "qubix-distrobox-shell no longer writes the marker: $marker"; \
+                    echo "without both, a re-run appends a second block instead of replacing the first"; \
+                    exit 1; \
+                fi; \
+            done; \
             hook="$(sh -c '. /etc/distrobox/distrobox.conf; printf %s "${container_init_hook:-}"')"; \
             if [ "$hook" != "/run/host/usr/bin/qubix-distrobox-shell" ]; then \
                 echo "distrobox.conf does not name the guest setup script: ${hook:-<unset>}"; \

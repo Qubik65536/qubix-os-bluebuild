@@ -93,7 +93,7 @@ substitution.
   | `/etc/fastfetch/config.jsonc` | The fastfetch box. fastfetch has no `/usr` config path, and `~/.config/fastfetch/` still wins (DD-031) |
   | `/usr/share/qubix-os/fastfetch/retune.sh` | Re-derives the box's columns after a logo change. Run by hand (DD-031) |
   | `/etc/distrobox/distrobox.conf` | `container_init_hook`, so every container distrobox creates runs the script below. The distrobox RPM owns no file here (DD-043) |
-  | `/usr/bin/qubix-distrobox-shell` | Runs **inside** a container: installs the binaries from its repositories, links the rest from `/run/host` (DD-043) |
+  | `/usr/bin/qubix-distrobox-shell` | Runs **inside** a container: installs the binaries from its repositories, links the rest from `/run/host`, and writes a delimited block into the container's `zshrc` that a re-run replaces (DD-043, DD-046) |
 
 - **Ordering:** no hard constraint. Kept first so content lands before anything that might
   read it.
@@ -399,6 +399,7 @@ The ninth asserts that the distrobox hook can be reached and is what it claims (
           grep -q '/etc/distrobox/distrobox.conf' /usr/bin/distrobox-create; \
           sh -n /usr/bin/qubix-distrobox-shell; \
           test -x /usr/bin/qubix-distrobox-shell; \
+          … it must still write both block markers; \
           hook="$(sh -c '. /etc/distrobox/distrobox.conf; printf %s "$container_init_hook"')"; \
           … the hook must be /run/host/usr/bin/qubix-distrobox-shell, \
             and that path minus /run/host must be executable in this image
@@ -414,6 +415,12 @@ The ninth asserts that the distrobox hook can be reached and is what it claims (
 - **The hook is read the way distrobox reads it** — by sourcing the file — and the
   `/run/host` prefix is stripped so the script is checked to exist at that path in *this*
   image, which is where a container will look for it.
+- **Both block markers must survive an edit** (DD-046). The script writes its block into a
+  container's `zshrc` between `# ── Qubix OS ──…` and `# ── end of the Qubix OS block ──…`
+  and deletes that range on the next run, which is the only way a change reaches a container
+  that already exists. Drop the end marker and a re-run appends a second block instead of
+  replacing the first — inside a container, where no build can see it. Grepping for the two
+  literals is the only part of that a build *can* check.
 
 - **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm` and the packaged
   fonts; after the `files` module, which ships `/etc/zellij/config.kdl`,

@@ -8,6 +8,11 @@
 #
 #     distrobox enter <name> -- sudo /run/host/usr/bin/qubix-distrobox-shell
 #
+# A re-run REPLACES the block it wrote in the container's global zshrc rather than seeing one
+# and leaving the file alone, so a container that already exists receives a change made here
+# — which is the only route a fix has to a container, since nothing in it is rebuilt by a
+# rebase. Everything else in here was already idempotent (DD-046).
+#
 # WHY ANYTHING IS NEEDED. A container is a different distribution — its own /etc, its own
 # /usr, its own package manager — and every tool in docs/shell.md is a host package read
 # from a host path. distrobox brings across the SHELL (it installs the package named by
@@ -53,7 +58,7 @@
 # only non-zero exits are the two preconditions below, which can fail only when a human runs
 # it in the wrong place.
 #
-# See docs/shell.md and docs/design-decisions.md DD-043, DD-045.
+# See docs/shell.md and docs/design-decisions.md DD-043, DD-045, DD-046.
 
 set -u
 
@@ -279,19 +284,54 @@ elif [ -z "$zsh_etc" ]; then
     warn "no global zsh startup file in /etc or /etc/zsh, so I cannot tell which zsh reads"
 else
     zshrc="$zsh_etc/zshrc"
-    if grep -q 'qubix-os/shell/qubix.zsh' "$zshrc" 2>/dev/null; then
-        say "$zshrc already carries the Qubix block"
+
+    # REPLACED, NOT SKIPPED. The block is delimited by the two markers below, and a re-run
+    # deletes everything between them before appending the current one. Skipping a file that
+    # already carried a block — which is what this used to do — meant a container was stuck
+    # with whatever the image shipped on the day it was created, and the documented catch-up
+    # command could not deliver a fix to it. The end marker is what makes the range
+    # deletable; a block written before it existed ran to the end of the file, which is what
+    # the `$` fallback covers. See DD-046.
+    block_start='# ── Qubix OS ──'
+    block_end='# ── end of the Qubix OS block ──'
+
+    # BUILT BESIDE THE FILE, INSTALLED OVER IT ONLY IF IT PARSES. The old block is removed
+    # and the new one appended in a candidate file, so a failure anywhere in here — a sed
+    # that cannot run, a block that does not parse — leaves the container's own zshrc
+    # untouched rather than half-rewritten. It is installed with `cat`, not `mv`, so the
+    # file keeps its own mode, owner and SELinux label.
+    [ -f "$zshrc" ] || : >"$zshrc"
+    candidate="$zshrc.qubix-new"
+    rm -f "$candidate"
+
+    verb="wired"
+    written=""
+    start_line="$(grep -n -F -- "$block_start" "$zshrc" 2>/dev/null | head -n 1 | cut -d: -f1)"
+    if [ -n "$start_line" ]; then
+        # A block written before the end marker existed has no end: it ran to the end of the
+        # file, which is what `$` covers — and which is why the one-off case is announced.
+        # Anything a person added to the container's zshrc AFTER that block goes with it, and
+        # there is no way to tell where the block stopped and their lines began.
+        end_line="$(grep -n -F -- "$block_end" "$zshrc" 2>/dev/null | head -n 1 | cut -d: -f1)"
+        if [ -z "$end_line" ]; then
+            end_line='$'
+            warn "$zshrc has a Qubix block from before the end marker: it, and anything below"
+            warn "it, is replaced. The file as it was is $zshrc.qubix-old."
+            cp -p "$zshrc" "$zshrc.qubix-old" 2>/dev/null || :
+        fi
+        verb="refreshed"
+        sed "${start_line},${end_line}d" "$zshrc" >"$candidate" && written=yes
     else
-        # Appended, exactly as the host's own /etc/zshrc is appended to at build time, and
-        # with the same backup-and-parse-check: the container is left as it was if the
-        # result does not parse, rather than with a zsh that errors at every prompt.
-        [ -f "$zshrc" ] || : >"$zshrc"
-        cp -p "$zshrc" "$zshrc.qubix-bak"
+        cat "$zshrc" >"$candidate" && written=yes
+    fi
+
+    if [ -n "$written" ]; then
         printf '%s\n' \
-            '' \
-            '# ── Qubix OS ──────────────────────────────────────────────────────────────────' \
+            "${block_start}────────────────────────────────────────────────────────────────" \
             '# Appended by /run/host/usr/bin/qubix-distrobox-shell, which ran in here when' \
-            '# distrobox created this container — run it again (with sudo) to redo any of this.' \
+            '# distrobox created this container. Run it again (with sudo) and everything between' \
+            '# this line and the end marker below is REPLACED by the current image'"'"'s version —' \
+            '# which is how a container catches up with one command.' \
             '# Everything zsh gets interactively is in the file below, and' \
             '# that file is the HOST copy, reached through the /usr/share/qubix-os symlink — so a' \
             '# rebase of the host changes this container too, with nothing to re-run in here.' \
@@ -299,30 +339,32 @@ else
             '# LAST IN THIS FILE, and before ~/.zshrc, for the same reasons as on the host: see' \
             '# docs/shell.md. Your own ~/.zshrc runs after it and still wins.' \
             '#' \
-            '# The host completion functions go on $fpath, and compinit is run HERE rather than' \
-            '# left to the file below, with -u. compaudit cannot establish ownership through the' \
-            '# /run/host bind mount — the host root maps to an unknown user in here — so it calls' \
-            '# that directory insecure and compinit stops to ask, at every single shell. -u is' \
-            '# the answer to a question that has already been answered: the directory belongs to' \
-            '# the host image this container is running on.' \
-            'if [[ -d /run/host/usr/share/zsh/site-functions ]]; then' \
-            '    fpath=(/run/host/usr/share/zsh/site-functions $fpath)' \
-            'fi' \
-            'if ! (( $+functions[compdef] )); then' \
-            '    autoload -Uz compinit && compinit -u' \
-            'fi' \
+            '# THE HOST'"'"'S COMPLETION FUNCTIONS ARE DELIBERATELY NOT PUT ON $fpath here.' \
+            '# compaudit cannot establish ownership through the /run/host bind mount — the host'"'"'s' \
+            '# root maps to an unmapped uid in the container — so it calls that directory insecure' \
+            '# and every compinit that is not given -u stops to ask. Running compinit -u from this' \
+            '# block did not settle it: any LATER compinit asks again — Fedora'"'"'s skeleton ~/.zshrc' \
+            '# runs one, after this file — and answering it makes compinit drop the insecure' \
+            '# directory from $fpath anyway. So the container uses its own completions, and no' \
+            '# shell has a question to ask. See DD-046.' \
             'if [[ -r /usr/share/qubix-os/shell/qubix.zsh ]]; then' \
             '    source /usr/share/qubix-os/shell/qubix.zsh' \
             'fi' \
-            >>"$zshrc"
-        if zsh -n "$zshrc" 2>/dev/null; then
-            rm -f "$zshrc.qubix-bak"
-            say "zsh wired from the end of $zshrc"
-        elif mv "$zshrc.qubix-bak" "$zshrc" 2>/dev/null; then
-            warn "$zshrc does not parse with the Qubix block; put it back as it was"
-        else
-            warn "$zshrc does not parse with the Qubix block, and I could not undo that"
-        fi
+            "${block_end}───────────────────────────────────────────────" \
+            >>"$candidate" || written=""
+    fi
+
+    if [ -z "$written" ]; then
+        rm -f "$candidate"
+        warn "could not rewrite $zshrc, so it is exactly as it was and zsh keeps its own setup"
+    elif ! zsh -n "$candidate" 2>/dev/null; then
+        rm -f "$candidate"
+        warn "$zshrc does not parse with the Qubix block, so it is left exactly as it was"
+    elif cat "$candidate" >"$zshrc"; then
+        rm -f "$candidate"
+        say "zsh $verb from the end of $zshrc"
+    else
+        warn "could not write $zshrc; the rewritten file is beside it, at $candidate"
     fi
 fi
 

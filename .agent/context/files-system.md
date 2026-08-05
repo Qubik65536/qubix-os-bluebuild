@@ -46,7 +46,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/fastfetch/config.jsonc` | fastfetch, when a user runs it | The system-wide default box. **The only system-wide path fastfetch reads** — its search path has no `/usr` entry (DD-031) |
 | `usr/bin/qubix-config` | nobody — run by hand | Copies any shipped config into `~/.config`, lists them, diffs a copy against the image, and `--check`s its own paths. **Nothing runs it** — it is the alternative to a seeder, not one (DD-039). Mode `100755` |
 | `etc/distrobox/distrobox.conf` | distrobox on the host, every subcommand | `container_init_hook="/run/host/usr/bin/qubix-distrobox-shell"`. Last system-wide file in distrobox's config hierarchy; the RPM owns nothing here, and ublue-os-just's `*.ini` manifests are untouched. **Flags beat it** — `--init-hooks` and an assemble `init_hooks=` key replace the hook (DD-043) |
-| `usr/bin/qubix-distrobox-shell` | distrobox-init, **inside** a container, as root | Installs zsh, the plugins, starship, atuin and bat from the *container's* repositories, then fills the gaps from `/run/host` — text always, a host binary only after `--version` proves the container can run it; symlinks `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` and `/etc/profile.d/qubix-shell-env.sh` → the host's; appends the source block to the container's global `zshrc`. Idempotent, re-runnable by hand, **exits 0 from inside a container whatever happens**, and **never prints a line starting with `Error:`** (DD-043, DD-045). Mode `100755` |
+| `usr/bin/qubix-distrobox-shell` | distrobox-init, **inside** a container, as root | Installs zsh, the plugins, starship, atuin and bat from the *container's* repositories, then fills the gaps from `/run/host` — text always, a host binary only after `--version` proves the container can run it; symlinks `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` and `/etc/profile.d/qubix-shell-env.sh` → the host's; writes the source block into the container's global `zshrc` between `# ── Qubix OS ──…` and `# ── end of the Qubix OS block ──…`, **replacing** any block already there, which is the only route a later fix has into a container that exists (DD-046). Idempotent — two runs give a byte-identical file — re-runnable by hand, **exits 0 from inside a container whatever happens**, and **never prints a line starting with `Error:`** (DD-043, DD-045). Mode `100755` |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Reads the gutter **two ways** — a cursor step on fastfetch ≤ 2.63, leading spaces on ≥ 2.64, which reworked logo printing (DD-042) — so it is coupled to how fastfetch renders and needs re-checking when that changes. Mode `100755` in the overlay |
 
 **Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, and one system
@@ -81,6 +81,13 @@ Two constraints explain the rest of the layout:
   says `Error: Unable to find a match:` for a package a distribution does not carry, which is
   why every package manager in that script runs with its output captured to a file, and why
   the file is only echoed back re-prefixed. Anything added to that script inherits this rule.
+- **A container's `$fpath` gets nothing from `/run/host`** (DD-046). `compaudit` cannot
+  establish ownership through that bind mount — the host's root is an unmapped uid inside a
+  rootless container — so any directory under it is "insecure" and every `compinit` without
+  `-u` stops to ask, at the top of every shell. `-u` on the block's own `compinit` did not
+  help: `~/.zshrc` runs later and Fedora's skeleton calls `compinit` plainly, and answering
+  the prompt makes `compinit` drop the directory from `$fpath` regardless. Containers use
+  their own completions; the guest block is a pointer and nothing else.
 
 ## Branding
 

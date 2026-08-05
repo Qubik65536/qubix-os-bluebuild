@@ -103,7 +103,9 @@ deletes it from the image. Bash keeps the prompt and the aliases either way.
 the tools from the container's own repositories and reads everything else from the host
 through `/run/host` (DD-043). A container you created *before* rebasing predates the hook —
 `distrobox enter <name> -- sudo /run/host/usr/bin/qubix-distrobox-shell` brings it up to
-date, and is safe to run again on any container.
+date, and is safe to run again on any container. **That command is also how a container
+receives a later fix**: a container is not rebuilt by a rebase, and a re-run replaces the
+block the hook wrote in it rather than leaving it as it was (DD-046).
 
 One thing is still worth doing once:
 

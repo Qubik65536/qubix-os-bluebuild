@@ -2661,3 +2661,88 @@ putting `/run/host/usr/bin` on `$PATH`, which would expose every host binary and
 - **This is one more coupling to distrobox's internals** — its log watcher, on top of DD-043's
   config path and `/run/host`. Worth knowing when its 2.0 rewrite lands: the prefixes are the
   first thing to re-check.
+
+---
+
+## DD-046 — Keep a container's `$fpath` to what the container owns, and replace the block instead of skipping it
+
+**Status:** Accepted
+
+**Amends:** [DD-045](#dd-045--nothing-a-container-hook-prints-may-start-with-error), whose
+`compinit -u` fixed one shell out of two, and
+[DD-043](#dd-043--give-a-distrobox-container-the-hosts-shell-link-the-text-install-the-binaries),
+whose guest block could not be revised once written
+
+**Implements:** `IMG-035`
+
+**Context.** Reported from the machine on 2026-08-04, entering an ordinary Fedora container:
+
+```
+$ distrobox enter fedora-box
+zsh compinit: insecure directories and files, run compaudit for list.
+Ignore insecure directories and files and continue [y] or abort compinit [n]?
+```
+
+That is a question at the top of every shell in every container, and DD-045 had already
+been written to stop it. Two separate things were wrong.
+
+**1. `-u` on our own `compinit` settles nothing, because ours is not the last one.** The
+guest block puts `/run/host/usr/share/zsh/site-functions` on `$fpath` — the host's
+completion functions — and `compaudit` cannot establish ownership through the `/run/host`
+bind mount: the host's root is an unmapped uid inside a rootless container, so the
+directory is owned by neither root nor the user, which is the definition of insecure. `-u`
+means *this* `compinit` uses the directory anyway and says nothing. It has no effect on the
+next one, and there is reliably a next one: the skeleton `~/.zshrc` Fedora ships calls
+`compinit` plainly, `$HOME` is shared with the host, and `~/.zshrc` runs **after**
+`/etc/zshrc`.
+
+And answering `y` does not even buy the completions it asks about. `compinit` drops every
+insecure directory from `$fpath` before it dumps — `fpath=(${fpath:|_i_wdirs})`, right
+after the prompt — so the host's functions were about to be discarded either way. The
+directory could only ever be worth a prompt, never worth an answer.
+
+Nothing can be repaired at the file's own end. A symlink does not help: `compaudit`'s glob
+qualifiers use `-`, so they follow symlinks and see the host's uid. A copy would be secure,
+and would be a copy — the thing DD-043 exists not to make.
+
+**2. The hook could not deliver the fix.** It read the container's global `zshrc`, found
+`qubix-os/shell/qubix.zsh` in it, said "already carries the Qubix block" and stopped. So
+every container was pinned to the block that the image shipped on the day it was created,
+and the documented catch-up command —
+`distrobox enter <name> -- sudo /run/host/usr/bin/qubix-distrobox-shell` — could not change
+a single line of it. A container is not rebuilt by a rebase; that command is the only route
+a change has into one.
+
+**Decision.**
+
+**1. The host's completions do not go on a container's `$fpath`.** A container uses its own
+distribution's completion functions, and `compinit` runs plainly — from
+`shell/qubix.zsh`, as it does on the host, with no `-u` anywhere. No shell in a container
+has an insecure directory to ask about, whichever `compinit` runs last.
+
+**2. The block is delimited and replaced.** It is written between
+`# ── Qubix OS ──…` and `# ── end of the Qubix OS block ──…`, and a re-run deletes that
+range before appending the current one. The result is built in a candidate file beside the
+real one and installed with `cat` — keeping the file's own mode, owner and SELinux label —
+only after `zsh -n` parses it, so nothing on the way to a failure can leave a container with
+a broken `zshrc`.
+
+**Consequences.**
+- **The prompt is gone for every `compinit`, not just ours**, including the one in a user's
+  own `~/.zshrc` and the one in `oh-my-zsh`.
+- **A container gets its own distribution's completions, not the host's.** For a Fedora
+  container that is very nearly the same set; for a Debian one it is the right set. What is
+  genuinely lost is `zsh-completions`, which the host installs from a pinned upstream tag
+  (DD-026) and Fedora does not package — a container has whatever it can install. This is a
+  smaller loss than it looks, because a plain `compinit` was discarding those functions
+  anyway.
+- **A fix now reaches containers that already exist**, with one command and no re-creation.
+  Re-running the hook twice produces a byte-identical file, rehearsed before shipping.
+- **The one-off migration is announced and backed up.** A block written before the end
+  marker existed has no end, so it is replaced *to the end of the file*; anything a person
+  appended below it in the container's `zshrc` goes with it. The hook warns, and leaves the
+  file as it was at `<zshrc>.qubix-old`.
+- **The end marker is now load-bearing.** Anything that edits the guest block must keep both
+  markers, or the next run will append a second block instead of replacing the first.
+- **Still nothing is copied.** The block is four lines of pointer; every byte of behaviour is
+  read live from the host through `/usr/share/qubix-os` (DD-030, DD-043).

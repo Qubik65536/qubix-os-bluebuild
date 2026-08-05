@@ -1500,10 +1500,63 @@ should look at.
     - `/run/host/usr/bin` is never put on the container's `$PATH`
     - The skip-unavailable flag is separate from the install command, so a manager that does
       not know the flag still gets the name-by-name pass
-    - `compinit` does not prompt about insecure directories in a container
+    - **Superseded by IMG-035:** `compinit` does not prompt about insecure directories in a
+      container. `-u` covered only the image's own call, and a container was carrying a
+      block no re-run could replace
     - `DD-045` amends DD-043, and `docs/shell.md` and `.agent/context/` follow
     - On the rebased image, `distrobox enter ungoogled-chromium-macos-cross` reaches a shell
       with the Qubix prompt *(open — needs a build and hardware)*
+
+- [ ] **IMG-035** — Stop `compinit` asking about insecure directories in a container
+  - **Category:** Image content
+  - **Depends on:** IMG-034
+  - **Notes:** Reported from the machine on 2026-08-04:
+    ```
+    $ distrobox enter fedora-box
+    zsh compinit: insecure directories and files, run compaudit for list.
+    Ignore insecure directories and files and continue [y] or abort compinit [n]?
+    ```
+    at the top of every shell in every container — the exact thing IMG-034's `compinit -u`
+    was written to stop. Two separate faults, and the second is the one that matters beyond
+    this bug.
+    **`-u` on our own `compinit` settles nothing, because ours is not the last one.** The
+    guest block puts `/run/host/usr/share/zsh/site-functions` on `$fpath`, and `compaudit`
+    cannot establish ownership through that bind mount: the host's root is an unmapped uid
+    inside a rootless container, so the directory is owned by neither root nor the user. `-u`
+    silences *that* call and no other, and there is reliably another — Fedora's skeleton
+    `~/.zshrc` calls `compinit` plainly, `$HOME` is shared, and `~/.zshrc` runs after
+    `/etc/zshrc`. Answering `y` does not even buy the completions: `compinit` drops every
+    insecure directory from `$fpath` before it dumps (`fpath=(${fpath:|_i_wdirs})`, straight
+    after the prompt), so they were discarded either way. Nothing fixes this at the file's
+    end — `compaudit`'s glob qualifiers use `-`, so they follow symlinks and see the host's
+    uid, and a copy is the thing DD-043 exists not to make. So the host's completions come
+    off `$fpath`, `compinit` runs plainly from `shell/qubix.zsh` as it does on the host, and
+    no shell has a question to ask.
+    **The hook could not have delivered the fix anyway.** It found
+    `qubix-os/shell/qubix.zsh` in the container's `zshrc`, said "already carries the Qubix
+    block" and stopped — so every container was pinned to the block shipped on the day it was
+    created, and the documented catch-up command could not change a line of it. A container
+    is not rebuilt by a rebase; that command is the only route in. The block is now delimited
+    by a start and an end marker and a re-run **replaces** the range, building the result in a
+    candidate file and installing it with `cat` (keeping mode, owner and SELinux label) only
+    after `zsh -n` parses it.
+    Rehearsed locally against a copy of the block a container is carrying today: the first run
+    replaces it, the second is byte-identical, and no `/run/host` path is left on `$fpath`.
+  - **Acceptance criteria:**
+    - No `compinit` in a container prompts about insecure directories — including one in a
+      user's own `~/.zshrc`, which runs after everything the image wires
+    - Nothing under `/run/host` is put on a container's `$fpath`
+    - Re-running the hook replaces the block it wrote rather than skipping the file, so a
+      container that already exists receives a change made to the image
+    - Two runs in a row leave the container's `zshrc` byte-identical, rehearsed before
+      shipping
+    - A failure anywhere in the rewrite leaves the container's `zshrc` exactly as it was
+    - The one-off migration of a block with no end marker is announced and the file is kept
+    - `DD-046` amends DD-045 and DD-043; `docs/shell.md` and `.agent/context/` follow,
+      including what a container loses by not borrowing the host's completions
+    - On the rebased image, `distrobox enter fedora-box` — after one re-run of the hook —
+      reaches a shell with the Qubix prompt and no question *(open — needs a build and
+      hardware)*
 
 *Everything else implemented up to and including `9c141bf` was confirmed on the machine
 on 2026-08-04.*
