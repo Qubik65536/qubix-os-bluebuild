@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Point DankMaterialShell at the Qubix Slate theme.
+"""Apply the Qubix Slate theme and the versioned Qubix bar preset to DMS.
 
 Run by qubix-dms-theme.service before dms.service, every Niri session.
 
@@ -13,12 +13,18 @@ itself lives at THEME_PATH, in /usr, and DMS watches that file: a rebase that ch
 palette reloads it live, with nothing to re-run. Seeding is about the pointer, never the
 colours.
 
-This enforces the pointer on every session start, which is what was asked for. To keep a
-different theme, mask the unit:
+WHY THE BAR IS DIFFERENT. Palette changes should keep arriving; geometry is a user
+preference. The floating-component bar and cube launcher therefore migrate ONCE per
+preset version, with a stamp in XDG_STATE_HOME. Widget order and unrelated settings are
+never replaced. Remove that stamp to reapply the preset; later bar edits otherwise stay
+the user's.
+
+This enforces only the theme pointer on every session start. To keep a different theme
+and opt out of future bar migrations, mask the unit:
 
     systemctl --user mask qubix-dms-theme.service
 
-See docs/desktops.md and docs/design-decisions.md DD-025.
+See docs/desktops.md and docs/design-decisions.md DD-025, DD-047.
 """
 
 import json
@@ -26,6 +32,8 @@ import os
 import sys
 
 THEME_PATH = "/usr/share/qubix-os/dms-theme.json"
+LOGO_PATH = "/usr/share/pixmaps/qubixos-logo.png"
+BAR_STYLE_VERSION = 1
 
 # The three keys DMS reads to resolve a custom theme. "custom" is the literal value its
 # Theme.qml compares against — see its `readonly property string custom: "custom"`.
@@ -35,18 +43,133 @@ WANTED = {
     "customThemeFile": THEME_PATH,
 }
 
+# DMS native bar settings for the approved floating-component design. `noBackground`
+# removes the continuous strip; each BasePill keeps the `sc` (surfaceContainer) colour at
+# `widgetTransparency`. A low-alpha primary outline separates adjacent slate surfaces
+# without turning every widget into a bright focus target.
+BAR_STYLE = {
+    "spacing": 8,
+    "innerPadding": 4,
+    "widgetTransparency": 0.96,
+    "squareCorners": False,
+    "noBackground": True,
+    "removeWidgetPadding": False,
+    "widgetPadding": 8,
+    "borderEnabled": False,
+    "widgetOutlineEnabled": True,
+    "widgetOutlineColor": "primary",
+    "widgetOutlineOpacity": 0.28,
+    "widgetOutlineThickness": 1,
+    "shadowIntensity": 0,
+}
+
+# Used only when DMS has never written a bar. These are DMS's upstream widget groups;
+# existing arrays are never replaced or reordered.
+DEFAULT_BAR = {
+    "id": "default",
+    "name": "Main Bar",
+    "enabled": True,
+    "position": 0,
+    "screenPreferences": ["all"],
+    "showOnLastDisplay": True,
+    "leftWidgets": ["launcherButton", "workspaceSwitcher", "focusedWindow"],
+    "centerWidgets": ["music", "clock", "weather"],
+    "rightWidgets": [
+        "systemTray",
+        "clipboard",
+        "cpuUsage",
+        "memUsage",
+        "notificationButton",
+        "battery",
+        "controlCenterButton",
+    ],
+}
+
+# These global settings affect the bar's pills and launcher. They migrate with the bar,
+# not with WANTED above, so a later user choice is not reset on every login.
+BAR_GLOBALS = {
+    "widgetBackgroundColor": "sc",
+    "launcherLogoMode": "custom",
+    "launcherLogoCustomPath": LOGO_PATH,
+    "launcherLogoColorOverride": "",
+    "launcherLogoSizeOffset": 4,
+}
+
 
 def settings_path():
     config_home = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
     return os.path.join(config_home, "DankMaterialShell", "settings.json")
 
 
+def bar_style_stamp_path():
+    state_home = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    return os.path.join(
+        state_home, "qubix-os", f"dms-bar-style-v{BAR_STYLE_VERSION}"
+    )
+
+
+def apply_bar_style(settings):
+    """Merge the preset into valid bars without touching their widget arrays."""
+    bars = settings.get("barConfigs")
+    if bars is None or bars == []:
+        bars = [dict(DEFAULT_BAR)]
+        settings["barConfigs"] = bars
+    elif not isinstance(bars, list) or any(not isinstance(bar, dict) for bar in bars):
+        return False
+
+    settings.update(BAR_GLOBALS)
+    for bar in bars:
+        bar.update(BAR_STYLE)
+    return True
+
+
+def write_json_atomic(path, settings):
+    """Write watched DMS settings as one rename, never as a partial JSON document."""
+    tmp = path + ".qubix-tmp"
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as handle:
+            json.dump(settings, handle, indent=2)
+            handle.write("\n")
+        os.replace(tmp, path)
+    except OSError as err:
+        print(f"could not write {path}: {err}", file=sys.stderr)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return False
+    return True
+
+
+def write_bar_style_stamp(path):
+    """Record a completed migration after the settings rename has succeeded."""
+    tmp = path + ".qubix-tmp"
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as handle:
+            handle.write(f"{BAR_STYLE_VERSION}\n")
+        os.replace(tmp, path)
+    except OSError as err:
+        print(f"could not write {path}: {err}", file=sys.stderr)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        return False
+    return True
+
+
 def main():
     if not os.path.exists(THEME_PATH):
         print(f"{THEME_PATH} is missing; leaving settings alone", file=sys.stderr)
         return 0
+    if not os.path.exists(LOGO_PATH):
+        print(f"{LOGO_PATH} is missing; leaving settings alone", file=sys.stderr)
+        return 0
 
     path = settings_path()
+    stamp = bar_style_stamp_path()
 
     # Read what is there. A settings file that does not parse is NOT overwritten — DMS
     # refuses to write over one too, and clobbering a user's settings to fix a colour
@@ -63,29 +186,32 @@ def main():
             print(f"{path} is not an object; leaving it alone", file=sys.stderr)
             return 0
 
-    if all(settings.get(key) == value for key, value in WANTED.items()):
-        return 0
-
+    before = json.dumps(settings, sort_keys=True)
     settings.update(WANTED)
 
-    # Write via a temporary file in the same directory, then rename. DMS watches this
-    # path, so a half-written file would be read as corrupt.
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".qubix-tmp"
-    try:
-        with open(tmp, "w", encoding="utf-8") as handle:
-            json.dump(settings, handle, indent=2)
-            handle.write("\n")
-        os.replace(tmp, path)
-    except OSError as err:
-        print(f"could not write {path}: {err}", file=sys.stderr)
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
+    # Bar styling is a versioned migration rather than a login policy. A malformed
+    # barConfigs value is left unchanged and deliberately remains unstamped,
+    # while the independently-owned theme pointer can still be repaired.
+    style_applied = False
+    if not os.path.exists(stamp):
+        style_applied = apply_bar_style(settings)
+        if not style_applied:
+            print(
+                f"{path} has an invalid barConfigs value; leaving bar styling alone",
+                file=sys.stderr,
+            )
+
+    if before != json.dumps(settings, sort_keys=True):
+        if not write_json_atomic(path, settings):
+            return 1
+
+    if style_applied and not write_bar_style_stamp(stamp):
         return 1
 
-    print(f"DankMaterialShell now themed from {THEME_PATH}")
+    if style_applied:
+        print(
+            "DankMaterialShell now uses the Qubix Slate theme, floating bar, and cube logo"
+        )
     return 0
 
 

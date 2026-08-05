@@ -52,7 +52,7 @@ The logo green stays the logo's; it is not a system accent.
 
 | Repository path | Image path | Consumed by |
 |---|---|---|
-| `files/system/usr/share/pixmaps/qubixos-logo.png` | `/usr/share/pixmaps/qubixos-logo.png` | Qubix-named canonical copy. |
+| `files/system/usr/share/pixmaps/qubixos-logo.png` | `/usr/share/pixmaps/qubixos-logo.png` | Qubix-named canonical copy; DMS uses it for the Niri floating-bar launcher (DD-047). |
 | `files/system/usr/share/pixmaps/system-logo.png` | `/usr/share/pixmaps/system-logo.png` | Generic system logo. **Referenced explicitly by `kcm-about-distrorc`** → KDE System Settings → About this System. |
 | `files/system/usr/share/pixmaps/system-logo-white.png` | `/usr/share/pixmaps/system-logo-white.png` | Light-on-dark variant path. Currently the same artwork as `system-logo.png`. |
 | `files/system/usr/share/pixmaps/fedora-logo-sprite.png` | `/usr/share/pixmaps/fedora-logo-sprite.png` | Fedora sprite path, overridden so Fedora-aware components show the Qubix mark. |
@@ -101,6 +101,7 @@ time by the `containerfile` module. See [`recipe-reference.md`](recipe-reference
 | Boot / shutdown splash | Plymouth `watermark.png` |
 | Plasma startup splash | `aurora_logo.svgz` in the Aurora look-and-feel dir |
 | System Settings → About this System | `kcm-about-distrorc` + `system-logo.png` |
+| Niri floating-bar launcher | `qubixos-logo.png` through the DMS preset migration (DD-047) |
 | `neofetch` / `fastfetch` / terminal | `os-release` `PRETTY_NAME` (+ `ID` for logo selection) |
 | Application menus, icon lookups | `distributor-logo.svg` |
 | Fedora-aware apps and docs viewers | `fedora-logo*.png` overrides |

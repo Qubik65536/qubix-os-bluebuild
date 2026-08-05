@@ -1,21 +1,23 @@
 # Read by: the systemd USER manager.
 #
-# Points DankMaterialShell at the Qubix Slate theme before the shell starts.
+# Points DankMaterialShell at the Qubix Slate theme and applies versioned shell styling
+# before the shell starts.
 #
 # DMS stores its settings per user and has no system-wide default, so an image cannot ship
-# a chosen theme — it can only write the pointer into each user's settings.json. That is
-# all this unit does; the palette itself lives in /usr and DMS watches it, so rebases carry
-# new colours without this running again.
+# a chosen theme — it can only write the pointer into each user's settings.json. The
+# palette itself lives in /usr and DMS watches it, so rebases carry new colours without
+# copying it into a home directory. The floating bar and cube launcher are a
+# one-time migration per preset version, so later user layout/styling edits survive login.
 #
 # Pulled in by niri.service (see niri.service.d/50-qubix-dms.conf), NOT enabled globally —
 # same reasoning as dms.service itself: nothing here should touch a Plasma session.
 #
 # To keep a different theme:  systemctl --user mask qubix-dms-theme.service
 #
-# See docs/desktops.md and docs/design-decisions.md DD-025.
+# See docs/desktops.md and docs/design-decisions.md DD-025, DD-047.
 
 [Unit]
-Description=Point DankMaterialShell at the Qubix Slate theme
+Description=Apply the Qubix DankMaterialShell theme and shell styling
 # Ordering, not a requirement: dms.service must not read settings.json before this has
 # written it. If this fails, the shell still starts — with whatever theme it had.
 Before=dms.service

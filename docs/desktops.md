@@ -77,10 +77,43 @@ printf '[Unit]\nWants=\n' > ~/.config/systemd/user/niri.service.d/60-no-dms.conf
 dynamic theming makes matugen generate a Material colour scheme from the wallpaper and
 write it to `~/.config/niri/dms/colors.kdl`. The shipped niri config includes that file
 with `optional=true`, so niri's focus ring, borders, and tab indicators follow the shell's
-accent colour once it exists. Until then the config's own Qubix green applies.
+accent colour once it exists. Until then the Qubix Slate palette applies.
 
 The include sits at the **end** of the config on purpose: niri includes are positional and
 override whatever was set before them.
+
+### The floating bar
+
+The Qubix preset removes DMS's continuous top strip and lets each component sit in its
+own capsule. The approved layout is deliberately airy rather than detached into large
+islands:
+
+```text
+╭ cube ╮  ╭ 1  2  3 ╮  ╭ focused window ╮       ╭ music ╮  ╭ clock ╮       ╭ tray ╮  ╭ status ╮
+```
+
+It uses DMS's native bar settings: `8` px component spacing, `4` px bar inset, `8` px
+widget padding, the Slate `surfaceContainer` role at 96% opacity, and a 1 px primary
+outline at 28% opacity. The bar itself has no background, border, or shadow. Existing
+left, centre, and right widget arrays are preserved; only the presentation keys are
+migrated. If DMS has no bar yet, its upstream default widget groups are seeded.
+
+The launcher uses the full-colour canonical Qubix cube at
+`/usr/share/pixmaps/qubixos-logo.png`, enlarged by DMS's `+4` size offset. There is no
+second logo copy and no shell fork.
+
+Bar geometry is a user preference, so the preset runs **once per version**. Its stamp is
+`$XDG_STATE_HOME/qubix-os/dms-bar-style-v1` (or
+`~/.local/state/qubix-os/dms-bar-style-v1`); edits made afterward survive every login.
+To reapply version 1 after experimenting:
+
+```bash
+rm "${XDG_STATE_HOME:-$HOME/.local/state}/qubix-os/dms-bar-style-v1"
+systemctl --user start qubix-dms-theme.service
+```
+
+Masking `qubix-dms-theme.service` opts out of both future bar migrations and the
+image-managed Slate theme pointer. See DD-047 for the delivery and preservation rules.
 
 ### When the Niri session shows nothing
 

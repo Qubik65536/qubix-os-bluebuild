@@ -54,7 +54,7 @@ terms over synonyms.
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |
 | **SDDM** | The display manager (login screen). Lists sessions from `/usr/share/wayland-sessions/`, which is how Niri appears as a login choice. |
 | **Secure Boot** | UEFI feature where firmware only loads signed boot binaries. Fedora's kernel is signed; the CachyOS one is not, so this variant needs it off or a [MOK](variants.md#secure-boot) enrolled. |
-| **Seeder** | A user service that writes into `$HOME` what the image cannot ship there. Only one remains: `qubix-dms-theme`, which writes the theme pointer every Niri session (DD-025). The shell and editor once had seeders too; they were replaced by plain system files (DD-030). Not to be confused with `qubix-default-shell`, which is a *system* service and writes to `/etc/passwd`, never to `$HOME`. |
+| **Seeder** | A user service that writes into `$HOME` what the image cannot ship there. Only one remains: `qubix-dms-theme`, which writes the theme pointer every Niri session and applies versioned shell-presentation migrations once (DD-025, DD-047). The shell and editor once had seeders too; they were replaced by plain system files (DD-030). Not to be confused with `qubix-default-shell`, which is a *system* service and writes to `/etc/passwd`, never to `$HOME`. |
 | **Session** | One desktop environment as offered at the login screen. This image has two: Plasma (Wayland) and Niri. |
 | **shim** | The Fedora-signed first-stage bootloader that chains to GRUB and checks the kernel against firmware `db` plus the MOK list. |
 | **Signing policy** | Client-side configuration, installed into the image by the `signing` module, that lets `ostree-image-signed:` rebases verify against `cosign.pub`. |

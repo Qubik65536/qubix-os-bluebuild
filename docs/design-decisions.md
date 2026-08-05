@@ -2746,3 +2746,63 @@ a broken `zshrc`.
   markers, or the next run will append a second block instead of replacing the first.
 - **Still nothing is copied.** The block is four lines of pointer; every byte of behaviour is
   read live from the host through `/usr/share/qubix-os` (DD-030, DD-043).
+
+---
+
+## DD-047 — Float each DMS bar component, but migrate presentation only once
+
+**Status:** Accepted
+
+**Implements:** `BRD-005`
+
+**Extends:** [DD-025](#dd-025--the-image-owns-the-palette-users-own-their-shell-settings)
+
+**Context.** DD-025 gave Niri and DankMaterialShell one palette, but left DMS's stock bar
+geometry alone: a continuous strip behind tightly packed components. The approved
+2026-08-05 design removes that strip and presents each visible component as a separate
+Slate capsule. The launcher should carry the full-colour Qubix cube supplied with the
+request. Those bytes are already the canonical 512 px PNG at
+`/usr/share/pixmaps/qubixos-logo.png`, so another asset would only drift.
+
+DMS still has no system-wide settings layer. Its current
+[`SettingsSpec.js`](https://github.com/AvengeMedia/DankMaterialShell/blob/master/quickshell/Common/settings/SettingsSpec.js)
+does, however, expose the needed presentation fields natively, and
+[`LauncherButton.qml`](https://github.com/AvengeMedia/DankMaterialShell/blob/master/quickshell/Modules/Bar/Widgets/LauncherButton.qml)
+accepts an absolute custom-logo path. A shell fork is unnecessary.
+
+**Decision.** Apply this native DMS preset to every valid bar:
+
+| Scope | DMS setting | Value |
+|---|---|---|
+| Per bar | `noBackground` | `true` |
+| Per bar | `spacing` / `innerPadding` / `widgetPadding` | `8` / `4` / `8` |
+| Per bar | `widgetTransparency` | `0.96` |
+| Per bar | `widgetOutlineEnabled` | `true` |
+| Per bar | `widgetOutlineColor` / `widgetOutlineOpacity` / `widgetOutlineThickness` | `primary` / `0.28` / `1` |
+| Per bar | `borderEnabled` / `shadowIntensity` / `squareCorners` | `false` / `0` / `false` |
+| Global | `widgetBackgroundColor` | `sc` (`surfaceContainer`) |
+| Global | launcher mode / path / colour override / size offset | `custom` / `/usr/share/pixmaps/qubixos-logo.png` / empty / `4` |
+
+The existing `qubix-dms-theme` seeder owns delivery, but the two kinds of setting have
+different lifetimes. It continues to enforce only the three palette-pointer keys at each
+Niri login. Bar presentation and launcher keys are a **versioned, one-time migration**,
+recorded only after the settings rename succeeds at
+`$XDG_STATE_HOME/qubix-os/dms-bar-style-v1`. The migration updates presentation keys on
+every valid existing bar while preserving its `leftWidgets`, `centerWidgets`,
+`rightWidgets`, and every unrelated setting. Only an absent or empty `barConfigs` gets
+DMS's upstream default groups.
+
+**Consequences.**
+
+- New and existing accounts receive the approved design on their first Niri login after
+  the image update, while later personal styling survives subsequent logins.
+- A future intentional redesign increments `BAR_STYLE_VERSION`; changing values without a
+  version bump changes nothing for already-migrated users.
+- Invalid settings JSON remains untouched, as under DD-025. An invalid `barConfigs` value
+  is not styled or stamped, although the independently owned palette pointer can still be
+  repaired. A failed stamp write is safe: the merge is idempotent and retries next login.
+- Removing the version stamp and starting `qubix-dms-theme.service` reapplies the preset.
+  Masking the unit opts out of future migrations and palette-pointer enforcement together.
+- The canonical PNG gains a consumer; no DMS source or artwork is duplicated.
+- Static checks can prove the merge and failure rules, but the final layout and logo still
+  need confirmation in a Niri login from a built image.
