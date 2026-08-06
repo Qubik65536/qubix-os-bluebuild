@@ -75,4 +75,6 @@ details · Gotchas · Update when**. Index in `.agent/context/README.md`.
 ## Update when
 
 The working rules change, a new agent tool is supported, a task is added or completed, or
-any file/module changes (its context entry must change with it).
+any file/module changes (its context entry must change with it). `IMG-007` now tracks the
+reported inherited branding across both Plymouth and Plasma login, not only a speculative
+Plymouth check, and sits in **Awaiting confirmation** until the built image is checked.

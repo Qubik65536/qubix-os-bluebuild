@@ -1445,7 +1445,7 @@ should look at.
 
 ### Desktop sessions
 
-- [ ] **BRD-005** — Give the Niri bar floating component capsules and the Qubix logo
+- [x] **BRD-005** — Give the Niri bar floating component capsules and the Qubix logo
   - **Category:** Branding
   - **Depends on:** BRD-004
   - **Notes:** Approved 2026-08-05 after an ASCII design check. The first built preset was
@@ -1467,6 +1467,29 @@ should look at.
       document the corrected DMS semantics and opt-out/reapply behavior
     - A Niri login on the built image shows only the approved rounded component surfaces
       and logo on real hardware
+
+### Boot branding
+
+- [ ] **IMG-007** — Replace inherited branding throughout boot and Plasma login
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Reported from the standard image on 2026-08-05: boot still shows Aurora's
+    watermark, and a Plasma login still shows inherited Aurora/KDE artwork. BlueBuild's
+    `initramfs` module is required because Plymouth theming lives in the initramfs;
+    copying `spinner/watermark.png` into `/usr` cannot change the initramfs Aurora already
+    built. The Plasma splash has two more gaps: Aurora copies it into separate dark and
+    light look-and-feel packages, while this repository overrides only the dark logo, and
+    Aurora's `Splash.qml` draws a separate KDE footer after the distro logo.
+  - **Acceptance criteria:**
+    - The standard recipe regenerates the initramfs after the branding overlay and before
+      `signing`; the CachyOS recipe retains its late post-kernel-swap regeneration
+    - Aurora's dark and light Plasma splash packages both render the Qubix mark and no
+      inherited Aurora or KDE logo/footer
+    - The image default selects the branded splash; `docs/branding.md` explains how an
+      existing user's `~/.config/ksplashrc` can override it and how to select it again
+    - Recipe, branding, design-decision, and context-cache documentation matches the change
+    - On the rebased standard image, cold boot shows the Qubix Plymouth watermark and a
+      Plasma login shows only Qubix splash artwork *(open — needs a build and hardware)*
 
 ### Terminal environment
 
@@ -1532,7 +1555,7 @@ should look at.
     - On the rebased image, `distrobox enter ungoogled-chromium-macos-cross` reaches a shell
       with the Qubix prompt *(open — needs a build and hardware)*
 
-- [ ] **IMG-035** — Stop `compinit` asking about insecure directories in a container
+- [x] **IMG-035** — Stop `compinit` asking about insecure directories in a container
   - **Category:** Image content
   - **Depends on:** IMG-034
   - **Notes:** Reported from the machine on 2026-08-04:
@@ -1621,18 +1644,6 @@ on 2026-08-04.*
       tuning
     - The outcome is recorded as a new `DD-###` (adopting or rejecting), with the recipe
       matching it
-
-- [ ] **IMG-007** — Confirm the Plymouth watermark survives without an `initramfs` module
-  - **Category:** Image content
-  - **Depends on:** —
-  - **Notes:** BlueBuild's `initramfs` module exists because Plymouth theming lives in the
-    initramfs. `recipe.yml` overrides `spinner/watermark.png` (DD-004) but never
-    regenerates it, so the boot splash may still show Aurora's. The CachyOS variant
-    regenerates the initramfs anyway (IMG-005), which is a useful comparison.
-  - **Acceptance criteria:**
-    - The boot splash of the standard image is checked on real hardware after a rebase
-    - If the watermark does not apply, `recipe.yml` gains `- type: initramfs` before
-      `signing`, with a note in `docs/branding.md`
 
 ### Maintenance
 

@@ -39,7 +39,7 @@ described here or in `files/system/`.
   (DD-002, superseded by DD-018). **Both recipes must carry the same channel** — the
   variants are meant to differ only in the kernel.
 - **Composition:** `from-file: common-base.yml` → `from-file: common-identity.yml` →
-  `type: signing`. Rendered module order, unchanged by the split:
+  `type: initramfs` → `type: signing`. Rendered module order:
 
   | # | Module | From | Effect | Ordering constraint |
   |---|---|---|---|---|
@@ -49,7 +49,8 @@ described here or in `files/system/`.
   | 4 | `containerfile` | `common-base.yml` | Nine snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `usermod` exists and `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses; install Monaspace Krypton NF + IBM Plex Math from pinned upstream archives, asserting both SHA-256s; assert `wezterm ls-fonts` resolves `/etc/xdg/wezterm/wezterm.lua` and all seven of its families; append the zsh wiring to Fedora's `/etc/zshrc`; assert `qubix-config --check` — every path that command names exists, and niri's relative theme include still matches; assert that `fastfetch` survives `/etc/profile.d` unaliased; assert the distrobox hook — distrobox is present, still reads `/etc/distrobox/distrobox.conf`, that file names an executable `qubix-distrobox-shell`, and that script still writes both of its block markers | after `dnf` (needs `zsh`, `git`, `unzip`, `wezterm`) and after `files` (needs `/etc/zellij`, `/etc/xdg/wezterm`, `/usr/share/qubix-os/shell/`); the WezTerm snippet after the font one — DD-026, DD-033, DD-034, DD-035, DD-036, DD-039, DD-040, DD-043, DD-046 |
   | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service` | after `files`, which ships the unit — DD-035 |
   | 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
-  | 7 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
+  | 7 | `initramfs` | `recipe.yml` | Rebuilds the stock kernel's archive with the overlaid Qubix Plymouth watermark | after `files`, late (DD-049) |
+  | 8 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
 
 - **`os-release` result:** `ID=qubix_os_bluebuild`, `NAME="QubixOS-BlueBuild"`,
   `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)"`. All other upstream
@@ -59,9 +60,9 @@ described here or in `files/system/`.
 
 - **Identity:** `name: qubix-os-bluebuild-cachyos` → a *separate* image, so switching
   kernels is a rebase and the fallback is a published image (DD-017).
-- Same base, same overlay, same packages, same flatpaks. The only differences:
-  `common-kernel-cachyos.yml`, a second `PRETTY_NAME` rewrite, and `initramfs` — in that
-  order, between `common-base.yml` and `signing`.
+- Same base, same overlay, same packages, same flatpaks. The kernel variant adds
+  `common-kernel-cachyos.yml` and a second `PRETTY_NAME` rewrite, then places its own
+  `initramfs` run after that swap instead of using the standard recipe's placement.
 - **The swap:** COPR `bieszczaders/kernel-cachyos`, then two `containerfile` snippets —
   (1) snapshot the package list and log `kmod-*`, `dnf5 remove` Fedora's five kernel
   packages, `rm -rf` the stock module dir, `dnf5 install --setopt=tsflags=noscripts`
@@ -87,7 +88,10 @@ described here or in `files/system/`.
   `dracut`, which dies on the missing `modules.dep` and fails the whole build. The build
   runs `depmod` itself instead. Removing that setopt reintroduces the failure.
 - A kernel swap **must** be followed by the `initramfs` module. Nothing else generates
-  `/usr/lib/modules/<kver>/initramfs.img` in a container build.
+  `/usr/lib/modules/<kver>/initramfs.img` in a container build. The standard recipe now
+  runs the module too, for a different reason: Aurora's inherited archive predates the
+  Qubix Plymouth overlay (DD-049). Do not move either run into `common-base.yml`; that is
+  before the CachyOS swap.
 - Removing `kernel-core` removes **every dependent package**, not just kernel modules —
   on Aurora DX that is libguestfs, `guestfs-tools`, `virt-v2v`, `libguestfs-appliance`,
   `libguestfs-xfs`, `virtualbox-guest-additions`, and `kernel-devel-matched`. All are

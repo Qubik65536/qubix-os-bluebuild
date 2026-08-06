@@ -93,7 +93,7 @@ Two constraints explain the rest of the layout:
 
 - **Mechanism:** branding works by *overwriting upstream paths* (DD-004). Files are
   therefore named after the component that reads them, **not** after their contents.
-- **Four distinct source images**, everything else is a byte-identical copy (DD-005):
+- **Five distinct source images**, everything else is a byte-identical copy (DD-005):
 
   | Artwork | Form | Size | SHA-256 prefix | Copies live at |
   |---|---|---|---|---|
@@ -103,14 +103,22 @@ Two constraints explain the rest of the layout:
   | D | PNG banner | 1600×450 | `38879687…` | `pixmaps/fedora-logo.png`, `fedora_logo_med.png` |
   | E | PNG watermark | 128×36 | `41ba5629…` | `plymouth/themes/spinner/watermark.png`, `kinoite-watermark.png`, `pixmaps/fedora-logo-small.png` |
 
-- **Plasma splash:**
-  `usr/share/plasma/look-and-feel/dev.getaurora.aurora.desktop/contents/splash/images/aurora_logo.svgz`
-  — a gzipped copy of artwork A. The Aurora directory and filename are referenced by the
-  splash QML and **must not be renamed**.
+- **Plasma splash (DD-049):** `usr/share/plasma/look-and-feel/com.qubixos.desktop/` is a
+  Qubix-native, splash-only package selected by the distro-profile `ksplashrc`. Its QML
+  reads the canonical `qubixos-logo.svg` and has no Aurora/KDE footer. Matching QML
+  overrides live under both `dev.getaurora.aurora.desktop` and
+  `dev.getaurora.auroralight.desktop` for existing users whose personal `ksplashrc` still
+  names either Aurora ID. The old dark-theme `aurora_logo.svgz` remains Qubix artwork as a
+  compatibility asset, although the active QML reads the canonical SVG directly.
+- **Plymouth:** both spinner watermark paths are only the source files. Each recipe must
+  run `initramfs` after the overlay or early boot keeps the Aurora bytes embedded by the
+  base image (DD-049).
 - **Text branding:**
   `usr/share/kde-settings/kde-profile/default/xdg/kcm-about-distrorc` — KDE "About this
   System". Sets `Name=Qubix OS`, a `Variant` string, and
-  `LogoPath=/usr/share/pixmaps/system-logo.png`.
+  `LogoPath=/usr/share/pixmaps/system-logo.png`;
+  `usr/share/kde-settings/kde-profile/default/xdg/ksplashrc` selects the Qubix splash for
+  accounts without a higher-priority `~/.config/ksplashrc`.
 - Logo primary colour: `#47603b`. **This is the logo's colour, not the project's accent.**
   The Niri session is themed from `#56728B` — `hsl(208, 24%, 44%)` — with every other tone
   derived by holding hue and saturation and moving only lightness (DD-022). Extending that
@@ -150,6 +158,8 @@ of which one differs. Re-check it against shadow-utils if that package changes i
 - `fedora-logo.png`, `fedora_logo_med.png`, `fedora-logo-small.png`,
   `fedora-logo-sprite.png`, `aurora-banner.svg`, and `aurora_logo.svgz` all contain
   **Qubix** artwork. This is the override mechanism — do not "fix" the names.
+- A personal `~/.config/ksplashrc` outranks the image's distro profile. If it names Breeze,
+  the KDE splash is expected until the user selects **Qubix OS**; see `docs/branding.md`.
 - `system-logo-white.png` is currently identical to `system-logo.png`, i.e. not actually a
   light variant. Tracked as open task `BRD-001`.
 - macOS writes `.DS_Store` files into this tree while editing. They are gitignored and must

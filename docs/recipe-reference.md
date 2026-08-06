@@ -43,7 +43,7 @@ modules:                            # modules:
                                     #   - from-file: common-kernel-cachyos.yml
   - from-file: common-identity.yml  #   - from-file: common-identity.yml
                                     #   - type: containerfile   (PRETTY_NAME)
-                                    #   - type: initramfs
+  - type: initramfs                 #   - type: initramfs
   - type: signing                   #   - type: signing
 ```
 
@@ -486,7 +486,30 @@ Implementation notes:
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
 - **Ordering:** must run after any module that can regenerate `os-release`.
 
-### 7. `signing` — install the verification policy
+### 7. `initramfs` — embed the finished early-boot content
+
+*Defined late in each recipe.*
+
+```yaml
+- type: initramfs
+```
+
+Runs `dracut --add ostree --no-hostonly --reproducible` for every kernel in
+`/usr/lib/modules`. Takes no options.
+
+The standard recipe needs this even though it does not replace the kernel. Aurora built
+the inherited initramfs before Qubix's `files` module overlaid the Plymouth watermark, so
+without another run the boot splash reads Aurora artwork from the old archive while the
+Qubix file sits unused in `/usr`. See DD-049.
+
+The CachyOS recipe has an independent, later placement because its kernel swap must run
+first. Moving this module into `common-base.yml` would build the archive for the stock
+kernel before that kernel is removed.
+
+- **Ordering:** after everything that affects early boot (`files`, dracut configuration,
+  `modprobe.d`, and, for CachyOS, the kernel swap); before `signing`.
+
+### 8. `signing` — install the verification policy
 
 *Defined in each recipe, last.*
 
@@ -563,23 +586,13 @@ Rewrites `PRETTY_NAME` a second time, from scratch:
 
 - **Ordering:** after `common-identity.yml`, which would otherwise overwrite it.
 
-### V3. `initramfs` — regenerate the initramfs
+### V3. CachyOS placement of `initramfs`
 
-*Defined in `recipe-cachyos.yml`.*
-
-```yaml
-- type: initramfs
-```
-
-Runs `dracut --add ostree --no-hostonly --reproducible` for every kernel in
-`/usr/lib/modules`. Takes no options.
-
-**Mandatory after a kernel swap.** Installing a kernel RPM inside a container build does
-not produce an `initramfs.img`; on a normal system `rpm-ostree` does that on the client,
-and there is no client at build time.
-
-- **Ordering:** late — it should come after everything that affects early boot (dracut
-  configuration, `modprobe.d`, Plymouth theming), so one run covers them all.
+The module itself is documented above because both recipes now use it. In the CachyOS
+variant it is additionally **mandatory after the kernel swap**: installing a kernel RPM
+inside a container build does not produce an `initramfs.img`; on a normal system
+`rpm-ostree` does that on the client, and there is no client at build time. Its late
+placement covers both that requirement and Qubix's Plymouth branding in one dracut run.
 
 ## Modules available but not used
 

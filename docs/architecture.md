@@ -65,6 +65,7 @@ The shared files exist so that a second image is a *composition*, not a copy (DD
 modules:
   - from-file: common-base.yml      # overlay, packages, flatpaks, build steps, one service
   - from-file: common-identity.yml  # the os-release rewrite
+  - type: initramfs                 # embed the Qubix Plymouth watermark
   - type: signing
 ```
 
@@ -91,7 +92,8 @@ image layer. Order is load-bearing. For `recipe.yml`:
 | 4 | `containerfile` | `common-base.yml` | Installs `zsh-completions` from a pinned upstream tag into `/usr/share/zsh/site-functions`; asserts `usermod` exists and `/usr/bin/zsh` reached `/etc/shells`; installs `zellij` from upstream's pinned `no-web` release with its completions, and asserts `/etc/zellij/config.kdl` resolves and parses; installs Monaspace Krypton NF and IBM Plex Math from pinned upstream releases, and asserts WezTerm resolves `/etc/xdg/wezterm/wezterm.lua` and every font it names; **appends** the zsh wiring to Fedora's `/etc/zshrc`, asserting first that the file is Fedora's and then that the result parses; asserts that `qubix-config` still names files that exist, that `fastfetch` survives `/etc/profile.d` unaliased, and that the distrobox hook is reachable (DD-043) | Needs `zsh`, `git`, `unzip` and `wezterm` from the `dnf` module, and `/etc/zellij` plus `/etc/xdg/wezterm` from the `files` module. None of these four exists as a package to install — Fedora has no zsh-completions, zellij or Monaspace, the zsh-completions COPR has no chroots, no zellij COPR is endorsed upstream, and `ibm-plex-fonts` ships no `math` subpackage (DD-026, DD-033, DD-034, DD-035, DD-036). |
 | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service`, which gives accounts that already exist zsh as their login shell, once each | Needs the unit from the `files` module. It exists because `/etc/passwd` is per machine and Aurora deletes `chsh` from the image (DD-035). |
 | 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
-| 7 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
+| 7 | `initramfs` | `recipe.yml` | Regenerates the stock kernel's initramfs with the overlaid Plymouth files | Must run after `files`; late so it captures every early-boot change. Aurora's inherited initramfs otherwise retains Aurora's watermark (DD-049). |
+| 8 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
 
 `recipe-cachyos.yml` composes the same blocks plus three, in a fixed order:
 
@@ -99,7 +101,7 @@ image layer. Order is load-bearing. For `recipe.yml`:
 |---|---|---|---|
 | `dnf` + `containerfile` ×2 | `common-kernel-cachyos.yml` | Enables the CachyOS kernel COPR; removes Fedora's kernel, installs CachyOS's with scriptlets off, runs `depmod`, asserts one kernel remains; restores the packages the removal took with it | After the shared `dnf` work, **before** the identity rewrite. Removal must precede installation — DD-017. |
 | `containerfile` | `recipe-cachyos.yml` | Rewrites `PRETTY_NAME` again, naming the kernel | After the shared identity rewrite, which would otherwise overwrite it. |
-| `initramfs` | `recipe-cachyos.yml` | Regenerates `/usr/lib/modules/<kver>/initramfs.img` | Installing a kernel in a container build produces no initramfs; late, so it also covers earlier changes. |
+| `initramfs` | `recipe-cachyos.yml` | Regenerates `/usr/lib/modules/<kver>/initramfs.img` | Installing a kernel in a container build produces no initramfs; late, so it also embeds the Qubix Plymouth watermark. It stays here rather than in `common-base.yml` so it runs after the kernel swap. |
 
 **Rule:** when adding a module, state its ordering constraint in
 [`recipe-reference.md`](recipe-reference.md). If it has none, say so.

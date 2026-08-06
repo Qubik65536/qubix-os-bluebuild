@@ -10,9 +10,11 @@ path** → **image path** → **what displays it**.
 ## How branding works here
 
 Distro branding on Fedora/KDE is scattered across components that each hardcode a path.
-Rather than fork Aurora's look-and-feel package and a Plymouth theme, this image ships
-replacement files at those exact paths through the `files` module. The upstream file is
-overwritten in the image; the component reads its usual path and finds Qubix artwork.
+Most surfaces are replaced at their exact upstream paths through the `files` module. The
+upstream file is overwritten in the image; the component reads its usual path and finds
+Qubix artwork. The Plasma startup splash also has a small Qubix-native look-and-feel
+package so it has its own selectable name and ID; Aurora's two package IDs remain
+overridden for existing users (DD-049).
 
 Two consequences follow:
 
@@ -23,7 +25,7 @@ Two consequences follow:
 
 ## Source artwork
 
-There are four distinct images in the repository. Everything else is a copy.
+There are five distinct images in the repository. Everything else is a copy.
 
 | # | Artwork | Format | Size | SHA-256 (prefix) |
 |---|---|---|---|---|
@@ -75,21 +77,26 @@ The logo green stays the logo's; it is not a system accent.
 
 | Repository path | Image path | Consumed by |
 |---|---|---|
-| `files/system/usr/share/plymouth/themes/spinner/watermark.png` | `/usr/share/plymouth/themes/spinner/watermark.png` | **Plymouth boot splash watermark** — the logo shown under the spinner during boot and shutdown. |
-| `files/system/usr/share/plymouth/themes/spinner/kinoite-watermark.png` | `/usr/share/plymouth/themes/spinner/kinoite-watermark.png` | Kinoite's watermark variant; overridden so whichever the theme selects is Qubix. |
+| `files/system/usr/share/plymouth/themes/spinner/watermark.png` | `/usr/share/plymouth/themes/spinner/watermark.png` | **Plymouth boot splash watermark** — embedded into the standard image's initramfs by its late `initramfs` module (DD-049). |
+| `files/system/usr/share/plymouth/themes/spinner/kinoite-watermark.png` | `/usr/share/plymouth/themes/spinner/kinoite-watermark.png` | Kinoite's watermark variant; overridden before both recipes regenerate their initramfs. |
 | `files/system/usr/share/pixmaps/fedora-logo-small.png` | `/usr/share/pixmaps/fedora-logo-small.png` | Small Fedora logo path (128×36). |
 
-### Plasma splash (artwork A, gzip-compressed SVG)
+### Plasma startup splash
 
 | Repository path | Image path | Consumed by |
 |---|---|---|
-| `files/system/usr/share/plasma/look-and-feel/dev.getaurora.aurora.desktop/contents/splash/images/aurora_logo.svgz` | same path under `/usr/share/…` | The **KDE Plasma startup splash** logo. The directory and filename belong to Aurora's look-and-feel package and must be kept exactly — the splash QML references them by name. The file is an SVGZ (gzipped SVG) whose inner `sodipodi:docname` is `qubixos-logo.svgz`. |
+| `files/system/usr/share/plasma/look-and-feel/com.qubixos.desktop/metadata.json` | same path under `/usr/share/…` | Registers **Qubix OS** as a selectable Plasma look-and-feel package. It deliberately carries only the startup splash, not a colour scheme, layout, or wallpaper. |
+| `files/system/usr/share/plasma/look-and-feel/com.qubixos.desktop/contents/splash/Splash.qml` | same path under `/usr/share/…` | Canonical Plasma startup splash. Draws `qubixos-logo.svg` centrally on black and no inherited Aurora/KDE footer. |
+| `files/system/usr/share/plasma/look-and-feel/dev.getaurora.aurora.desktop/contents/splash/Splash.qml` | same path under `/usr/share/…` | Compatibility override for an existing account whose splash ID is Aurora dark. Renders the same Qubix-only surface. |
+| `files/system/usr/share/plasma/look-and-feel/dev.getaurora.auroralight.desktop/contents/splash/Splash.qml` | same path under `/usr/share/…` | Compatibility override for Aurora light, which is a separate package and previously escaped the one-file logo override. |
+| `files/system/usr/share/plasma/look-and-feel/dev.getaurora.aurora.desktop/contents/splash/images/aurora_logo.svgz` | same path under `/usr/share/…` | Legacy compatibility copy of artwork A at Aurora's image name. The Qubix QML reads the canonical pixmap directly; retaining this prevents Aurora artwork at the old image path. |
 
 ### Text branding
 
 | Repository path | Image path | Consumed by |
 |---|---|---|
 | `files/system/usr/share/kde-settings/kde-profile/default/xdg/kcm-about-distrorc` | `/usr/share/kde-settings/kde-profile/default/xdg/kcm-about-distrorc` | KDE System Settings → **About this System**. Sets `Name=Qubix OS`, the `Variant` string, and `LogoPath=/usr/share/pixmaps/system-logo.png`. |
+| `files/system/usr/share/kde-settings/kde-profile/default/xdg/ksplashrc` | `/usr/share/kde-settings/kde-profile/default/xdg/ksplashrc` | KDE's distro profile. Selects `com.qubixos.desktop` for accounts without a higher-priority personal splash choice. |
 
 `os-release` (`ID`, `NAME`, `PRETTY_NAME`) is *not* in this tree — it is patched at build
 time by the `containerfile` module. See [`recipe-reference.md`](recipe-reference.md).
@@ -98,8 +105,8 @@ time by the `containerfile` module. See [`recipe-reference.md`](recipe-reference
 
 | Surface | Driven by |
 |---|---|
-| Boot / shutdown splash | Plymouth `watermark.png` |
-| Plasma startup splash | `aurora_logo.svgz` in the Aurora look-and-feel dir |
+| Boot / shutdown splash | Plymouth `watermark.png`, embedded by the recipe's late `initramfs` module |
+| Plasma startup splash | `com.qubixos.desktop`; Aurora dark/light QML paths are compatibility overrides |
 | System Settings → About this System | `kcm-about-distrorc` + `system-logo.png` |
 | Niri floating-bar launcher | `qubixos-logo.png` through the DMS preset migration (DD-048) |
 | `neofetch` / `fastfetch` / terminal | `os-release` `PRETTY_NAME` (+ `ID` for logo selection) |
@@ -113,7 +120,8 @@ time by the `containerfile` module. See [`recipe-reference.md`](recipe-reference
    dimensions.
 3. Replace **every** path in the asset map that uses that artwork — the tables are grouped
    by artwork so the full set is visible.
-4. Re-generate the SVGZ with `gzip` if the splash logo changed.
+4. Re-generate the legacy Aurora SVGZ with `gzip` if the splash logo changed. The active
+   QML uses `qubixos-logo.svg` directly, but the compatibility path must not drift.
 5. Update the SHA-256 prefixes in the *Source artwork* table:
    ```bash
    shasum -a 256 files/system/usr/share/pixmaps/* \
@@ -122,7 +130,35 @@ time by the `containerfile` module. See [`recipe-reference.md`](recipe-reference
    ```
    Identical prefixes across a group confirm the copies are still in sync.
 6. Update `.agent/context/files-system.md`.
-7. Push; verify visually after rebasing, since none of this is machine-checkable.
+7. Push; verify visually after rebasing, since none of this is machine-checkable. A logo
+   change reaches Plymouth because both recipes rebuild their initramfs after the overlay.
+
+## Selecting the Qubix Plasma splash
+
+The image default applies when an account has no personal splash setting. Plasma stores a
+user's choice in `~/.config/ksplashrc`, which correctly outranks the distro profile and
+survives a rebase. That means an account which explicitly selected Breeze can still show
+the Plasma/KDE logo after installing the fixed image.
+
+To restore the image default in the GUI, open **System Settings → Colors & Themes → Splash
+Screen**, select **Qubix OS**, and apply it. The equivalent command is:
+
+```bash
+kwriteconfig6 --file ksplashrc --group KSplash --key Theme com.qubixos.desktop
+```
+
+Log out and back into Plasma to see the result. Accounts still set to either Aurora theme
+ID need no migration: both inherited QML paths are overridden with the same Qubix-only
+splash.
+
+## Why copying a Plymouth image is not enough
+
+Plymouth runs before the real root filesystem is mounted, so it reads its theme from the
+initramfs. Aurora already built that archive before this image's `files` overlay ran.
+`recipe.yml` therefore runs BlueBuild's `initramfs` module after the overlay and identity
+rewrite; the CachyOS recipe already runs the same module after its kernel swap. Moving the
+module into `common-base.yml` would be wrong because it would run before that swap and
+leave the variant's replacement kernel without its final archive (DD-049).
 
 ## Known gotcha
 

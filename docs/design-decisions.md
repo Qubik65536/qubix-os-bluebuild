@@ -2867,3 +2867,71 @@ login and then returns ownership of presentation settings to the user.
   preservation rules from DD-047.
 - The corrected appearance still requires one more real-hardware confirmation before
   `BRD-005` is done.
+
+---
+
+## DD-049 — Rebuild early boot and own the Plasma splash package
+
+**Status:** Accepted
+
+**Implements:** `IMG-007`
+
+**Extends:** [DD-004](#dd-004--rebrand-by-overwriting-upstream-asset-paths), whose exact-path
+overrides remain the compatibility mechanism, but are no longer the only Plasma mechanism
+
+**Context.** The standard image was confirmed on hardware to show Aurora during cold boot
+and inherited Aurora/KDE artwork while Plasma started. The files in the checkout looked as
+though both surfaces were covered, but each had a boundary the overlay did not cross.
+
+**Plymouth reads an archive made before Qubix exists.** Aurora runs dracut while building
+its base image. Qubix then overlays
+`/usr/share/plymouth/themes/spinner/watermark.png` in a later image, but Plymouth runs from
+the initramfs before the real root is mounted. The correct file in `/usr` therefore sat
+unused while early boot read Aurora's already-embedded copy. The CachyOS recipe happened
+to rebuild its initramfs for its replacement kernel; the standard recipe never did.
+
+**Aurora has two Plasma splash packages and the image covered one asset in one of them.**
+Aurora's current
+[`Containerfile`](https://github.com/get-aurora-dev/common/blob/main/Containerfile) copies
+the splash into separate `dev.getaurora.aurora.desktop` and
+`dev.getaurora.auroralight.desktop` packages. Its
+[`Splash.qml`](https://github.com/get-aurora-dev/common/blob/main/system_files/shared/usr/share/plasma/look-and-feel/dev.getaurora.aurora.desktop/contents/splash/Splash.qml)
+draws a centre distro logo and, separately, a bottom-right “Plasma made by KDE” footer and
+KDE mark. Replacing only the dark package's `aurora_logo.svgz` could not affect the light
+package or that second logo.
+
+There is a third persistence layer: Plasma writes a user's splash choice to
+`~/.config/ksplashrc`. That file correctly outranks the distro profile under
+`/usr/share/kde-settings/`, and a rebase must not silently erase a deliberate user choice.
+
+**Decision.** Treat early boot and Plasma login as two explicit delivery paths.
+
+1. `recipe.yml` runs BlueBuild's `initramfs` module after the overlay and identity rewrite,
+   immediately before `signing`. The CachyOS recipe keeps its own run after the kernel
+   swap. The module is not shared through `common-base.yml`: that position is too early
+   for the replacement kernel.
+2. Ship a narrow `com.qubixos.desktop` Plasma look-and-feel package containing only a
+   startup splash. Its QML draws the canonical Qubix SVG on black and contains no inherited
+   Aurora/KDE footer. The distro-profile `ksplashrc` selects it for accounts without a
+   personal choice.
+3. Override `Splash.qml` in both Aurora dark and light package IDs with the same Qubix-only
+   surface. Existing accounts which still name either Aurora ID are fixed without rewriting
+   their home directory.
+4. Do not override Breeze. An account which explicitly selected Breeze keeps that choice;
+   `branding.md` gives the GUI path and `kwriteconfig6` command for selecting Qubix again.
+
+**Consequences.**
+
+- The standard and CachyOS images each perform one late dracut run. Standard pays the build
+  cost for correct Plymouth branding; CachyOS's already-required kernel run does both jobs.
+- Plasma has a Qubix-named selectable splash instead of relying exclusively on a path whose
+  public name is Aurora. The compatibility overrides still accept the old IDs.
+- The splash uses `/usr/share/pixmaps/qubixos-logo.svg` as its canonical artwork, so dark,
+  light, and Qubix-native packages cannot drift to three different logo files.
+- KDE remains the desktop and retains its attribution everywhere else; only the transient
+  distro startup surface stops drawing the separate KDE footer.
+- A personal Breeze choice can still show KDE after rebase by design. This is documented
+  persistence, not a failed image override.
+- There is no local image build. YAML, JSON, paths, and QML can be checked statically, but
+  the initramfs contents and both visible transitions remain awaiting confirmation on a
+  built image running on hardware.

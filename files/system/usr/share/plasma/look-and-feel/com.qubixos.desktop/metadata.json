@@ -1,0 +1,19 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Qubix OS Contributors"
+            }
+        ],
+        "Description": "Qubix OS Plasma startup splash",
+        "Id": "com.qubixos.desktop",
+        "License": "GPLv2+",
+        "Name": "Qubix OS",
+        "ServiceTypes": [
+            "Plasma/LookAndFeel"
+        ],
+        "Version": "1"
+    },
+    "X-Plasma-APIVersion": "2"
+}

@@ -34,13 +34,19 @@ image-version: latest
 
 # ── Modules (executed in order) ───────────────────────────────────────────────
 modules:
-  # 1–4. Overlay, packages, flatpaks, zsh-completions — everything shared by every variant.
+  # 1–5. Overlay, packages, flatpaks, build steps, and service enablement — shared.
   - from-file: common-base.yml
 
-  # 5. os-release rewrite: ID, NAME, PRETTY_NAME. Late, by constraint (DD-003).
+  # 6. os-release rewrite: ID, NAME, PRETTY_NAME. Late, by constraint (DD-003).
   - from-file: common-identity.yml
 
-  # 6. Client-side trust configuration.
+  # 7. Rebuild the initramfs after the overlay replaces Plymouth's watermark.
+  #    Aurora's base image already contains an initramfs built with Aurora artwork;
+  #    changing /usr/share/plymouth alone cannot change those embedded bytes. Runs late
+  #    so every earlier dracut-relevant image change is included. DD-049.
+  - type: initramfs
+
+  # 8. Client-side trust configuration.
   #    Installs the cosign public key and container policy INTO the image, so
   #    `ostree-image-signed:` rebases verify. Signing of the published image itself
   #    happens in CI with SIGNING_SECRET. Because the policy ships inside the image,

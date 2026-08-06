@@ -1,0 +1,5 @@
+# KDE Plasma reads this distro-profile file as the default startup-splash selection.
+# A user's ~/.config/ksplashrc has higher priority; recovery is documented in branding.md.
+
+[KSplash]
+Theme=com.qubixos.desktop

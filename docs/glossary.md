@@ -30,7 +30,7 @@ terms over synonyms.
 | **GHCR** | GitHub Container Registry — where the image is published. |
 | **`image-version`** | The base image *tag* (`latest` here). A channel, not a Fedora version number. See DD-018. |
 | **`IMAGE_VERSION`** | A field Universal Blue writes into `os-release`, identifying the upstream build. Interpolated into `PRETTY_NAME` (DD-003). |
-| **initramfs** | The RAM filesystem the kernel boots into before mounting the real root. Regenerated at build time by the `initramfs` module, which the kernel-swapping variant requires. |
+| **initramfs** | The RAM filesystem the kernel boots into before mounting the real root. Both recipes regenerate it at build time: standard to embed Plymouth branding, CachyOS additionally because it replaces the kernel. |
 | **KDL** | The configuration language niri uses (<https://kdl.dev>). Braces and nodes, not YAML. |
 | **Kinoite** | Fedora's official immutable KDE Plasma variant. Aurora's base. |
 | **lazygit** | A terminal UI over git. Wrapped as `lg`, so quitting after switching repositories leaves the shell in the new one. Its config is the only one here that *merges* with the user's, through `LG_CONFIG_FILE` (DD-032). See [`shell.md`](shell.md). |
