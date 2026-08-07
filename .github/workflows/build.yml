@@ -113,7 +113,7 @@ jobs:
       # never in git (.gitignore blocks cosign.key / cosign.private). Both images are
       # signed with the same key. DD-008.
       - name: Build Custom Image
-        uses: blue-build/github-action@v1.11
+        uses: blue-build/github-action@v1.12
         with:
           recipe: ${{ matrix.recipe }}
           cosign_private_key: ${{ secrets.SIGNING_SECRET }}
