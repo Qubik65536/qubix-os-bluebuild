@@ -1,0 +1,19 @@
+# Fcitx 5 system fallback profile for Qubix OS (DD-050).
+# ~/.config/fcitx5/profile takes precedence, so user changes are never overwritten.
+
+[Groups/0]
+# Keep direct US keyboard input first; the global config toggles the Pinyin engine.
+Name=Default
+Default Layout=us
+DefaultIM=pinyin
+
+[Groups/0/Items/0]
+Name=keyboard-us
+Layout=
+
+[Groups/0/Items/1]
+Name=pinyin
+Layout=
+
+[GroupOrder]
+0=Default

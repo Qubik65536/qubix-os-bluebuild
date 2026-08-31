@@ -1,0 +1,6 @@
+# KWin system defaults for Qubix OS (DD-050).
+# ~/.config/kwinrc has higher priority and can select another input method or none.
+
+[Wayland]
+# Launch Fcitx through KWin's input-method socket so native Wayland clients can use it.
+InputMethod[$e]=/usr/share/applications/org.fcitx.Fcitx5.desktop

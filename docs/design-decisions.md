@@ -2935,3 +2935,68 @@ There is a third persistence layer: Plasma writes a user's splash choice to
 - There is no local image build. YAML, JSON, paths, and QML can be checked statically, but
   the initramfs contents and both visible transitions remain awaiting confirmation on a
   built image running on hardware.
+
+---
+
+## DD-050 — Fcitx 5 Pinyin from Fedora, with system fallbacks rather than a user seeder
+
+**Status:** Accepted
+
+**Implements:** `IMG-036`
+
+**Context.** Simplified Chinese input needs three distinct pieces: an input-method
+framework, a Chinese engine, and integration with both applications and the compositor.
+The [Rocky Linux 10 KDE reference guide](https://www.qubik65536.top/posts/2025-12-23-InstallChineseInputOnRockyWorkstation10KDE)
+had to compile Fcitx 5, `xcb-imdkit`, the Chinese addons, OpenCC, and the KDE configuration
+tool because RHEL 10 and EPEL did not package the complete stack. Repeating those builds in
+Qubix OS would add unowned source revisions, build dependencies, and an update path for
+software Fedora already maintains.
+
+Fedora packages the whole path: [`fcitx5`](https://packages.fedoraproject.org/pkgs/fcitx5/fcitx5/),
+[`fcitx5-chinese-addons`](https://packages.fedoraproject.org/pkgs/fcitx5-chinese-addons/fcitx5-chinese-addons/),
+[`fcitx5-autostart`](https://packages.fedoraproject.org/pkgs/fcitx5/fcitx5-autostart/),
+the [GTK](https://packages.fedoraproject.org/pkgs/fcitx5-gtk/fcitx5-gtk/) and
+[Qt](https://packages.fedoraproject.org/pkgs/fcitx5-qt/fcitx5-qt/) bridges, and KDE's
+[`kcm-fcitx5`](https://packages.fedoraproject.org/pkgs/fcitx5-configtool/kcm-fcitx5/).
+Fcitx itself reads `profile` and `config` through its XDG package-config search path, and
+KWin reads `kwinrc` through KConfig's cascade, so all three support a system default
+without copying a file into a home directory.
+
+**Decision.** Install Fedora's Fcitx 5 stack in `common-base.yml`, for every image. Ship
+three XDG fallback files in the root overlay:
+
+1. `/etc/xdg/fcitx5/profile` defines one group containing `keyboard-us` and `pinyin`, with
+   Pinyin as the non-keyboard method.
+2. `/etc/xdg/fcitx5/config` replaces Fcitx's trigger list with `Super+space`, making the
+   Windows/Meta key plus Space toggle between direct keyboard input and Pinyin in Plasma.
+3. `/etc/xdg/kwinrc` points KWin's `[Wayland] InputMethod` at Fedora's host
+   `/usr/share/applications/org.fcitx.Fcitx5.desktop`, making Fcitx the Plasma Wayland
+   input-method client.
+
+Niri keeps `Mod+Space` bound to DMS's spotlight. A compositor consumes that binding before
+clients see it, so Niri also binds `Ctrl+Space` to `fcitx5-remote -t`. This toggles the
+running Fcitx instance through its control interface while leaving Plasma's native
+`Super+Space` trigger and the shared input-method profile unchanged.
+
+Keep `fcitx5-autostart`: its XDG entry starts Fcitx in Niri, where there is no KWin to own
+the input-method process, and its Fedora profile fragment provides compatibility variables
+for toolkit and XWayland applications. Do not remove IBus or any KDE component; the change
+is additive.
+
+**Consequences.**
+
+- No input-method component is compiled in this repository, and no third-party repository
+  gains package-script authority. Fedora updates the framework and engines with the base.
+- Plasma gets KWin's native text-input path; Niri and XWayland applications retain Fcitx's
+  toolkit path. Both sessions use the same Fcitx profile in the same home directory.
+- The shortcuts intentionally differ by session: Plasma uses `Super+Space`; Niri uses
+  `Ctrl+Space` for input and retains `Super+Space` for its application launcher. Niri's
+  live hotkey overlay and the desktop reference show both compositor bindings.
+- `~/.config/fcitx5/profile` and `~/.config/fcitx5/config` win over their `/etc/xdg`
+  fallbacks, and `~/.config/kwinrc` wins over `/etc/xdg/kwinrc`. The first user change
+  becomes persistent without the image ever rewriting it.
+- The default physical layout inside the Fcitx group is US. Users with another layout can
+  replace `keyboard-us` in KDE's Input Method page; that creates the personal profile which
+  then remains theirs.
+- A checkout can verify package names, file syntax, and cascade paths, but actual Pinyin
+  entry in native Wayland and XWayland clients under both sessions needs the built image.

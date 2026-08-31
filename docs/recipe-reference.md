@@ -75,11 +75,14 @@ substitution.
   |---|---|
   | `/etc/xdg/kdeglobals` | KDE cascade fragment: default terminal (DD-012), default browser (DD-023) |
   | `/etc/xdg/mimeapps.list` | MIME association fragment: the web types → Ungoogled Chromium (DD-023) |
+  | `/etc/xdg/fcitx5/profile` | Fcitx fallback profile: English (US) plus Pinyin; `~/.config/fcitx5/profile` shadows it (DD-050) |
+  | `/etc/xdg/fcitx5/config` | Fcitx fallback: `Super+Space` toggles input in Plasma; `~/.config/fcitx5/config` shadows it (DD-050) |
+  | `/etc/xdg/kwinrc` | KWin fallback: launch Fcitx as Plasma's Wayland input-method client; `~/.config/kwinrc` shadows it (DD-050) |
   | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012), and `/etc/xdg` **appended** to `XDG_CONFIG_DIRS` so the file below is reachable (DD-034, DD-038). Reaches only what the systemd user manager starts; `/etc/profile.d/qubix-shell-env.sh` carries the same append for every shell |
   | `/etc/xdg/wezterm/wezterm.lua` | WezTerm's system-wide config. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it (DD-034) |
   | `/etc/xdg/wezterm/colors/*.toml` | The colour schemes it selects. Available to a user's own `wezterm.lua` too (DD-034) |
   | `/usr/share/licenses/monaspace-krypton-nf/LICENSE` | The OFL text for a font installed in module 4d. Vendored because Monaspace's archive carries none (DD-034) |
-  | `/etc/niri/config.kdl` | System-default Niri configuration (DD-014) |
+  | `/etc/niri/config.kdl` | System-default Niri configuration, including its `Ctrl+Space` Fcitx toggle (DD-014, DD-050) |
   | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
   | `/usr/bin/qubix-dms-theme` | Enforces DMS's Qubix Slate pointer and applies the versioned floating-component bar plus canonical cube launcher once (DD-025, DD-048) |
   | `/usr/lib/systemd/user/qubix-dms-theme.service` | Runs that migration before DMS under Niri; never enabled globally (DD-025, DD-048) |
@@ -122,6 +125,8 @@ substitution.
        ibm-plex-mono-fonts, ibm-plex-sans-fonts, google-noto-sans-cjk-fonts, unzip,
        niri, dms,
        material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist,
+       fcitx5, fcitx5-autostart, fcitx5-chinese-addons,
+       fcitx5-gtk, fcitx5-qt, kcm-fcitx5,
        zsh, zsh-autosuggestions, zsh-syntax-highlighting, atuin, bat, yazi, fastfetch,
        neovim, ripgrep, fd-find, fzf, git, lazygit, cascadia-mono-nf-fonts]
   remove:
@@ -131,7 +136,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
 | `remove.packages` | Removed RPMs. `firefox` goes because a browser belongs in a Flatpak (DD-006) and because the browser here is Ungoogled Chromium (DD-023); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
@@ -167,6 +172,15 @@ The packages WezTerm's own configuration needs (DD-034):
 | `ibm-plex-mono-fonts`, `ibm-plex-sans-fonts` | Entries 3 and 4 of WezTerm's font fallback chain. The two families ahead of them are not packaged by anyone and come from module 4d below |
 | `google-noto-sans-cjk-fonts` | CJK coverage, standing in for IBM Plex Sans SC/TC/JP — published only as ~1.2 GB of release archives, and absent from Fedora's `ibm-plex-fonts`. The **static** package, not `-vf-`, because its `.ttc` files expose `Noto Sans CJK SC` / `TC` / `JP` as plain family names |
 | `unzip` | Needed by module 4d, which unpacks two upstream font archives. Listed rather than assumed, for the same reason `git` is |
+
+The Simplified Chinese input stack (DD-050):
+
+| Package(s) | Role |
+|---|---|
+| `fcitx5`, `fcitx5-autostart` | Input-method framework plus Fedora's GUI-session environment and XDG autostart integration |
+| `fcitx5-chinese-addons` | Fedora's Pinyin and table engines; this is the packaged equivalent of the guide's manually compiled Chinese addons |
+| `fcitx5-gtk`, `fcitx5-qt` | Toolkit bridges. Their conditional dependencies pull the matching GTK 2/3/4 and Qt 5/6 modules already needed by Aurora's applications |
+| `kcm-fcitx5` | Fcitx configuration page integrated into KDE System Settings |
 
 - **Ordering:** must precede `default-flatpaks` so the Firefox RPM is gone before the
   Flatpak is queued, and precede the `containerfile` module below, which needs `zsh` and

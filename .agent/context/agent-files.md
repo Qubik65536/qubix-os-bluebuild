@@ -78,3 +78,6 @@ The working rules change, a new agent tool is supported, a task is added or comp
 any file/module changes (its context entry must change with it). `IMG-007` now tracks the
 reported inherited branding across both Plymouth and Plasma login, not only a speculative
 Plymouth check, and sits in **Awaiting confirmation** until the built image is checked.
+`IMG-036` tracks the packaged Fcitx 5/Pinyin setup on Plasma's `Super+Space` and Niri's
+`Ctrl+Space` (while Niri retains `Super+Space` for DMS) and waits there for a two-session
+input check on the built image.

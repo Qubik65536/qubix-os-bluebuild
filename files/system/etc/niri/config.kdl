@@ -173,6 +173,10 @@ binds {
     Mod+M hotkey-overlay-title="Task Manager" { spawn "dms" "ipc" "call" "processlist" "focusOrToggle"; }
     Ctrl+Alt+Delete hotkey-overlay-title="Task Manager" { spawn "dms" "ipc" "call" "processlist" "focusOrToggle"; }
 
+    // Niri keeps Mod+Space for its launcher, so use a compositor-level Ctrl+Space
+    // binding to toggle Fcitx without changing Plasma's Super+Space fallback. DD-050.
+    Ctrl+Space hotkey-overlay-title="Switch English/Pinyin Input" { spawn "fcitx5-remote" "-t"; }
+
     // Screen capture for X11 applications. The Xwayland Video Bridge does not autostart
     // in this session (DD-021), so this is how you turn it on for as long as Discord,
     // Zoom, or an older OBS needs it. The script reports what it did in a notification.

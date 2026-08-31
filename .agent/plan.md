@@ -1445,6 +1445,28 @@ should look at.
 
 ### Desktop sessions
 
+- [ ] **IMG-036** — Configure Simplified Chinese Pinyin input with Fcitx 5
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** The Rocky Linux 10 reference guide builds Fcitx 5, its Chinese addons, and
+    its KDE configuration tool because RHEL-family repositories do not carry the complete
+    stack. Fedora carries all of them, so Qubix OS can use signed distro packages instead
+    of maintaining locally compiled copies. The image supplies an XDG fallback profile;
+    a user's own Fcitx or KWin configuration remains higher priority.
+  - **Acceptance criteria:**
+    - Every image installs Fcitx 5, Fedora's Pinyin engine, the KDE configuration UI,
+      autostart integration, and GTK/Qt input-method bridges from Fedora packages
+    - Accounts without personal Fcitx configuration get English (US) and Pinyin;
+      Plasma switches them with `Super+Space` (Windows/Meta key + Space)
+    - Niri keeps `Super+Space` for the DMS application launcher and switches English/Pinyin
+      with `Ctrl+Space` through Fcitx's remote-control interface
+    - Plasma selects the host Fcitx desktop entry as its default Wayland virtual keyboard;
+      Niri starts Fcitx through XDG autostart
+    - Per-user Fcitx and KWin settings override the image defaults and are not rewritten
+    - The recipe, desktop, design-decision, and context-cache documentation covers the setup
+    - On the rebased image, Pinyin enters Simplified Chinese in native Wayland and XWayland
+      applications under both Plasma and Niri *(open — needs a build and hardware)*
+
 - [x] **BRD-005** — Give the Niri bar floating component capsules and the Qubix logo
   - **Category:** Branding
   - **Depends on:** BRD-004

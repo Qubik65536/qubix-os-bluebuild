@@ -93,6 +93,22 @@ modules:
         - rsms-inter-fonts
         # Clipboard history backend behind the shell's clipboard panel (Mod+V).
         - cliphist
+        # ── Simplified Chinese input ─────────────────────────────────────────
+        # Fedora packages the complete Fcitx 5 stack that Rocky Linux 10 lacks,
+        # including the Pinyin engine and Plasma KCM, so no locally compiled input
+        # method code is needed. The two toolkit packages pull the matching GTK 2/3/4
+        # and Qt 5/6 modules conditionally for toolkits present in Aurora. DD-050.
+        #
+        # Defaults live in /etc/xdg/fcitx5/{profile,config}, /etc/xdg/kwinrc, and
+        # Niri's Ctrl+Space remote-toggle binding from module 1.
+        # fcitx5-autostart supplies XDG autostart (needed by Niri) and Fedora's input-
+        # method environment; KWin also starts Fcitx as its Wayland special client.
+        - fcitx5
+        - fcitx5-autostart
+        - fcitx5-chinese-addons
+        - fcitx5-gtk
+        - fcitx5-qt
+        - kcm-fcitx5
         # ── Terminal environment ──────────────────────────────────────────────
         # The shell, its editor, and the tools they call. Configuration for all of it is
         # in the overlay — files/system/etc/profile.d/ and usr/share/qubix-os/shell/,

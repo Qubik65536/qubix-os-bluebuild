@@ -42,7 +42,7 @@ Everything Aurora DX provides is inherited for free. This repository only record
 |---|---|---|
 | Identity | `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` rewritten to Qubix OS | `recipe.yml` (containerfile snippet) |
 | Branding | Distro logos, banners, Plymouth boot watermark, KDE splash and "About this system" | `files/system/usr/share/**` |
-| Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `dms` + fonts + `cliphist` (Niri's shell, from COPR) | `recipe.yml` (`dnf`) |
+| Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `dms` + fonts + `cliphist` (Niri's shell, from COPR), Fcitx 5 + Pinyin + toolkit/KDE integration (Simplified Chinese input) | `recipe.yml` (`dnf`) |
 | Terminal environment | `zsh` + its plugins, `atuin`, `bat`, `yazi` (from COPR), `lazygit` (from COPR), `fastfetch`, `neovim` and what LazyVim calls; `zsh-completions` from a pinned upstream tag | `recipe.yml` (`dnf`, `containerfile`) |
 | Multiplexer | `zellij`, from upstream's pinned `no-web` release — not packaged by Fedora and endorsed by no COPR. Nothing starts it (DD-033) | `recipe.yml` (`containerfile`), `files/system/etc/zellij/config.kdl` |
 | Shell configuration | starship initialised at last, plugins loaded, atuin made explicitly local, `cat`→`bat`, `y`→yazi, `lg`→lazygit. System files only — nothing is written to `$HOME` (DD-026, DD-030, DD-036) | `files/system/etc/profile.d/`, a block appended to `/etc/zshrc`, `files/system/usr/share/qubix-os/shell/` |
@@ -55,6 +55,7 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Terminal configuration | WezTerm's font stack, colour scheme and window settings, system-wide. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` still wins (DD-034) | `files/system/etc/xdg/wezterm/` |
 | Terminal fonts | Monaspace Krypton NF and IBM Plex Math from pinned upstream releases; IBM Plex Mono/Sans and Noto Sans CJK from Fedora (DD-034) | `recipe.yml` (`dnf`, `containerfile`) |
 | Default browser | Ungoogled Chromium, claimed for the web MIME types in both sessions | `files/system/etc/xdg/mimeapps.list`, `files/system/etc/xdg/kdeglobals` |
+| Simplified Chinese input | Fcitx 5 with English (US) and Pinyin defaults; `Super+Space` in Plasma, `Ctrl+Space` in Niri; native startup integration for both | `recipe.yml` (`dnf`), `files/system/etc/xdg/fcitx5/`, `files/system/etc/xdg/kwinrc`, `files/system/etc/niri/config.kdl` |
 | Second session | Niri added alongside — nothing KDE removed. System config shipped | `recipe.yml` (`dnf`), `files/system/etc/niri/config.kdl` |
 | Niri shell | DankMaterialShell, started by systemd under Niri only | `files/system/usr/lib/systemd/user/niri.service.d/` |
 | Flatpaks | Flathub configured; `io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` installed system-wide | `recipe.yml` (`default-flatpaks`) |

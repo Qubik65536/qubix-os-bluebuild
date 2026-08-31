@@ -388,6 +388,7 @@ list, generated from the config actually in use.
 |---|---|
 | `Mod+T` | Terminal (WezTerm) |
 | `Mod+Space` | Application launcher (DMS spotlight) |
+| `Ctrl+Space` | Switch English/Pinyin input through Fcitx 5 (DD-050) |
 | `Mod+V` | Clipboard history |
 | `Mod+N` | Notification centre |
 | `Mod+,` | Shell settings |
@@ -521,6 +522,52 @@ Both are fragments: only the web types are claimed, so PDFs stay with Okular and
 with Loupe. `~/.config/mimeapps.list` is searched first, so *System Settings → Default
 Applications* — or `xdg-settings set default-web-browser …` — still overrides all of it,
 per user.
+
+## Simplified Chinese input
+
+Qubix OS ships **Fcitx 5 with the Pinyin engine** for Simplified Chinese (`zh-Hans`)
+input. The setup follows the same component split as the
+[Rocky Linux 10 KDE reference guide](https://www.qubik65536.top/posts/2025-12-23-InstallChineseInputOnRockyWorkstation10KDE),
+but every component is available as a signed Fedora package on the Aurora base. Nothing is
+compiled locally and no EPEL or COPR repository is involved (DD-050).
+
+| Piece | Package / file | Purpose |
+|---|---|---|
+| Framework | `fcitx5`, `fcitx5-autostart` | Runs Fcitx in graphical sessions and supplies Fedora's input-method environment |
+| Chinese engine | `fcitx5-chinese-addons` | Pinyin, punctuation, cloud-Pinyin support, and related Chinese addons |
+| Application bridges | `fcitx5-gtk`, `fcitx5-qt` | Covers GTK and Qt applications, including XWayland clients |
+| KDE settings page | `kcm-fcitx5` | *System Settings → Keyboard → Input Method* |
+| Default methods | `/etc/xdg/fcitx5/profile` | English (US), then Pinyin |
+| Plasma toggle | `/etc/xdg/fcitx5/config` | `Super+Space` (Windows/Meta key + Space) switches between direct keyboard input and Pinyin |
+| Niri toggle | `/etc/niri/config.kdl` | `Ctrl+Space` runs `fcitx5-remote -t` to switch the same Fcitx method group |
+| Plasma Wayland launch | `/etc/xdg/kwinrc` | Selects `/usr/share/applications/org.fcitx.Fcitx5.desktop` as KWin's input-method client |
+
+Plasma starts Fcitx through KWin's dedicated Wayland input-method socket, which is the
+equivalent of selecting **Fcitx 5** under *System Settings → Keyboard → Virtual Keyboard*.
+Niri has no KWin, so Fedora's XDG autostart entry starts the same host binary there.
+Fcitx's system fallback provides `Super+Space` in Plasma. Niri keeps `Mod+Space` for DMS's
+application launcher and instead binds `Ctrl+Space` at the compositor level to
+`fcitx5-remote -t`; that command toggles the running Fcitx instance without maintaining a
+second input-method profile. If you copied the Niri config into `~/.config/niri/`, that
+personal file still wins: add the `Ctrl+Space` binding there as well, or use
+`qubix-config --diff niri` to inspect the image change.
+
+The three image files are **fallbacks, not migrations**. Personal
+`~/.config/fcitx5/profile`, `~/.config/fcitx5/config`, and `~/.config/kwinrc` files take
+priority through Fcitx's XDG and KDE's KConfig cascades. The image never edits them. To
+return only the Fcitx method list to the image default, move the personal profile aside
+and log out once:
+
+```bash
+mv ~/.config/fcitx5/profile ~/.config/fcitx5/profile.backup
+```
+
+Use the KDE Input Method page to add another engine, change Plasma's `Super+Space`, or
+enable Cloud Pinyin. Those changes create personal configuration and therefore survive
+future rebases. Niri's `Ctrl+Space` is a compositor binding, so change that key in the
+personal Niri config instead.
+`fcitx5-diagnose` reports the running framework, loaded addons, environment, and the
+profile path when input works in one application but not another.
 
 ## Things that are shared, and things that are not
 
