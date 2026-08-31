@@ -86,4 +86,6 @@ correction, hardened Niri binding with explicit engine selection, and rebuild ch
 `IMG-037` adds NVIDIA and
 NVIDIA+CachyOS recipes. Its first combined build exposed Fedora 44's root-only ostree hook;
 the recipe now suppresses that hook only during package installation, restores it, and
-uses the privilege-separating `akmods` path. CI plus a real NVIDIA hardware check remain.
+uses the privilege-separating `akmods` path. The next build proved that path but exposed
+non-writable RPM scratch directories, so IMG-037 also restores their standard `1777` mode
+and preflights access for the build account. CI plus a real NVIDIA hardware check remain.

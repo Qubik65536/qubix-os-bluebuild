@@ -1453,14 +1453,13 @@ should look at.
     GPUs. Its prebuilt module matches Fedora's kernel exactly and cannot survive the
     CachyOS swap. The combined variant therefore rebuilds Negativo17's `akmod-nvidia`
     against `kernel-cachyos-devel-matched`; BlueBuild's `akmods` module cannot do this
-    because it explicitly does not support custom kernels. The first Fedora 44 CI build
-    failed because the distro's `akmods-ostree-post` package hook invoked `akmodsbuild` as
-    root even though `akmodsbuild` now rejects root. The recipe now suppresses only that
-    automatic hook during the source-package transaction, restores the distro helper, and
-    runs the privilege-separating `akmods` orchestrator explicitly. All recipes parse,
-    embedded shell passes syntax checks, the expanded module order and workaround sequence
-    are asserted, local documentation links resolve, and CI still selects all four recipes
-    *(checked 2026-08-30)*.
+    because it explicitly does not support custom kernels. Two Fedora 44 CI failures
+    established the required build plumbing: suppress the root-only compose hook during
+    package installation, then restore it and standard `1777` modes on `/tmp` and
+    `/var/tmp` before the privilege-separated build. The recipe preflights both paths as
+    the `akmods` account. All recipes parse, embedded shell passes syntax checks, the
+    restore/permission/build order is asserted, local documentation links resolve, and CI
+    selects all four recipes *(checked 2026-08-31)*.
   - **Acceptance criteria:**
     - `recipe-nvidia.yml` publishes `qubix-os-bluebuild-nvidia` from
       `aurora-dx-nvidia-open`, preserving its matching NVIDIA Open driver and Fedora kernel

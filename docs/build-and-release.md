@@ -167,6 +167,10 @@ BlueBuild action's changelog before merging — a major bump can change module s
      build. Confirm `akmods` is installed before the hook-suppression step, that
      `akmod-nvidia` is installed between suppression and restoration, and that the
      explicit `akmods` call follows restoration. See DD-051.
+   - **`rpm-tmp…: Permission denied` / `failed to create package build directory`**
+     (NVIDIA+CachyOS) → the `akmods` account cannot use RPM's scratch directories. Keep
+     `/tmp` and `/var/tmp` at mode `1777` and retain the preflight write checks immediately
+     before `akmods`. See DD-051.
    - **NVIDIA+CachyOS fails in `akmods` or `modinfo`** → the current NVIDIA Open source
      did not compile or package against the current CachyOS kernel. Do not bypass the
      assertions; use the Fedora-kernel NVIDIA image until the two upstreams align. DD-051.

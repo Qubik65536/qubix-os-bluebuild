@@ -49,10 +49,12 @@ modules:
       packages:
         - akmod-nvidia
 
-  # 4. Restore Fedora's helper, compile for the one kernel the swap left behind, regenerate
-  #    module metadata, and fail closed unless the complete NVIDIA module set and userspace
-  #    utility exist. The root `akmods` orchestrator deliberately delegates compilation to
-  #    its unprivileged `akmods` account, then installs the resulting kmod RPM as root.
+  # 4. Restore Fedora's helper and the standard sticky modes on RPM's scratch directories,
+  #    which ostree container commits can leave inaccessible to the unprivileged builder.
+  #    Compile for the one kernel the swap left behind, regenerate module metadata, and
+  #    fail closed unless the complete NVIDIA module set and userspace utility exist. The
+  #    root `akmods` orchestrator deliberately delegates compilation to its unprivileged
+  #    `akmods` account, then installs the resulting kmod RPM as root.
   #    KERNEL_MODULE_TYPE=open is explicit even though Negativo17's current driver uses
   #    the open sources by default; it records the intended ABI and avoids silently
   #    drifting to the proprietary kernel module flavour.
@@ -61,6 +63,9 @@ modules:
       - |
         RUN set -eu \
             && mv -f /usr/sbin/akmods-ostree-post.qubix-original /usr/sbin/akmods-ostree-post \
+            && chmod 1777 /tmp /var/tmp \
+            && runuser -u akmods -- test -w /tmp \
+            && runuser -u akmods -- test -w /var/tmp \
             && test "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 \
             && KVER="$(basename "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d)")" \
             && echo "Building NVIDIA Open modules for ${KVER}" \

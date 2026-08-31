@@ -43,7 +43,8 @@ swap. After the swap, [`common-nvidia-cachyos.yml`](../recipes/common-nvidia-cac
    `akmod-nvidia` with its other package scripts intact;
 4. restores the unmodified Fedora hook, then has the root `akmods` orchestrator delegate
    the NVIDIA Open build to its `akmods` account for the exact kernel left in
-   `/usr/lib/modules`;
+   `/usr/lib/modules`; before delegation, it restores `/tmp` and `/var/tmp` to their
+   standard sticky, world-writable `1777` mode and checks that account can write them;
 5. runs `depmod` and fails the image build unless `nvidia`, `nvidia_drm`,
    `nvidia_modeset`, `nvidia_peermem`, and `nvidia_uvm` resolve, the module reports the
    open-source `MIT/GPL` licence, and `nvidia-smi` exists.
@@ -53,6 +54,12 @@ replacement. The original `/usr/sbin/akmods-ostree-post` is restored before comp
 so installed systems retain Fedora's runtime behaviour. Only the failing automatic build
 during this one image transaction is skipped; the explicit build immediately replaces it
 and must pass the module assertions.
+
+The scratch-directory repair is likewise build plumbing, not a relaxed system policy.
+`1777` is the normal mode for both temporary directories: every user may create a private
+build file, while the sticky bit prevents one user from deleting another user's files.
+Universal Blue has previously needed the same
+[`/var/tmp` restoration after an ostree container commit](https://github.com/ublue-os/hwe/commit/48dd697ff4cab166256603db34a43ccd13884f8f).
 
 This is deliberately marked **experimental**. BlueBuild's supported `akmods` module only
 serves cached modules for its named kernels and explicitly rejects custom kernels;

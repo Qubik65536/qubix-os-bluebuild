@@ -608,11 +608,13 @@ build account. A short `containerfile` step then backs up and suppresses
 `akmodsbuild` helper as root; it does not skip the NVIDIA package's other scriptlets.
 
 The final snippet first restores Fedora's pristine hook, finds the one installed CachyOS
-kernel, and invokes the root `akmods` orchestrator with `KERNEL_MODULE_TYPE=open`.
-`akmods` delegates compilation to its unprivileged account and installs the generated kmod
-RPM with root privileges. The snippet then runs `depmod` and asserts `nvidia`,
-`nvidia_drm`, `nvidia_modeset`, `nvidia_peermem`, and `nvidia_uvm` through `modinfo`. It
-also asserts the open module licence and the inherited `nvidia-smi` executable.
+kernel, restores the standard `1777` mode on `/tmp` and `/var/tmp`, and verifies both are
+writable by the `akmods` account. It then invokes the root `akmods` orchestrator with
+`KERNEL_MODULE_TYPE=open`. `akmods` delegates compilation to its unprivileged account and
+installs the generated kmod RPM with root privileges. The snippet then runs `depmod` and
+asserts `nvidia`, `nvidia_drm`, `nvidia_modeset`, `nvidia_peermem`, and `nvidia_uvm`
+through `modinfo`. It also asserts the open module licence and the inherited `nvidia-smi`
+executable.
 
 - **Ordering:** after `common-kernel-cachyos.yml`, which installs the target kernel and
   `kernel-cachyos-devel-matched`; before `common-identity.yml` and `initramfs`.

@@ -3080,6 +3080,14 @@ therefore fails its `%post` before a later explicit build can run. The ordinary 
 orchestrator has the correct privilege split: it runs as root, delegates compilation to
 the dedicated `akmods` account, and installs the resulting RPM with root privileges.
 
+That split also exposes container filesystem modes hidden by the old root build. RPM 6
+creates build scripts under `/var/tmp` and its build tree under `/tmp`; both must have the
+normal sticky, world-writable mode `1777`. The ostree container path can leave `/var/tmp`
+inaccessible to the build account—an established Universal Blue edge case with a prior
+[`/var/tmp` preservation fix](https://github.com/ublue-os/hwe/commit/48dd697ff4cab166256603db34a43ccd13884f8f).
+Restoring `1777` is not a special NVIDIA permission: it reinstates standard temporary-file
+semantics, where the sticky bit prevents users from deleting files owned by one another.
+
 **Decision.** Publish two additional, independently signed recipes:
 
 | Recipe | Published image | Base | Kernel-module path |
@@ -3098,7 +3106,8 @@ Keep the source build in `common-nvidia-cachyos.yml`, after
 1. install `akmods` first so its build account and compose hook exist;
 2. back up and temporarily short-circuit `akmods-ostree-post`, enable Negativo17, and
    install `akmod-nvidia` with the rest of its package transaction unchanged;
-3. restore Fedora's original hook before any validation or compilation;
+3. restore Fedora's original hook, set `/tmp` and `/var/tmp` to `1777`, and prove the
+   `akmods` account can write both before any compilation;
 4. identify the sole `/usr/lib/modules/<kver>` directory left by the swap and run
    `akmods --force --kernels <kver> --kmod nvidia` with `KERNEL_MODULE_TYPE=open`, then
    `depmod`;
@@ -3122,6 +3131,9 @@ NVIDIA userspace. A failed driver build is a failed variant build.
   The final image contains the original distro helper, not a Qubix fork; when Fedora fixes
   the privilege mismatch, this compatibility block can be removed without changing the
   driver-build policy.
+- The scratch-directory repair remains valid beyond that Fedora fix: `1777` is the normal
+  mode for `/tmp` and `/var/tmp`, and explicit preflight checks turn future ostree mode
+  regressions into an immediate, readable build failure.
 - The combined recipe retains `akmod-nvidia` and the CachyOS development package. That is
   intentional: the published module is built in CI, while the source package keeps the
   provenance and a diagnostic rebuild path visible instead of hiding generated files.
