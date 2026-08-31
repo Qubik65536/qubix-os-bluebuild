@@ -83,5 +83,6 @@ Plymouth check, and sits in **Awaiting confirmation** until the built image is c
 input check on the built image. Its first Niri check exposed Fedora's duplicate GTK module
 environment and an unreliable input toggle; the task now also tracks the Wayland
 correction, hardened Niri binding, and rebuild check. `IMG-037` adds NVIDIA and
-NVIDIA+CachyOS recipes; its combined custom-kernel driver path needs CI plus a real NVIDIA
-hardware check.
+NVIDIA+CachyOS recipes. Its first combined build exposed Fedora 44's root-only ostree hook;
+the recipe now suppresses that hook only during package installation, restores it, and
+uses the privilege-separating `akmods` path. CI plus a real NVIDIA hardware check remain.

@@ -162,6 +162,11 @@ BlueBuild action's changelog before merging — a major bump can change module s
    - **A package vanished from the CachyOS variant** → check the "Packages the kernel
      removal took with it" list in that build's log against the reinstall line in
      `common-kernel-cachyos.yml`.
+   - **`akmod-nvidia` `%post` says “Not to be used as root”** (NVIDIA+CachyOS) → Fedora's
+     `akmods-ostree-post` compose hook ran instead of the recipe's privilege-separated
+     build. Confirm `akmods` is installed before the hook-suppression step, that
+     `akmod-nvidia` is installed between suppression and restoration, and that the
+     explicit `akmods` call follows restoration. See DD-051.
    - **NVIDIA+CachyOS fails in `akmods` or `modinfo`** → the current NVIDIA Open source
      did not compile or package against the current CachyOS kernel. Do not bypass the
      assertions; use the Fedora-kernel NVIDIA image until the two upstreams align. DD-051.

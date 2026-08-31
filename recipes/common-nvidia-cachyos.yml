@@ -9,13 +9,35 @@
 # against kernel-cachyos-devel-matched. DD-051.
 #
 # BlueBuild's standard akmods module deliberately rejects custom kernels, so this module
-# runs akmods directly and asserts the result. CI is the only real build verification.
+# runs akmods directly and asserts the result. Fedora 44's ostree package hook still calls
+# akmodsbuild as root even though that helper now requires an unprivileged account; the
+# hook is suppressed only while the source package is installed, then restored. DD-051.
+# CI is the only real build verification.
 #
 # Docs:  docs/variants.md            (support boundary and caveats)
 #        docs/design-decisions.md    (DD-051 — why this is experimental)
 
 modules:
-  # 1. Install the akmod source from the same repository Universal Blue uses for its
+  # 1. Install the orchestrator first so its Fedora 44 ostree hook can be neutralised
+  #    before the NVIDIA source package invokes it. Installing this package normally also
+  #    creates the dedicated `akmods` build account used by the explicit build below.
+  - type: dnf
+    install:
+      packages:
+        - akmods
+
+  # 2. Save and temporarily short-circuit Fedora's compose-only helper. Its current F44
+  #    implementation launches `akmodsbuild` as root, which that same package rejects.
+  #    Runtime behaviour is not changed: the pristine helper is restored after the next
+  #    transaction and before the explicit build.
+  - type: containerfile
+    snippets:
+      - |
+        RUN set -eu \
+            && cp -a /usr/sbin/akmods-ostree-post /usr/sbin/akmods-ostree-post.qubix-original \
+            && sed -i '2i exit 0' /usr/sbin/akmods-ostree-post
+
+  # 3. Install the akmod source from the same repository Universal Blue uses for its
   #    NVIDIA images. `nonfree: negativo17` also disables RPM Fusion's conflicting
   #    NVIDIA repository for this transaction. The module removes its temporary repo
   #    file afterwards; installed packages and the inherited userspace driver remain.
@@ -27,8 +49,10 @@ modules:
       packages:
         - akmod-nvidia
 
-  # 2. Compile for the one kernel the swap left behind, regenerate module metadata, and
-  #    fail closed unless the complete NVIDIA module set and userspace utility exist.
+  # 4. Restore Fedora's helper, compile for the one kernel the swap left behind, regenerate
+  #    module metadata, and fail closed unless the complete NVIDIA module set and userspace
+  #    utility exist. The root `akmods` orchestrator deliberately delegates compilation to
+  #    its unprivileged `akmods` account, then installs the resulting kmod RPM as root.
   #    KERNEL_MODULE_TYPE=open is explicit even though Negativo17's current driver uses
   #    the open sources by default; it records the intended ABI and avoids silently
   #    drifting to the proprietary kernel module flavour.
@@ -36,6 +60,7 @@ modules:
     snippets:
       - |
         RUN set -eu \
+            && mv -f /usr/sbin/akmods-ostree-post.qubix-original /usr/sbin/akmods-ostree-post \
             && test "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 \
             && KVER="$(basename "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d)")" \
             && echo "Building NVIDIA Open modules for ${KVER}" \

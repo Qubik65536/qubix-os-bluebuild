@@ -26,8 +26,9 @@ described here or in `files/system/`.
   - `common-identity.yml` — module 5: the `os-release` rewrite. Split out because of its
     ordering constraint (must run late).
   - `common-kernel-cachyos.yml` — the kernel swap. Both CachyOS recipes only.
-  - `common-nvidia-cachyos.yml` — Negativo17 `akmod-nvidia`, a direct source build, and
-    assertions for the replacement kernel. **`recipe-nvidia-cachyos.yml` only.**
+  - `common-nvidia-cachyos.yml` — Negativo17 `akmod-nvidia`, a Fedora 44 compose-hook
+    compatibility guard, a privilege-separated source build, and assertions for the
+    replacement kernel. **`recipe-nvidia-cachyos.yml` only.**
 - **`from-file:` takes no arguments.** A variant needing a different value re-does the work
   after the shared module; the shared file never grows a switch.
 
@@ -82,10 +83,12 @@ described here or in `files/system/`.
   `aurora-dx-nvidia-open:latest`. Fedora's kernel, NVIDIA Open module, userspace driver,
   and Universal Blue integration are inherited as one matched unit. Turing or newer only.
 - `recipe-nvidia-cachyos.yml` publishes `qubix-os-bluebuild-nvidia-cachyos`. It runs the
-  CachyOS swap, then `common-nvidia-cachyos.yml` installs Negativo17 `akmod-nvidia` and
-  invokes `akmods` directly against the one installed CachyOS kernel. The build asserts
-  all five NVIDIA modules through `modinfo`, the open licence, and `nvidia-smi` before
-  rebuilding initramfs (DD-051).
+  CachyOS swap, then `common-nvidia-cachyos.yml` installs `akmods`, temporarily suppresses
+  Fedora 44's root-only ostree build hook while installing Negativo17 `akmod-nvidia`,
+  restores the hook, and invokes `akmods` against the one installed CachyOS kernel. The
+  orchestrator delegates compilation to its `akmods` account. The build asserts all five
+  NVIDIA modules through `modinfo`, the open licence, and `nvidia-smi` before rebuilding
+  initramfs (DD-051).
 - The combined path is experimental. BlueBuild's `akmods` module explicitly does not
   support custom kernels; CI compilation and real NVIDIA hardware remain the checks.
 

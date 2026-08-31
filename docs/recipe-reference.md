@@ -600,11 +600,18 @@ These distinguish one or more recipes from the shared Qubix composition. Full co
 *Defined in `common-nvidia-cachyos.yml`, immediately after the kernel swap in
 `recipe-nvidia-cachyos.yml` only.*
 
-The `dnf` module temporarily enables Negativo17 and installs `akmod-nvidia`. The following
-snippet finds the one installed CachyOS kernel, invokes `akmods` with
-`KERNEL_MODULE_TYPE=open`, runs `depmod`, and asserts `nvidia`, `nvidia_drm`,
-`nvidia_modeset`, `nvidia_peermem`, and `nvidia_uvm` through `modinfo`. It also asserts the
-open module licence and the inherited `nvidia-smi` executable.
+The first `dnf` module installs Fedora's `akmods` orchestrator and creates its dedicated
+build account. A short `containerfile` step then backs up and suppresses
+`akmods-ostree-post` while a second `dnf` module enables Negativo17 and installs
+`akmod-nvidia`. This works around Fedora 44's compose hook calling the now-unprivileged
+`akmodsbuild` helper as root; it does not skip the NVIDIA package's other scriptlets.
+
+The final snippet first restores Fedora's pristine hook, finds the one installed CachyOS
+kernel, and invokes the root `akmods` orchestrator with `KERNEL_MODULE_TYPE=open`.
+`akmods` delegates compilation to its unprivileged account and installs the generated kmod
+RPM with root privileges. The snippet then runs `depmod` and asserts `nvidia`,
+`nvidia_drm`, `nvidia_modeset`, `nvidia_peermem`, and `nvidia_uvm` through `modinfo`. It
+also asserts the open module licence and the inherited `nvidia-smi` executable.
 
 - **Ordering:** after `common-kernel-cachyos.yml`, which installs the target kernel and
   `kernel-cachyos-devel-matched`; before `common-identity.yml` and `initramfs`.

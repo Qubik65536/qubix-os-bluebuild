@@ -36,13 +36,23 @@ support as one tested unit. The combined NVIDIA+CachyOS variant cannot: a kernel
 built for one exact kernel ABI, so the inherited Fedora module leaves during the kernel
 swap. After the swap, [`common-nvidia-cachyos.yml`](../recipes/common-nvidia-cachyos.yml):
 
-1. enables Negativo17, the same NVIDIA driver source Universal Blue uses;
-2. installs `akmod-nvidia`;
-3. builds NVIDIA Open against `kernel-cachyos-devel-matched` for the exact kernel left in
+1. installs Fedora's `akmods` orchestrator and its dedicated build account;
+2. temporarily suppresses Fedora 44's broken ostree compose hook, which calls the
+   now-unprivileged `akmodsbuild` helper as root;
+3. enables Negativo17, the same NVIDIA driver source Universal Blue uses, and installs
+   `akmod-nvidia` with its other package scripts intact;
+4. restores the unmodified Fedora hook, then has the root `akmods` orchestrator delegate
+   the NVIDIA Open build to its `akmods` account for the exact kernel left in
    `/usr/lib/modules`;
-4. runs `depmod` and fails the image build unless `nvidia`, `nvidia_drm`,
+5. runs `depmod` and fails the image build unless `nvidia`, `nvidia_drm`,
    `nvidia_modeset`, `nvidia_peermem`, and `nvidia_uvm` resolve, the module reports the
    open-source `MIT/GPL` licence, and `nvidia-smi` exists.
+
+The temporary hook suppression is a Fedora 44 compatibility measure, not a shipped
+replacement. The original `/usr/sbin/akmods-ostree-post` is restored before compilation,
+so installed systems retain Fedora's runtime behaviour. Only the failing automatic build
+during this one image transaction is skipped; the explicit build immediately replaces it
+and must pass the module assertions.
 
 This is deliberately marked **experimental**. BlueBuild's supported `akmods` module only
 serves cached modules for its named kernels and explicitly rejects custom kernels;

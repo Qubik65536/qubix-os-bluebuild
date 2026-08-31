@@ -3062,6 +3062,15 @@ Negativo17 is nevertheless the same source Universal Blue consumes. Its current
 invokes that package with `KERNEL_MODULE_TYPE=open`. The CachyOS swap already installs
 `kernel-cachyos-devel-matched`, so the headers needed for a direct source build exist.
 
+Fedora 44 introduced a packaging contradiction in the ostree compose path. Its
+[`akmods-ostree-post`](https://src.fedoraproject.org/rpms/akmods/blob/f44/f/akmods-ostree-post)
+hook invokes `akmodsbuild` directly as root, while the same branch's
+[`akmodsbuild`](https://src.fedoraproject.org/rpms/akmods/blob/f44/f/akmodsbuild) refuses
+to run when `/var` is root-writable. Installing `akmod-nvidia` in the immutable base
+therefore fails its `%post` before a later explicit build can run. The ordinary `akmods`
+orchestrator has the correct privilege split: it runs as root, delegates compilation to
+the dedicated `akmods` account, and installs the resulting RPM with root privileges.
+
 **Decision.** Publish two additional, independently signed recipes:
 
 | Recipe | Published image | Base | Kernel-module path |
@@ -3077,13 +3086,16 @@ module.
 Keep the source build in `common-nvidia-cachyos.yml`, after
 `common-kernel-cachyos.yml` and before identity/initramfs. It must:
 
-1. enable Negativo17 through the BlueBuild `dnf` module and install `akmod-nvidia`;
-2. identify the sole `/usr/lib/modules/<kver>` directory left by the swap;
-3. run `akmods --force --kernels <kver> --kmod nvidia` with
-   `KERNEL_MODULE_TYPE=open`, then `depmod`;
-4. fail unless all five expected NVIDIA modules resolve through `modinfo`, the primary
+1. install `akmods` first so its build account and compose hook exist;
+2. back up and temporarily short-circuit `akmods-ostree-post`, enable Negativo17, and
+   install `akmod-nvidia` with the rest of its package transaction unchanged;
+3. restore Fedora's original hook before any validation or compilation;
+4. identify the sole `/usr/lib/modules/<kver>` directory left by the swap and run
+   `akmods --force --kernels <kver> --kmod nvidia` with `KERNEL_MODULE_TYPE=open`, then
+   `depmod`;
+5. fail unless all five expected NVIDIA modules resolve through `modinfo`, the primary
    module reports its open licence, and `nvidia-smi` is installed;
-5. run `initramfs` only afterwards, so the archive sees the completed module tree.
+6. run `initramfs` only afterwards, so the archive sees the completed module tree.
 
 Do not silently fall back to Nouveau and do not publish a combined recipe containing only
 NVIDIA userspace. A failed driver build is a failed variant build.
@@ -3097,6 +3109,10 @@ NVIDIA userspace. A failed driver build is a failed variant build.
 - NVIDIA+CachyOS is explicitly experimental. Every daily image build recompiles a module
   across two independently moving upstreams; CI can prove compilation and file presence,
   but only hardware can prove GPU initialisation and `nvidia-smi` operation.
+- The Fedora 44 hook workaround exists only across the `akmod-nvidia` install transaction.
+  The final image contains the original distro helper, not a Qubix fork; when Fedora fixes
+  the privilege mismatch, this compatibility block can be removed without changing the
+  driver-build policy.
 - The combined recipe retains `akmod-nvidia` and the CachyOS development package. That is
   intentional: the published module is built in CI, while the source package keeps the
   provenance and a diagnostic rebuild path visible instead of hiding generated files.
