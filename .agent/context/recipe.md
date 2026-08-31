@@ -141,9 +141,9 @@ described here or in `files/system/`.
 - Fcitx is **packaged, not compiled** (DD-050). `fcitx5-chinese-addons` supplies Pinyin;
   `fcitx5-autostart` covers Niri and Fedora's compatibility environment; `kcm-fcitx5`
   supplies KDE's settings page. The system profile, Plasma `Super+space` hotkey, Niri
-  `Ctrl+space` remote toggle, KWin selection, and Wayland GTK environment correction live
-  in the overlay. The last unsets Fedora's broad `GTK_IM_MODULE` on Wayland and retains
-  GTK 3/4 X11 fallback through system settings.
+  non-repeating/non-inhibitable `Ctrl+space` remote toggle, KWin selection, and Wayland GTK
+  environment correction live in the overlay. The last unsets Fedora's broad
+  `GTK_IM_MODULE` on Wayland and retains GTK 3/4 X11 fallback through system settings.
 - **`zsh-completions` is a build step, not a package.** Fedora does not ship it and the
   `@zsh-users/zsh-completions` COPR has **no chroots at all** — verified against the COPR
   API, so do not "simplify" it back into the `dnf` list. The clone is pinned by tag *and*

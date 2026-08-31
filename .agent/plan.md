@@ -1480,14 +1480,17 @@ should look at.
     of maintaining locally compiled copies. The image supplies an XDG fallback profile;
     a user's own Fcitx or KWin configuration remains higher priority. The first Niri
     hardware check found Fedora's broad `GTK_IM_MODULE` export alongside a working
-    Wayland frontend; the image now narrows that environment and awaits a rebuilt check.
+    Wayland frontend, and `Ctrl+Space` did not reliably toggle. The image now narrows that
+    environment, makes the compositor binding non-repeating and non-inhibitable, and
+    awaits a rebuilt check.
   - **Acceptance criteria:**
     - Every image installs Fcitx 5, Fedora's Pinyin engine, the KDE configuration UI,
       autostart integration, and GTK/Qt input-method bridges from Fedora packages
     - Accounts without personal Fcitx configuration get English (US) and Pinyin;
       Plasma switches them with `Super+Space` (Windows/Meta key + Space)
     - Niri keeps `Super+Space` for the DMS application launcher and switches English/Pinyin
-      with `Ctrl+Space` through Fcitx's remote-control interface
+      with `Ctrl+Space` through Fcitx's remote-control interface; the toggle neither repeats
+      nor yields to an application's keyboard-shortcut inhibitor
     - Plasma selects the host Fcitx desktop entry as its default Wayland virtual keyboard;
       Niri starts Fcitx through XDG autostart
     - Wayland sessions leave `GTK_IM_MODULE` unset so native GTK uses the compositor's
