@@ -23,11 +23,11 @@ No code at the end of a reply = the instructions were not followed.
 `qubix-os-bluebuild` builds **Qubix OS**, a custom immutable Fedora Atomic OCI image,
 using [BlueBuild](https://blue-build.org). It is a *declarative image definition*, not an
 application: there is no application code, no test suite, and nothing to run locally.
-The "program" is `recipes/recipe.yml`, and the "compiler" is the BlueBuild GitHub Action.
+The "programs" are `recipes/recipe*.yml`, and the "compiler" is the BlueBuild GitHub Action.
 
-- **Base image:** `ghcr.io/ublue-os/aurora-dx:latest` (Universal Blue Aurora DX = Fedora
-  Kinoite / KDE Plasma + developer tooling)
-- **Published to:** `ghcr.io/qubik65536/qubix-os-bluebuild`
+- **Base images:** `ghcr.io/ublue-os/aurora-dx:latest` and its
+  `aurora-dx-nvidia-open:latest` sibling (Fedora Kinoite / KDE Plasma + developer tooling)
+- **Published to:** the `ghcr.io/qubik65536/qubix-os-bluebuild*` image family
 - **Signed with:** Sigstore cosign (`cosign.pub` in repo root)
 
 Full detail lives in `docs/`. Start at [`docs/README.md`](docs/README.md).
@@ -132,7 +132,7 @@ tables over prose for reference material, and consistent terminology
 
 | Path | Purpose |
 |---|---|
-| `recipes/recipe.yml` | The image definition. Modules run top-to-bottom. The core of the repo. |
+| `recipes/recipe*.yml` | The four image definitions. Modules run top-to-bottom. The core of the repo. |
 | `files/system/` | Files copied verbatim into the image root (`/`). Mostly branding. |
 | `files/scripts/` | Shell scripts invokable by the `script` module. Currently only an example. |
 | `modules/` | Custom BlueBuild modules. Empty placeholder. |
@@ -164,7 +164,7 @@ these instructions. Duplicated instructions drift and drift is worse than absenc
 - **There is no local build.** Images are built only in GitHub Actions. Do not claim a
   change is "verified" unless CI ran. Local validation is limited to linting YAML,
   checking file paths, and reasoning about the recipe.
-- **Module order in `recipe.yml` matters.** Modules execute sequentially; `files` runs
+- **Module order in every recipe matters.** Modules execute sequentially; `files` runs
   before `dnf` today, and the `containerfile` snippet that rewrites `os-release` must run
   after anything that could reset it. `signing` stays last.
 - **`files/system/**` is copied verbatim.** A path in this repo is the path in the image.

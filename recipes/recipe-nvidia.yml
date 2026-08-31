@@ -1,0 +1,46 @@
+---
+# yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
+#
+# Qubix OS — NVIDIA variant. Fedora's kernel plus NVIDIA's open kernel modules.
+#
+# The driver comes from Aurora's matching `aurora-dx-nvidia-open` image rather than being
+# layered here. Universal Blue builds its NVIDIA module against the exact Fedora kernel in
+# that base, keeping the kernel, module, userspace driver, and support integration aligned.
+# DD-051.
+#
+# Supports NVIDIA Turing and newer GPUs. Older NVIDIA hardware needs a legacy proprietary
+# driver and is outside this variant's scope; see docs/variants.md.
+#
+# Docs:  docs/variants.md            (hardware support and how to switch)
+#        docs/recipe-reference.md    (what every key and module does)
+#        docs/design-decisions.md    (why — DD-051)
+
+# ── Image identity ──────────────────────────────────────────────────────
+name: qubix-os-bluebuild-nvidia
+description: Customized OS Image, built with BlueBuild, based on Universal Blue Aurora, with NVIDIA Open drivers.
+
+# ── Base image (FROM) ─────────────────────────────────────────────────────────
+# Aurora's NVIDIA image carries a prebuilt open module matched to this Fedora kernel.
+# Keep the channel aligned with every other recipe. DD-018, DD-051.
+base-image: ghcr.io/ublue-os/aurora-dx-nvidia-open
+image-version: latest
+
+# ── Modules (executed in order) ───────────────────────────────────────────────
+modules:
+  # Overlay, packages, flatpaks, build steps, and service enablement — shared.
+  - from-file: common-base.yml
+
+  # Shared distribution identity first, then the variant-specific human-readable name.
+  - from-file: common-identity.yml
+
+  - type: containerfile
+    snippets:
+      - |
+        RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+
+  # Rebuild after the Plymouth overlay while retaining the matching NVIDIA module.
+  - type: initramfs
+
+  # Client-side cosign trust configuration stays last. DD-008.
+  - type: signing

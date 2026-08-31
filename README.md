@@ -6,7 +6,7 @@ on top of [Universal Blue](https://universal-blue.org)'s Aurora DX.
 | | |
 |---|---|
 | **Image** | `ghcr.io/qubik65536/qubix-os-bluebuild` |
-| **Base** | `ghcr.io/ublue-os/aurora-dx:latest` (Fedora Kinoite → Aurora → Aurora DX) |
+| **Base** | Aurora DX (`aurora-dx` or `aurora-dx-nvidia-open`, `latest`) |
 | **Desktop** | KDE Plasma, plus a Niri session |
 | **Signed** | Sigstore cosign — `cosign.pub` |
 | **Rebuilt** | Daily at 06:00 UTC, and on every push |
@@ -19,15 +19,18 @@ Everything else is inherited upstream. The full delta is in
 
 ## Variants
 
-Two images are published. They are identical except for the kernel — see
+Four images are published across kernel and NVIDIA-support dimensions — see
 [`docs/variants.md`](docs/variants.md).
 
-| Variant | Image | Kernel | Requirements |
+| Variant | Image suffix | Kernel / driver | Requirements |
 |---|---|---|---|
-| **Standard** | `ghcr.io/qubik65536/qubix-os-bluebuild` | Fedora's | — |
-| **CachyOS** | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` | CachyOS (`kernel-cachyos`) | x86-64-v3 CPU; Secure Boot off, or your own key enrolled |
+| **Standard** | `qubix-os-bluebuild` | Fedora / generic | — |
+| **CachyOS** | `qubix-os-bluebuild-cachyos` | CachyOS / generic | x86-64-v3; CachyOS Secure Boot caveat |
+| **NVIDIA** | `qubix-os-bluebuild-nvidia` | Fedora / NVIDIA Open | Turing or newer |
+| **NVIDIA+CachyOS** | `qubix-os-bluebuild-nvidia-cachyos` | CachyOS / NVIDIA Open | Turing or newer; x86-64-v3; experimental |
 
-Run the standard image unless you specifically want the CachyOS kernel.
+Run Standard on non-NVIDIA hardware or NVIDIA on a supported NVIDIA GPU; choose CachyOS
+only when you specifically want its kernel.
 
 ## Documentation
 
@@ -76,7 +79,9 @@ the policy, the second one uses it.
   systemctl reboot
   ```
 
-For the CachyOS variant, substitute `qubix-os-bluebuild-cachyos` for `qubix-os-bluebuild` in both commands — and read [`docs/variants.md`](docs/variants.md) first, because it has hardware requirements the standard image does not.
+For another variant, substitute its image suffix from the table in both commands. Read
+[`docs/variants.md`](docs/variants.md) first: the NVIDIA and CachyOS images have hardware
+and Secure Boot requirements the standard image does not.
 
 The `latest` tag will automatically point to the latest build. That build will still always use the Fedora version specified in the recipe, so you won't get accidentally updated to the next major version.
 
@@ -93,6 +98,8 @@ These images are signed with [Sigstore](https://www.sigstore.dev/)'s [cosign](ht
 ```bash
 cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild
 ```
+
+Substitute another variant's full image name to verify it.
 
 ## License
 

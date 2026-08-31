@@ -1,0 +1,53 @@
+---
+# yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
+#
+# Qubix OS — NVIDIA+CachyOS variant.
+#
+# Starts from Aurora's NVIDIA Open image, swaps Fedora's kernel for CachyOS's, then rebuilds
+# the NVIDIA Open modules against that exact replacement kernel. This combination is
+# experimental: neither BlueBuild nor Universal Blue publishes cached NVIDIA modules for
+# custom kernels, so every Qubix build compiles and asserts its own. DD-051.
+#
+# REQUIRES an x86-64-v3 CPU, a Turing-or-newer NVIDIA GPU, and Secure Boot disabled or a
+# locally signed CachyOS kernel. Read docs/variants.md before rebasing.
+#
+# Docs:  docs/variants.md            (requirements, caveats, how to switch)
+#        docs/recipe-reference.md    (what every key and module does)
+#        docs/design-decisions.md    (why — DD-051)
+
+# ── Image identity ──────────────────────────────────────────────────────
+name: qubix-os-bluebuild-nvidia-cachyos
+description: Customized OS Image, built with BlueBuild, based on Universal Blue Aurora, with NVIDIA Open drivers and the CachyOS kernel.
+
+# ── Base image (FROM) ─────────────────────────────────────────────────────────
+# The inherited userspace driver comes from Aurora; its Fedora-kernel kmod is replaced
+# below. Keep the channel aligned with every other recipe. DD-018, DD-051.
+base-image: ghcr.io/ublue-os/aurora-dx-nvidia-open
+image-version: latest
+
+# ── Modules (executed in order) ───────────────────────────────────────────────
+modules:
+  # Everything common to Qubix OS.
+  - from-file: common-base.yml
+
+  # Fedora kernel out, CachyOS kernel and matching development files in.
+  - from-file: common-kernel-cachyos.yml
+
+  # Rebuild the inherited NVIDIA Open driver for the replacement kernel.
+  - from-file: common-nvidia-cachyos.yml
+
+  # Shared distribution identity after all package operations.
+  - from-file: common-identity.yml
+
+  # Variant identity names both dimensions explicitly.
+  - type: containerfile
+    snippets:
+      - |
+        RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+
+  # Generate the replacement kernel's initramfs only after its NVIDIA modules exist.
+  - type: initramfs
+
+  # Client-side cosign trust configuration stays last. DD-008.
+  - type: signing

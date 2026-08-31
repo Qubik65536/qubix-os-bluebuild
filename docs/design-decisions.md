@@ -3000,3 +3000,82 @@ is additive.
   then remains theirs.
 - A checkout can verify package names, file syntax, and cascade paths, but actual Pinyin
   entry in native Wayland and XWayland clients under both sessions needs the built image.
+
+---
+
+## DD-051 — NVIDIA variants inherit Aurora Open; CachyOS rebuilds that driver from source
+
+**Status:** Accepted
+
+**Implements:** `IMG-037`
+
+**Extends:** [DD-016](#dd-016--one-recipe-per-variant-composed-from-shared-module-files)
+and [DD-017](#dd-017--ship-a-cachyos-kernel-variant-as-a-separate-image-not-an-option)
+
+**Context.** Qubix needs NVIDIA and NVIDIA+CachyOS images without turning the shared
+recipe into a hardware switch. Aurora's current NVIDIA image is
+[`aurora-dx-nvidia-open`](https://github.com/ublue-os/aurora/pkgs/container/aurora-dx-nvidia-open/):
+it carries NVIDIA's open kernel modules, userspace driver, and Universal Blue integration
+matched to the exact Fedora kernel in that image. Universal Blue documents the open driver
+for [Turing and newer hardware](https://github.com/ublue-os/akmods#nvidia-hardware-support);
+Pascal and Maxwell need the older proprietary flavour and are outside Aurora's current
+image set.
+
+That prebuilt module cannot be copied across a kernel swap. Kernel-module RPMs require one
+exact `kernel-uname-r`, which is why DD-017 removes every inherited `kmod-*` with Fedora's
+kernel. CachyOS also [stopped publishing prebuilt NVIDIA modules on
+2026-02-23](https://github.com/CachyOS/copr-linux-cachyos), advising RPM Fusion or
+Negativo17 instead. BlueBuild's
+[`akmods` module](https://blue-build.org/reference/modules/akmods/) uses Universal Blue's
+cached module images and explicitly does not support custom kernels, so it cannot bridge
+the gap.
+
+Negativo17 is nevertheless the same source Universal Blue consumes. Its current
+`akmod-nvidia` package builds NVIDIA's open kernel modules, and Universal Blue's own
+[`akmods` builder](https://github.com/ublue-os/akmods/blob/main/build_files/nvidia/build-kmod-nvidia.sh)
+invokes that package with `KERNEL_MODULE_TYPE=open`. The CachyOS swap already installs
+`kernel-cachyos-devel-matched`, so the headers needed for a direct source build exist.
+
+**Decision.** Publish two additional, independently signed recipes:
+
+| Recipe | Published image | Base | Kernel-module path |
+|---|---|---|---|
+| `recipe-nvidia.yml` | `qubix-os-bluebuild-nvidia` | `aurora-dx-nvidia-open:latest` | Inherit Aurora's prebuilt NVIDIA Open module and matching Fedora kernel together |
+| `recipe-nvidia-cachyos.yml` | `qubix-os-bluebuild-nvidia-cachyos` | `aurora-dx-nvidia-open:latest` | Swap to CachyOS, then build Negativo17 `akmod-nvidia` against that exact kernel |
+
+Use `nvidia-cachyos`, not `nvidia-cachy`, so the public name composes the existing stable
+`nvidia` and `cachyos` identifiers. The suffix says which image to pull; documentation and
+`PRETTY_NAME` say **NVIDIA Open** so nobody mistakes it for the legacy proprietary kernel
+module.
+
+Keep the source build in `common-nvidia-cachyos.yml`, after
+`common-kernel-cachyos.yml` and before identity/initramfs. It must:
+
+1. enable Negativo17 through the BlueBuild `dnf` module and install `akmod-nvidia`;
+2. identify the sole `/usr/lib/modules/<kver>` directory left by the swap;
+3. run `akmods --force --kernels <kver> --kmod nvidia` with
+   `KERNEL_MODULE_TYPE=open`, then `depmod`;
+4. fail unless all five expected NVIDIA modules resolve through `modinfo`, the primary
+   module reports its open licence, and `nvidia-smi` is installed;
+5. run `initramfs` only afterwards, so the archive sees the completed module tree.
+
+Do not silently fall back to Nouveau and do not publish a combined recipe containing only
+NVIDIA userspace. A failed driver build is a failed variant build.
+
+**Consequences.**
+
+- Turing and newer are the supported NVIDIA boundary. Qubix publishes no Pascal/Maxwell
+  legacy-driver image.
+- The Fedora-kernel NVIDIA image stays on Aurora's supported path and receives its driver
+  as part of the daily base update.
+- NVIDIA+CachyOS is explicitly experimental. Every daily image build recompiles a module
+  across two independently moving upstreams; CI can prove compilation and file presence,
+  but only hardware can prove GPU initialisation and `nvidia-smi` operation.
+- The combined recipe retains `akmod-nvidia` and the CachyOS development package. That is
+  intentional: the published module is built in CI, while the source package keeps the
+  provenance and a diagnostic rebuild path visible instead of hiding generated files.
+- Both CachyOS recipes retain DD-017's unsigned-kernel Secure Boot caveat. Rebuilding the
+  NVIDIA module does not sign the kernel, and the kernel's disabled module-signature
+  enforcement does not turn that into a locked-down boot chain.
+- CI grows from two to four independent matrix jobs. `fail-fast: false` keeps a driver or
+  CachyOS regression from cancelling the unaffected variants.

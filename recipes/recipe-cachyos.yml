@@ -24,8 +24,8 @@ name: qubix-os-bluebuild-cachyos
 description: Customized OS Image, built with BlueBuild, based on Universal Blue Aurora, running the CachyOS kernel.
 
 # ── Base image (FROM) ─────────────────────────────────────────────────────────
-# Same base and same channel as the standard image; only the kernel differs.
-# Keep this in step with recipes/recipe.yml — the variants must differ ONLY in the kernel.
+# Same base and channel as the non-NVIDIA standard image; only the kernel differs within
+# that pair. Keep this in step with recipes/recipe.yml.
 # DD-002, superseded by DD-018.
 base-image: ghcr.io/ublue-os/aurora-dx
 image-version: latest

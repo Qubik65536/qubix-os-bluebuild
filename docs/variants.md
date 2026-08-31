@@ -1,20 +1,55 @@
 # Variants
 
-Qubix OS is published as more than one image. The variants share everything except the
-one dimension named in the table — same branding, same packages, same desktop sessions,
-same flatpaks, same signing key.
+Qubix OS is published as four images. They share the Qubix overlay, applications, desktop
+sessions, flatpaks, and signing key; two independent dimensions select Fedora or CachyOS's
+kernel and generic graphics support or NVIDIA Open.
 
-| Variant | Image | Kernel | Requirements |
+| Variant | Image suffix | Base / kernel | Requirements |
 |---|---|---|---|
-| **Standard** | `ghcr.io/qubik65536/qubix-os-bluebuild` | Fedora's, as shipped by Aurora DX | None beyond Aurora DX's |
-| **CachyOS** | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` | `kernel-cachyos` from COPR `bieszczaders/kernel-cachyos` | **x86-64-v3 CPU**; Secure Boot off, or [your own key enrolled](#secure-boot) |
+| **Standard** | `qubix-os-bluebuild` | Aurora DX / Fedora | None beyond Aurora DX's |
+| **CachyOS** | `qubix-os-bluebuild-cachyos` | Aurora DX / `kernel-cachyos` | **x86-64-v3 CPU**; Secure Boot off, or [your own key enrolled](#secure-boot) |
+| **NVIDIA** | `qubix-os-bluebuild-nvidia` | Aurora DX NVIDIA Open / Fedora | NVIDIA Turing or newer |
+| **NVIDIA+CachyOS** | `qubix-os-bluebuild-nvidia-cachyos` | Aurora DX NVIDIA Open / `kernel-cachyos` | Turing or newer; x86-64-v3; the CachyOS Secure Boot caveat; **experimental** |
 
-Recipes: [`recipe.yml`](../recipes/recipe.yml) and
-[`recipe-cachyos.yml`](../recipes/recipe-cachyos.yml). Both compose the same shared module
-files (DD-016), so a package added to Qubix OS lands in both.
+The four `recipe*.yml` files compose shared module files (DD-016), so a package added to
+Qubix OS lands in every image. The full file map is in
+[`recipe-reference.md`](recipe-reference.md).
 
-**Which should you run?** The standard image, unless you specifically want the CachyOS
-kernel. It is the one Fedora tests, signs, and ships security updates for.
+**Which should you run?** Standard on non-NVIDIA systems; NVIDIA on supported NVIDIA
+hardware. Pick a CachyOS variant only when you specifically want that kernel. Fedora's
+kernel is the one Fedora tests and signs.
+
+## The NVIDIA variants
+
+Aurora publishes `aurora-dx-nvidia-open` with NVIDIA's userspace driver, integration, and
+open kernel modules already matched to its exact Fedora kernel. `recipe-nvidia.yml`
+inherits that image directly. The user-facing suffix is `nvidia`; the implementation is
+specifically **NVIDIA Open**, not the older proprietary kernel module flavour (DD-051).
+
+NVIDIA Open supports Turing and newer generations: GeForce RTX 20/30/40/50 series,
+GeForce 16 series, and corresponding workstation/datacentre GPUs. It does not support
+Pascal, Maxwell, or older cards. Those need a legacy/proprietary driver branch which
+Aurora no longer publishes, so neither NVIDIA variant is appropriate for them.
+
+The plain NVIDIA variant inherits Aurora's prebuilt module and Fedora-kernel Secure Boot
+support as one tested unit. The combined NVIDIA+CachyOS variant cannot: a kernel module is
+built for one exact kernel ABI, so the inherited Fedora module leaves during the kernel
+swap. After the swap, [`common-nvidia-cachyos.yml`](../recipes/common-nvidia-cachyos.yml):
+
+1. enables Negativo17, the same NVIDIA driver source Universal Blue uses;
+2. installs `akmod-nvidia`;
+3. builds NVIDIA Open against `kernel-cachyos-devel-matched` for the exact kernel left in
+   `/usr/lib/modules`;
+4. runs `depmod` and fails the image build unless `nvidia`, `nvidia_drm`,
+   `nvidia_modeset`, `nvidia_peermem`, and `nvidia_uvm` resolve, the module reports the
+   open-source `MIT/GPL` licence, and `nvidia-smi` exists.
+
+This is deliberately marked **experimental**. BlueBuild's supported `akmods` module only
+serves cached modules for its named kernels and explicitly rejects custom kernels;
+CachyOS stopped publishing prebuilt NVIDIA modules in February 2026. Qubix therefore
+compiles this combination in its own CI. A green build proves compilation and packaging,
+not that a particular GPU can initialise; confirm `nvidia-smi` on hardware before relying
+on the deployment.
 
 ## The CachyOS variant
 
@@ -48,7 +83,8 @@ A line marked `(supported, searched)` means you are fine. If only `x86-64-v2` is
 supported, do not use this variant — the COPR's `-lts` and `-server` kernels build for
 v2, and adopting one is a recipe change, not a user choice.
 
-**2. Decide what to do about Secure Boot.** The CachyOS kernel is unsigned, so with
+**2. Decide what to do about Secure Boot.** The CachyOS kernel is unsigned in both
+CachyOS variants, so with
 Secure Boot on it will not boot until you sign it yourself. Turning Secure Boot off is the
 one-step answer; the [Secure Boot](#secure-boot) section below is the other one.
 
@@ -59,8 +95,10 @@ one-step answer; the [Secure Boot](#secure-boot) section below is the other one.
   version. Today that means `kmod-v4l2loopback` (virtual webcam devices, used by OBS and
   similar) and `kmod-xone` (Xbox One controller dongle), plus their userspace halves. The
   build log lists them before the swap.
-- CachyOS stopped shipping prebuilt NVIDIA drivers in February 2026. On proprietary NVIDIA
-  hardware, stay on the standard image.
+- The plain CachyOS image contains no NVIDIA driver matched to its replacement kernel.
+  Supported NVIDIA hardware needs the experimental NVIDIA+CachyOS image instead.
+- NVIDIA+CachyOS rebuilds one driver against every new kernel. Either upstream can break
+  that compilation even when the other three variants remain healthy.
 - No Fedora QA. The kernel version follows CachyOS's releases and can change between two
   daily builds of this image.
 
@@ -84,7 +122,7 @@ Machine Owner Key (MOK) of your own — enrol once, then **re-sign after every u
 > and is checked by `rpm-ostree` at rebase time, not by your firmware at boot (DD-008).
 > A verified image and a Secure Boot–bootable kernel are independent properties.
 
-`sbsigntools` and `mokutil` ship on this variant, so nothing needs layering first.
+`sbsigntools` and `mokutil` ship on both CachyOS variants, so nothing needs layering first.
 
 #### 1. Create a key (once)
 
@@ -165,8 +203,9 @@ lives in a repository secret and never reaches a published layer — tracked as 
 
 ### Installing
 
-First install is two steps for the same reason as the standard image — the verification
-policy ships inside the image (see [`usage.md`](usage.md)):
+First install is two steps for every variant because the verification policy ships inside
+the image (see [`usage.md`](usage.md)). Substitute the image suffix from the table above;
+this example selects CachyOS:
 
 ```bash
 rpm-ostree rebase ostree-unverified-registry:ghcr.io/qubik65536/qubix-os-bluebuild-cachyos:latest
@@ -178,8 +217,8 @@ rpm-ostree rebase ostree-image-signed:docker://ghcr.io/qubik65536/qubix-os-blueb
 systemctl reboot
 ```
 
-If you are already running the standard Qubix OS image, the policy is already installed —
-one signed rebase is enough.
+If you are already running any Qubix OS image, the policy is already installed — one
+signed rebase is enough.
 
 ### Switching back
 
@@ -209,8 +248,11 @@ grep PRETTY_NAME /etc/os-release
 |---|---|
 | Standard | `Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)` |
 | CachyOS | `Qubix OS (BlueBuild Image, CachyOS Kernel, Version: <IMAGE_VERSION>)` |
+| NVIDIA | `Qubix OS (BlueBuild Image, NVIDIA Open, Version: <IMAGE_VERSION>)` |
+| NVIDIA+CachyOS | `Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: <IMAGE_VERSION>)` |
 
-`ID` and `NAME` are the same on both — it is the same distribution, built two ways.
+`ID` and `NAME` are shared — it is the same distribution, built four ways. On an NVIDIA
+variant also check `nvidia-smi`; on a CachyOS variant `uname -r` must contain `cachyos`.
 
 ## How the swap works
 
@@ -229,7 +271,8 @@ In [`common-kernel-cachyos.yml`](../recipes/common-kernel-cachyos.yml), in this 
    now exists.
 7. Diff the package list against step 2, log what the removal took, and reinstall the
    packages the CachyOS kernel can satisfy.
-8. (In the recipe.) Run the `initramfs` module — a kernel installed in a container build
+8. (NVIDIA+CachyOS only.) Build and assert the NVIDIA Open modules for the new kernel.
+9. (In the recipe.) Run the `initramfs` module — a kernel installed in a container build
    has no `initramfs.img` until something generates one.
 
 Two of those steps are not obvious:
@@ -244,7 +287,7 @@ you run depmod?` — because the CachyOS RPMs ship no `modules.dep` and nothing 
 one in a container. The failing scriptlet fails the whole build, so the install skips
 scriptlets and the build runs the part that matters itself.
 
-DD-017 records this and the rest of the reasoning.
+DD-017 records the swap; DD-051 records the NVIDIA variants and custom-kernel build.
 
 ## Adding another variant
 

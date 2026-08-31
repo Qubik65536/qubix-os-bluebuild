@@ -17,7 +17,8 @@ name: bluebuild
 # ── Triggers ──────────────────────────────────────────────────────────────────
 on:
   # Daily rebuild so upstream Aurora security fixes reach users within ~24h. DD-009.
-  # This also picks up new CachyOS kernel builds for the variant image (DD-017).
+  # This also picks up new CachyOS kernels and NVIDIA driver builds for the variants
+  # that consume them (DD-017, DD-051).
   schedule:
     - cron:
         "00 06 * * *" # build at 06:00 UTC every day
@@ -47,6 +48,8 @@ on:
           - all
           - recipe.yml
           - recipe-cachyos.yml
+          - recipe-nvidia.yml
+          - recipe-nvidia-cachyos.yml
 
 # ── Concurrency ───────────────────────────────────────────────────────────────
 # One run per ref; a newer push cancels the running one, so rapid pushes cost a
@@ -76,7 +79,7 @@ jobs:
           set -euo pipefail
           if [ "${SELECTION}" = "all" ]; then
             # !! Add new recipes here AND to the workflow_dispatch options above.
-            RECIPES='["recipe.yml","recipe-cachyos.yml"]'
+            RECIPES='["recipe.yml","recipe-cachyos.yml","recipe-nvidia.yml","recipe-nvidia-cachyos.yml"]'
           else
             RECIPES="[\"${SELECTION}\"]"
           fi
@@ -100,8 +103,8 @@ jobs:
       id-token: write # OIDC token for cosign/Sigstore
 
     # One job per recipe, from the job above. fail-fast is off so one broken variant
-    # doesn't cancel the others — a kernel COPR outage must not stop the standard image
-    # from shipping.
+    # doesn't cancel the others — a kernel COPR or NVIDIA build failure must not stop
+    # the unaffected images from shipping.
     strategy:
       fail-fast: false # stop GH from cancelling all matrix builds if one fails
       matrix:
@@ -110,7 +113,7 @@ jobs:
     steps:
       # The build, tag, sign, and push are all handled by the reusable action.
       # The cosign private key lives only in the SIGNING_SECRET repository secret —
-      # never in git (.gitignore blocks cosign.key / cosign.private). Both images are
+      # never in git (.gitignore blocks cosign.key / cosign.private). All variants are
       # signed with the same key. DD-008.
       - name: Build Custom Image
         uses: blue-build/github-action@v1.11

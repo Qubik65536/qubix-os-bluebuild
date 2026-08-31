@@ -7,10 +7,10 @@ of the quick instructions in the [root README](../README.md).
 > Bazzite, …). Rebasing replaces the OS image while keeping `/home` and `/etc`
 > customisations.
 
-This page uses the **standard** image throughout. A second image with the CachyOS kernel
-is also published, with hardware requirements of its own — see
-[`variants.md`](variants.md). Every command below works for it by substituting
-`qubix-os-bluebuild-cachyos` for `qubix-os-bluebuild`.
+This page uses the **standard** image throughout. Four variants are published; every
+command works for another one by substituting its image suffix. Read
+[`variants.md`](variants.md) before choosing NVIDIA or CachyOS because those images have
+hardware and Secure Boot requirements of their own.
 
 ## First install (two steps, on purpose)
 
@@ -139,7 +139,7 @@ Expected fields on Qubix OS:
 |---|---|
 | `ID` | `qubix_os_bluebuild` |
 | `NAME` | `QubixOS-BlueBuild` |
-| `PRETTY_NAME` | `Qubix OS (BlueBuild Image, Version: <upstream IMAGE_VERSION>)`, with `CachyOS Kernel,` inserted before `Version` on that variant |
+| `PRETTY_NAME` | Names the selected dimensions: standard, `CachyOS Kernel`, `NVIDIA Open`, or `NVIDIA Open, CachyOS Kernel`, followed by the upstream `IMAGE_VERSION` |
 
 The version in `PRETTY_NAME` is the **Aurora/Fedora** version the image was built from —
 useful when reporting a bug, because it identifies the upstream base. Everything else in

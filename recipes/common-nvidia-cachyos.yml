@@ -1,0 +1,52 @@
+---
+# yaml-language-server: $schema=https://schema.blue-build.org/module-list-v1.json
+#
+# Qubix OS — rebuild NVIDIA's open kernel modules for the CachyOS kernel.
+#
+# Included by recipe-nvidia-cachyos.yml only, immediately AFTER
+# common-kernel-cachyos.yml. Aurora's inherited NVIDIA kmod is tied to Fedora's exact
+# kernel and leaves with that kernel; this file rebuilds the same Negativo17 driver source
+# against kernel-cachyos-devel-matched. DD-051.
+#
+# BlueBuild's standard akmods module deliberately rejects custom kernels, so this module
+# runs akmods directly and asserts the result. CI is the only real build verification.
+#
+# Docs:  docs/variants.md            (support boundary and caveats)
+#        docs/design-decisions.md    (DD-051 — why this is experimental)
+
+modules:
+  # 1. Install the akmod source from the same repository Universal Blue uses for its
+  #    NVIDIA images. `nonfree: negativo17` also disables RPM Fusion's conflicting
+  #    NVIDIA repository for this transaction. The module removes its temporary repo
+  #    file afterwards; installed packages and the inherited userspace driver remain.
+  - type: dnf
+    repos:
+      nonfree: negativo17
+      cleanup: true
+    install:
+      packages:
+        - akmod-nvidia
+
+  # 2. Compile for the one kernel the swap left behind, regenerate module metadata, and
+  #    fail closed unless the complete NVIDIA module set and userspace utility exist.
+  #    KERNEL_MODULE_TYPE=open is explicit even though Negativo17's current driver uses
+  #    the open sources by default; it records the intended ABI and avoids silently
+  #    drifting to the proprietary kernel module flavour.
+  - type: containerfile
+    snippets:
+      - |
+        RUN set -eu \
+            && test "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 \
+            && KVER="$(basename "$(find /usr/lib/modules -mindepth 1 -maxdepth 1 -type d)")" \
+            && echo "Building NVIDIA Open modules for ${KVER}" \
+            && KERNEL_MODULE_TYPE=open akmods --force --kernels "${KVER}" --kmod nvidia \
+            && depmod -a "${KVER}" \
+            && for MODULE in nvidia nvidia_drm nvidia_modeset nvidia_peermem nvidia_uvm; do \
+                 if ! modinfo -k "${KVER}" "${MODULE}" > /dev/null; then \
+                   find /var/cache/akmods/nvidia -name '*.failed.log' -exec cat {} \; || true; \
+                   exit 1; \
+                 fi; \
+               done \
+            && modinfo -k "${KVER}" -F license nvidia | grep -q 'MIT/GPL' \
+            && test -x /usr/bin/nvidia-smi \
+            && rpm -qf /usr/bin/nvidia-smi > /dev/null

@@ -80,4 +80,5 @@ reported inherited branding across both Plymouth and Plasma login, not only a sp
 Plymouth check, and sits in **Awaiting confirmation** until the built image is checked.
 `IMG-036` tracks the packaged Fcitx 5/Pinyin setup on Plasma's `Super+Space` and Niri's
 `Ctrl+Space` (while Niri retains `Super+Space` for DMS) and waits there for a two-session
-input check on the built image.
+input check on the built image. `IMG-037` adds NVIDIA and NVIDIA+CachyOS recipes; the
+combined custom-kernel driver path needs CI plus a real NVIDIA hardware check.

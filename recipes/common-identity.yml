@@ -23,7 +23,7 @@ modules:
   #   - Single chained RUN: one layer, fails atomically.
   #
   # A variant that wants its own PRETTY_NAME rewrites the field again AFTER this module
-  # rather than parameterising it — see recipes/recipe-cachyos.yml.
+  # rather than parameterising it — see the non-standard recipes/recipe-*.yml files.
   #
   # Ordering: MUST run after any module that can regenerate os-release.
   - type: containerfile

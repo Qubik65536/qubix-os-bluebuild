@@ -8,9 +8,9 @@ Public-facing entry point, licence, signing trust anchor, and ignore rules.
 
 ## Essential details
 
-- **`README.md`** — the public front page: what Qubix OS is, the two-step install, ISO
-  note, cosign verification, and links into `docs/` and `AGENTS.md`. Keep it short; detail
-  belongs in `docs/`.
+- **`README.md`** — the public front page: what Qubix OS is, its four standard/CachyOS and
+  generic/NVIDIA variants, the two-step install, ISO note, cosign verification, and links
+  into `docs/` and `AGENTS.md`. Keep it short; detail belongs in `docs/`.
 - **`LICENSE`** — Apache License 2.0, inherited from the BlueBuild template.
 - **`cosign.pub`** — the public half of the image signing keypair (DD-008). Users verify
   with `cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild`. Rotating it

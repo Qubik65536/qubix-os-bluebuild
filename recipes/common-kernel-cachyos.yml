@@ -3,8 +3,9 @@
 #
 # Qubix OS — replace Fedora's kernel with CachyOS's.
 #
-# Included with `from-file: common-kernel-cachyos.yml` by recipes/recipe-cachyos.yml ONLY.
-# The standard image must never include this file. DD-017.
+# Included with `from-file: common-kernel-cachyos.yml` by the CachyOS and
+# NVIDIA+CachyOS recipes only. The Fedora-kernel recipes must never include it. DD-017,
+# DD-051.
 #
 # Ordering: after common-base.yml (so package work is done) and BEFORE
 # common-identity.yml (so the os-release rewrite stays the last word on identity).
@@ -26,7 +27,7 @@ modules:
         - bieszczaders/kernel-cachyos
     install:
       packages:
-        # Secure Boot tooling, on this variant only. The CachyOS kernel carries no PE
+        # Secure Boot tooling, on CachyOS variants only. The kernel carries no PE
         # signature (verified against the published RPM: its certificate table is empty,
         # and the spec has no signing step), so running with Secure Boot ON means signing
         # the kernel with a key of your own. These are the two tools that procedure needs
@@ -89,16 +90,17 @@ modules:
   #    Removing kernel-core removes everything that depends on it, which on Aurora DX is
   #    more than kernel modules: the libguestfs/virt-v2v stack and virtualbox-guest-additions
   #    all declare a plain `Requires: kernel`. kernel-cachyos-core PROVIDES `kernel`, so
-  #    they install cleanly again now that it is in place — this variant is supposed to
-  #    differ from the standard image in the kernel and nothing else (DD-017).
+  #    they install cleanly again now that it is in place. DD-017.
   #
   #    --skip-unavailable because a package can legitimately be ungettable (in the base
   #    image, virtualbox-guest-additions came from a repo that is not enabled at build
   #    time). The comm output above the install is the drift alarm: anything listed there
   #    and not named below is gone from this variant, deliberately or not.
   #
-  #    kmod-* and their userspace halves are NOT restored: they are built against the
-  #    exact kernel-uname-r that was just removed and would pull it back in.
+  #    kmod-* are NOT restored here: they are built against the exact kernel-uname-r that
+  #    was just removed and would pull it back in. The NVIDIA+CachyOS recipe separately
+  #    rebuilds NVIDIA Open from akmod source after this module; the plain CachyOS recipe
+  #    intentionally restores no out-of-tree module. DD-051.
   - type: containerfile
     snippets:
       - |

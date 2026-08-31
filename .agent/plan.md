@@ -1443,6 +1443,32 @@ Implemented, documented, and shipped; waiting only on a check that needs a built
 real hardware. A task here is **not** work anybody should pick up — it is work somebody
 should look at.
 
+### Image variants
+
+- [ ] **IMG-037** — Publish NVIDIA and NVIDIA+CachyOS variants
+  - **Category:** Image content
+  - **Depends on:** IMG-004, IMG-005, BLD-001
+  - **Notes:** Requested 2026-08-30. Aurora now publishes NVIDIA support as the
+    `aurora-dx-nvidia-open` image, using NVIDIA's open kernel modules for Turing and newer
+    GPUs. Its prebuilt module matches Fedora's kernel exactly and cannot survive the
+    CachyOS swap. The combined variant therefore rebuilds Negativo17's `akmod-nvidia`
+    against `kernel-cachyos-devel-matched`; BlueBuild's `akmods` module cannot do this
+    because it explicitly does not support custom kernels. All recipes parse locally, the
+    expanded module order is checked, every local documentation link resolves, and the CI
+    selector names all four recipes *(checked 2026-08-30)*.
+  - **Acceptance criteria:**
+    - `recipe-nvidia.yml` publishes `qubix-os-bluebuild-nvidia` from
+      `aurora-dx-nvidia-open`, preserving its matching NVIDIA Open driver and Fedora kernel
+    - `recipe-nvidia-cachyos.yml` publishes `qubix-os-bluebuild-nvidia-cachyos`, performs
+      the shared CachyOS swap, rebuilds NVIDIA Open modules for that exact kernel, and
+      fails the build unless the kernel modules and `nvidia-smi` are present
+    - CI builds all four recipes automatically and can dispatch either new recipe alone
+    - The recipe, CI, user documentation, context cache, and a `DD-###` record explain the
+      supported GPU generation, custom-kernel risk, Secure Boot caveat, and variant names
+    - Both new recipes pass local YAML parsing and composition/order checks
+    - Both published images boot on matching NVIDIA hardware; `nvidia-smi` works on each,
+      and the combined image reports the CachyOS kernel *(open — needs builds and hardware)*
+
 ### Desktop sessions
 
 - [ ] **IMG-036** — Configure Simplified Chinese Pinyin input with Fcitx 5

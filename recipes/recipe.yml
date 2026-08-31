@@ -11,7 +11,7 @@
 # every Qubix OS image goes in those files, not here.
 #
 # Docs:  docs/recipe-reference.md   (what every key and module does)
-#        docs/variants.md           (this image vs. the CachyOS-kernel one)
+#        docs/variants.md           (the four published image variants)
 #        docs/architecture.md       (how this becomes a bootable OS)
 #        docs/design-decisions.md   (why — referenced below as DD-###)
 

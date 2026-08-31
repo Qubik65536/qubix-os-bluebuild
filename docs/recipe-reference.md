@@ -12,9 +12,12 @@ Upstream module documentation: <https://blue-build.org/reference/module/>
 |---|---|---|
 | [`recipe.yml`](../recipes/recipe.yml) | Recipe (built) | The standard image: identity keys + composition |
 | [`recipe-cachyos.yml`](../recipes/recipe-cachyos.yml) | Recipe (built) | The CachyOS-kernel image ([`variants.md`](variants.md)) |
+| [`recipe-nvidia.yml`](../recipes/recipe-nvidia.yml) | Recipe (built) | Fedora kernel plus Aurora's matching NVIDIA Open driver |
+| [`recipe-nvidia-cachyos.yml`](../recipes/recipe-nvidia-cachyos.yml) | Recipe (built) | CachyOS kernel plus a locally rebuilt NVIDIA Open driver |
 | [`common-base.yml`](../recipes/common-base.yml) | Module list (included) | Overlay, packages, flatpaks, zsh-completions — shared by every image |
 | [`common-identity.yml`](../recipes/common-identity.yml) | Module list (included) | The `os-release` rewrite — shared by every image |
-| [`common-kernel-cachyos.yml`](../recipes/common-kernel-cachyos.yml) | Module list (included) | The kernel swap — `recipe-cachyos.yml` only |
+| [`common-kernel-cachyos.yml`](../recipes/common-kernel-cachyos.yml) | Module list (included) | The kernel swap — both CachyOS recipes |
+| [`common-nvidia-cachyos.yml`](../recipes/common-nvidia-cachyos.yml) | Module list (included) | Rebuild and assert NVIDIA Open — combined recipe only |
 
 **`recipe*.yml` is built; `common-*.yml` is only ever included.** The build matrix names
 recipe files explicitly, so a shared file is never built by accident. Rationale: DD-016.
@@ -29,23 +32,27 @@ Only recipes carry these; a `common-*.yml` file contains nothing but `modules:`.
 
 | Key | Value in `recipe.yml` | Meaning |
 |---|---|---|
-| `name` | `qubix-os-bluebuild` (`qubix-os-bluebuild-cachyos` in the variant) | Image name. Published as `ghcr.io/<owner>/<name>`. Changing it changes the published image path and breaks existing rebases. **Each variant needs its own.** |
+| `name` | `qubix-os-bluebuild` plus the applicable `-cachyos`, `-nvidia`, or `-nvidia-cachyos` suffix | Image name. Published as `ghcr.io/<owner>/<name>`. Changing it changes the published image path and breaks existing rebases. **Each variant needs its own.** |
 | `description` | *(see file)* | Written into the image's OCI metadata. |
-| `base-image` | `ghcr.io/ublue-os/aurora-dx` | The `FROM`. See DD-002. |
+| `base-image` | `ghcr.io/ublue-os/aurora-dx`, or `aurora-dx-nvidia-open` for NVIDIA | The `FROM`. See DD-002 and DD-051. |
 | `image-version` | `latest` | Tag of the base image. A **channel**, not a Fedora version. Tracks the current stable Fedora; `beta` is the alternative and tracks the next one. Was `beta` until DD-018. |
 
 ## Composition
 
 ```yaml
-# recipe.yml                        # recipe-cachyos.yml
+# Fedora-kernel family              # CachyOS-kernel family
 modules:                            # modules:
   - from-file: common-base.yml      #   - from-file: common-base.yml
                                     #   - from-file: common-kernel-cachyos.yml
+                                    #   - from-file: common-nvidia-cachyos.yml  # combined only
   - from-file: common-identity.yml  #   - from-file: common-identity.yml
-                                    #   - type: containerfile   (PRETTY_NAME)
+  - type: containerfile             #   - type: containerfile   # variant identity
   - type: initramfs                 #   - type: initramfs
   - type: signing                   #   - type: signing
 ```
+
+The standard recipe omits the variant-identity `containerfile`; the NVIDIA recipe uses it
+to name NVIDIA Open. The plain CachyOS recipe omits `common-nvidia-cachyos.yml`.
 
 `from-file:` takes a path relative to `recipes/` and splices that file's `modules:` list in
 at this position. It takes **no arguments** — a variant that needs a different value does
@@ -541,13 +548,13 @@ Installs the cosign public key and the container policy files so that
 
 ## Variant-only modules
 
-These run in `recipe-cachyos.yml` and nowhere else. Full context:
-[`variants.md`](variants.md), DD-017.
+These distinguish one or more recipes from the shared Qubix composition. Full context:
+[`variants.md`](variants.md), DD-017, and DD-051.
 
 ### V1. `dnf` + `containerfile` ×2 — the CachyOS kernel swap
 
 *Defined in `common-kernel-cachyos.yml`, between `common-base.yml` and
-`common-identity.yml`.*
+`common-identity.yml` in both CachyOS recipes.*
 
 ```yaml
 - type: dnf
@@ -555,7 +562,7 @@ These run in `recipe-cachyos.yml` and nowhere else. Full context:
     copr:
       - bieszczaders/kernel-cachyos
   install:
-    packages: [sbsigntools, mokutil]   # Secure Boot tooling, this variant only
+    packages: [sbsigntools, mokutil]   # Secure Boot tooling, CachyOS variants only
 - type: containerfile        # the swap
   snippets:
     - |
@@ -586,32 +593,54 @@ These run in `recipe-cachyos.yml` and nowhere else. Full context:
 - **Ordering:** after `common-base.yml`; **before** `common-identity.yml`; requires the
   `initramfs` module later in the same recipe.
 
-### V2. `containerfile` — variant identity
+### V2. `dnf` + `containerfile` — NVIDIA for CachyOS
 
-*Defined in `recipe-cachyos.yml`, immediately after `common-identity.yml`.*
+*Defined in `common-nvidia-cachyos.yml`, immediately after the kernel swap in
+`recipe-nvidia-cachyos.yml` only.*
+
+The `dnf` module temporarily enables Negativo17 and installs `akmod-nvidia`. The following
+snippet finds the one installed CachyOS kernel, invokes `akmods` with
+`KERNEL_MODULE_TYPE=open`, runs `depmod`, and asserts `nvidia`, `nvidia_drm`,
+`nvidia_modeset`, `nvidia_peermem`, and `nvidia_uvm` through `modinfo`. It also asserts the
+open module licence and the inherited `nvidia-smi` executable.
+
+- **Ordering:** after `common-kernel-cachyos.yml`, which installs the target kernel and
+  `kernel-cachyos-devel-matched`; before `common-identity.yml` and `initramfs`.
+- **Why not BlueBuild's `akmods` module:** its published NVIDIA cache supports named stock
+  kernels and explicitly does not support custom kernels. This source build is therefore
+  an experimental, fail-closed exception (DD-051).
+
+### V3. `containerfile` — variant identity
+
+*Defined in each non-standard recipe, immediately after `common-identity.yml`.*
 
 Rewrites `PRETTY_NAME` a second time, from scratch:
 
-| Field | Standard | CachyOS variant |
-|---|---|---|
-| `PRETTY_NAME` | `Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)` | `Qubix OS (BlueBuild Image, CachyOS Kernel, Version: <IMAGE_VERSION>)` |
+| Variant | `PRETTY_NAME` distinction |
+|---|---|
+| Standard | none |
+| CachyOS | `CachyOS Kernel` |
+| NVIDIA | `NVIDIA Open` |
+| NVIDIA+CachyOS | `NVIDIA Open, CachyOS Kernel` |
 
 `ID` and `NAME` are deliberately left shared — same distribution, different build.
 
 - **Ordering:** after `common-identity.yml`, which would otherwise overwrite it.
 
-### V3. CachyOS placement of `initramfs`
+### V4. Variant placement of `initramfs`
 
-The module itself is documented above because both recipes now use it. In the CachyOS
-variant it is additionally **mandatory after the kernel swap**: installing a kernel RPM
+The module itself is documented above because every recipe uses it. In a CachyOS variant
+it is additionally **mandatory after the kernel swap**: installing a kernel RPM
 inside a container build does not produce an `initramfs.img`; on a normal system
 `rpm-ostree` does that on the client, and there is no client at build time. Its late
-placement covers both that requirement and Qubix's Plymouth branding in one dracut run.
+placement covers that requirement, Qubix's Plymouth branding, and — in the combined image
+— the rebuilt NVIDIA modules in one dracut run.
 
 ## Modules available but not used
 
 | Module | What it would do | Why it's unused |
 |---|---|---|
+| `akmods` | Install Universal Blue's cached out-of-tree modules | NVIDIA's stock-kernel module is inherited from Aurora; the module explicitly does not support the custom CachyOS kernel, which is built from source instead (DD-051). |
 | `script` | Run scripts from `files/scripts/` at build time | Nothing needs imperative build logic yet; `example.sh` is the untouched template placeholder. |
 | `systemd` | Enable/disable units | No custom units. |
 | `rpm-ostree` | Older package module | Superseded by `dnf`. |

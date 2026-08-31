@@ -45,6 +45,8 @@ image, or confirm anything renders. Those need CI — and the kernel needs real 
 |---|---|
 | `recipe.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild` |
 | `recipe-cachyos.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` |
+| `recipe-nvidia.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild-nvidia` |
+| `recipe-nvidia-cachyos.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild-nvidia-cachyos` |
 
 `recipes/common-*.yml` files are **included**, never built ([`variants.md`](variants.md),
 DD-016).
@@ -101,11 +103,13 @@ Nothing needs more; do not widen these.
 | Public key | [`../cosign.pub`](../cosign.pub), committed. |
 | Client trust policy | Installed **into the image** by the `signing` module in the recipe. |
 
-Both images are signed with the same key. Verify a published image:
+All images are signed with the same key. Verify the published images:
 
 ```bash
 cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild
 cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild-cachyos
+cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild-nvidia
+cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild-nvidia-cachyos
 ```
 
 Because the trust policy ships inside the image, a machine that has never run Qubix OS
@@ -144,8 +148,8 @@ BlueBuild action's changelog before merging — a major bump can change module s
    - **`sed` matched nothing** → upstream changed `os-release`. Re-check DD-003's
      assumptions.
    - **File copy error** → a path under `files/system/` is wrong.
-   - **One variant failed, the other passed** → the fault is in that recipe's own modules,
-     not in `common-base.yml`. Both images share those.
+   - **One variant failed while the others passed** → the fault is in that recipe's
+     base or variant-only modules, not in `common-base.yml`, which all images share.
    - **Kernel swap assertion failed** (`test … -eq 1`, CachyOS variant) → more or fewer
      than one kernel is left in `/usr/lib/modules`. Usually the CachyOS COPR did not
      provide a kernel for the current Fedora release, or Fedora renamed a kernel
@@ -158,21 +162,24 @@ BlueBuild action's changelog before merging — a major bump can change module s
    - **A package vanished from the CachyOS variant** → check the "Packages the kernel
      removal took with it" list in that build's log against the reinstall line in
      `common-kernel-cachyos.yml`.
-   - **`test "$(git -C … rev-parse HEAD)" = …` failed** (both variants) → the
+   - **NVIDIA+CachyOS fails in `akmods` or `modinfo`** → the current NVIDIA Open source
+     did not compile or package against the current CachyOS kernel. Do not bypass the
+     assertions; use the Fedora-kernel NVIDIA image until the two upstreams align. DD-051.
+   - **`test "$(git -C … rev-parse HEAD)" = …` failed** (all variants) → the
      `zsh-completions` tag no longer points at the pinned commit, or the clone failed. The
      assertion is doing its job: check the tag upstream, then update **both** the tag and
      the hash in `common-base.yml`. Do not remove the check. See DD-026.
-   - **`sha256sum: WARNING: 1 computed checksum did NOT match`** (both variants) → the
+   - **`sha256sum: WARNING: 1 computed checksum did NOT match`** (all variants) → the
      zellij release artifact is not the one that was pinned. Either the download was
      truncated, or upstream replaced the asset. Re-run first; if it repeats, check the
      release's `.sha256sum` file and update **both** the version and the hash in
      `common-base.yml`. Do not relax the check. See DD-033.
-   - **`grep -qF '[CONFIG FILE]: Well defined.'` failed** (both variants) → the KDL in
+   - **`grep -qF '[CONFIG FILE]: Well defined.'` failed** (all variants) → the KDL in
      `files/system/etc/zellij/config.kdl` does not parse, or zellij did not resolve
      `/etc/zellij` as its config directory. The preceding `zellij setup --check` output is
      in the build log and names the error. See DD-033.
-   - **Disk space** → confirm `maximize_build_space: true` is still set. Two images per
-     run makes this likelier, but each job gets its own runner.
+   - **Disk space** → confirm `maximize_build_space: true` is still set. Four large image
+     jobs run independently, and each gets its own runner.
    - **Signing failure** → `SIGNING_SECRET` missing, malformed, or rotated.
 3. Record anything non-obvious: a `plan.md` task if it needs fixing, a `DD-###` record if
    it changes a decision, and a note in the relevant `docs/` page.

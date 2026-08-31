@@ -19,7 +19,7 @@ How a commit in this repository becomes a bootable operating system.
  │  + recipes/common-*.yml (shared modules) │
  │  BlueBuild renders each to a Containerfile│
  └──────────────────────────────────────────┘
-              │  FROM ghcr.io/ublue-os/aurora-dx:latest
+              │  FROM Aurora DX or Aurora DX NVIDIA Open :latest
               ▼
  ┌──────────────────────────────────────────┐
  │ Modules execute in order (see below)     │
@@ -33,6 +33,8 @@ How a commit in this repository becomes a bootable operating system.
               ▼
    ghcr.io/qubik65536/qubix-os-bluebuild:latest
    ghcr.io/qubik65536/qubix-os-bluebuild-cachyos:latest
+   ghcr.io/qubik65536/qubix-os-bluebuild-nvidia:latest
+   ghcr.io/qubik65536/qubix-os-bluebuild-nvidia-cachyos:latest
               │
               ▼
    rpm-ostree rebase on the user's machine
@@ -54,11 +56,12 @@ user's machine at install time; everything happens at build time, once, in CI.
 | `recipe.yml`, `recipe-*.yml` | A complete image definition: identity keys plus a module list | **Yes** — one CI job each |
 | `common-*.yml` | A module list included by recipes with `from-file:` | No — only ever included |
 
-Today: `recipe.yml` (standard) and `recipe-cachyos.yml` (CachyOS kernel), sharing
-`common-base.yml` and `common-identity.yml`; `common-kernel-cachyos.yml` is used by the
-latter only.
+Today there are four recipes: standard, CachyOS, NVIDIA, and NVIDIA+CachyOS. All share
+`common-base.yml` and `common-identity.yml`; both CachyOS recipes include
+`common-kernel-cachyos.yml`, and the combined recipe then includes
+`common-nvidia-cachyos.yml`.
 
-The shared files exist so that a second image is a *composition*, not a copy (DD-016):
+The shared files make every additional image a *composition*, not a copy (DD-016):
 
 ```yaml
 # recipes/recipe.yml
@@ -95,13 +98,18 @@ image layer. Order is load-bearing. For `recipe.yml`:
 | 7 | `initramfs` | `recipe.yml` | Regenerates the stock kernel's initramfs with the overlaid Plymouth files | Must run after `files`; late so it captures every early-boot change. Aurora's inherited initramfs otherwise retains Aurora's watermark (DD-049). |
 | 8 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
 
-`recipe-cachyos.yml` composes the same blocks plus three, in a fixed order:
+The CachyOS recipes compose the same blocks plus variant modules, in a fixed order:
 
 | Module | From | What it does | Why it is here |
 |---|---|---|---|
 | `dnf` + `containerfile` ×2 | `common-kernel-cachyos.yml` | Enables the CachyOS kernel COPR; removes Fedora's kernel, installs CachyOS's with scriptlets off, runs `depmod`, asserts one kernel remains; restores the packages the removal took with it | After the shared `dnf` work, **before** the identity rewrite. Removal must precede installation — DD-017. |
-| `containerfile` | `recipe-cachyos.yml` | Rewrites `PRETTY_NAME` again, naming the kernel | After the shared identity rewrite, which would otherwise overwrite it. |
-| `initramfs` | `recipe-cachyos.yml` | Regenerates `/usr/lib/modules/<kver>/initramfs.img` | Installing a kernel in a container build produces no initramfs; late, so it also embeds the Qubix Plymouth watermark. It stays here rather than in `common-base.yml` so it runs after the kernel swap. |
+| `dnf` + `containerfile` | `common-nvidia-cachyos.yml` *(combined only)* | Installs `akmod-nvidia`, compiles NVIDIA Open for the replacement kernel, and asserts all five modules plus `nvidia-smi` | Immediately after the swap, while matching CachyOS development files exist; before `initramfs`, which must embed the finished modules — DD-051. |
+| `containerfile` | Each variant recipe | Rewrites `PRETTY_NAME` again, naming the selected dimensions | After the shared identity rewrite, which would otherwise overwrite it. |
+| `initramfs` | Each recipe | Regenerates `/usr/lib/modules/<kver>/initramfs.img` | Late so it embeds the Qubix Plymouth watermark and, for the combined image, the rebuilt NVIDIA modules. For CachyOS it is also required because installing a kernel in a container produces no archive. |
+
+`recipe-nvidia.yml` follows the standard recipe's order and differs in its
+`aurora-dx-nvidia-open` base plus its `PRETTY_NAME`. Its Fedora kernel and NVIDIA module
+arrive already matched; no local module build runs (DD-051).
 
 **Rule:** when adding a module, state its ordering constraint in
 [`recipe-reference.md`](recipe-reference.md). If it has none, say so.

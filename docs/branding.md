@@ -78,7 +78,7 @@ The logo green stays the logo's; it is not a system accent.
 | Repository path | Image path | Consumed by |
 |---|---|---|
 | `files/system/usr/share/plymouth/themes/spinner/watermark.png` | `/usr/share/plymouth/themes/spinner/watermark.png` | **Plymouth boot splash watermark** — embedded into the standard image's initramfs by its late `initramfs` module (DD-049). |
-| `files/system/usr/share/plymouth/themes/spinner/kinoite-watermark.png` | `/usr/share/plymouth/themes/spinner/kinoite-watermark.png` | Kinoite's watermark variant; overridden before both recipes regenerate their initramfs. |
+| `files/system/usr/share/plymouth/themes/spinner/kinoite-watermark.png` | `/usr/share/plymouth/themes/spinner/kinoite-watermark.png` | Kinoite's watermark variant; overridden before every recipe regenerates its initramfs. |
 | `files/system/usr/share/pixmaps/fedora-logo-small.png` | `/usr/share/pixmaps/fedora-logo-small.png` | Small Fedora logo path (128×36). |
 
 ### Plasma startup splash
@@ -131,7 +131,7 @@ time by the `containerfile` module. See [`recipe-reference.md`](recipe-reference
    Identical prefixes across a group confirm the copies are still in sync.
 6. Update `.agent/context/files-system.md`.
 7. Push; verify visually after rebasing, since none of this is machine-checkable. A logo
-   change reaches Plymouth because both recipes rebuild their initramfs after the overlay.
+   change reaches Plymouth because every recipe rebuilds its initramfs after the overlay.
 
 ## Selecting the Qubix Plasma splash
 

@@ -11,10 +11,10 @@ tree of files to overlay. There is no imperative installer and no local build st
 
 | Property | Value |
 |---|---|
-| Image name | `qubix-os-bluebuild` |
-| Published to | `ghcr.io/qubik65536/qubix-os-bluebuild` |
-| Variants | Standard, plus `qubix-os-bluebuild-cachyos` (CachyOS kernel) — see [`variants.md`](variants.md) |
-| Base image | `ghcr.io/ublue-os/aurora-dx` |
+| Image family | `qubix-os-bluebuild` |
+| Published to | `ghcr.io/qubik65536/qubix-os-bluebuild{,-cachyos,-nvidia,-nvidia-cachyos}` |
+| Variants | Standard, CachyOS, NVIDIA, NVIDIA+CachyOS — see [`variants.md`](variants.md) |
+| Base images | `ghcr.io/ublue-os/aurora-dx` and `ghcr.io/ublue-os/aurora-dx-nvidia-open` |
 | Base tag | `latest` |
 | Desktops | KDE Plasma (via Fedora Kinoite → Aurora) and Niri + DankMaterialShell, switchable at login |
 | Build system | [BlueBuild](https://blue-build.org) |
@@ -60,7 +60,8 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Niri shell | DankMaterialShell, started by systemd under Niri only | `files/system/usr/lib/systemd/user/niri.service.d/` |
 | Flatpaks | Flathub configured; `io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` installed system-wide | `recipe.yml` (`default-flatpaks`) |
 | Trust | Cosign signing policy installed so signed rebases verify | `recipe.yml` (`signing`) |
-| Kernel *(CachyOS variant only)* | Fedora's kernel replaced with `kernel-cachyos`; initramfs regenerated | `recipe-cachyos.yml`, `common-kernel-cachyos.yml` |
+| Kernel *(CachyOS variants only)* | Fedora's kernel replaced with `kernel-cachyos`; initramfs regenerated | `recipe*-cachyos.yml`, `common-kernel-cachyos.yml` |
+| NVIDIA *(NVIDIA variants only)* | NVIDIA Open userspace and kernel driver inherited from Aurora; rebuilt from `akmod-nvidia` after the custom-kernel swap | `recipe-nvidia*.yml`, `common-nvidia-cachyos.yml` |
 
 That's the entire surface area. Anything not in that table is upstream behaviour and
 should be reported upstream, not patched here — see

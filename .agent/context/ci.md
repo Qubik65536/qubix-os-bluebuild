@@ -18,8 +18,7 @@ automation. CI is the **only** place the image is ever built.
     `blue-build/github-action@v1.11`.
 - **Triggers:** daily cron `00 06 * * *` (~20 min after Universal Blue starts, DD-009);
   `push` with `paths-ignore: "**.md"` (DD-010); every `pull_request`;
-  `workflow_dispatch` with a `recipe` choice input (`all` | `recipe.yml` |
-  `recipe-cachyos.yml`).
+  `workflow_dispatch` with a `recipe` choice input (`all` or any of the four recipes).
 - **Concurrency:** grouped by workflow + ref, `cancel-in-progress: true` — a newer push
   cancels the running run, whole matrix included.
 - **Permissions:** `contents: read`, `packages: write`, `id-token: write` (OIDC for
@@ -28,8 +27,8 @@ automation. CI is the **only** place the image is ever built.
   `fail-fast: false`, `timeout-minutes: 90`. Job name is `Build <recipe>`.
 - **Inputs:** `cosign_private_key: ${{ secrets.SIGNING_SECRET }}`,
   `registry_token: ${{ github.token }}`, `pr_event_number`, `maximize_build_space: true`.
-- **Images built:** `recipe.yml` → `qubix-os-bluebuild`; `recipe-cachyos.yml` →
-  `qubix-os-bluebuild-cachyos` (`docs/variants.md`). Both signed with the same key.
+- **Images built:** standard, CachyOS, NVIDIA, and NVIDIA+CachyOS recipes → the matching
+  `qubix-os-bluebuild{,-cachyos,-nvidia,-nvidia-cachyos}` images. All use one signing key.
 
 ### `dependabot.yml`
 

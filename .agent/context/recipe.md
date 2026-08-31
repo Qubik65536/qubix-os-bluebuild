@@ -25,7 +25,9 @@ described here or in `files/system/`.
     `systemd` (the login-shell service). Everything that makes an image "Qubix OS".
   - `common-identity.yml` — module 5: the `os-release` rewrite. Split out because of its
     ordering constraint (must run late).
-  - `common-kernel-cachyos.yml` — the kernel swap. **`recipe-cachyos.yml` only.**
+  - `common-kernel-cachyos.yml` — the kernel swap. Both CachyOS recipes only.
+  - `common-nvidia-cachyos.yml` — Negativo17 `akmod-nvidia`, a direct source build, and
+    assertions for the replacement kernel. **`recipe-nvidia-cachyos.yml` only.**
 - **`from-file:` takes no arguments.** A variant needing a different value re-does the work
   after the shared module; the shared file never grows a switch.
 
@@ -33,11 +35,10 @@ described here or in `files/system/`.
 
 - **Identity:** `name: qubix-os-bluebuild` → published as
   `ghcr.io/qubik65536/qubix-os-bluebuild`. Changing it breaks existing rebases.
-- **Base:** `ghcr.io/ublue-os/aurora-dx`, `image-version: latest`. A *channel*, not a Fedora
-  version: `latest` is the current stable Fedora, `beta` the next one. Was `beta` until a
-  pre-release amdgpu/Mesa regression hung the login compositor on real hardware
-  (DD-002, superseded by DD-018). **Both recipes must carry the same channel** — the
-  variants are meant to differ only in the kernel.
+- **Base:** `ghcr.io/ublue-os/aurora-dx`; NVIDIA recipes use the matching
+  `aurora-dx-nvidia-open`. Every recipe uses `image-version: latest`, a *channel*, not a
+  Fedora version. `latest` is current stable and `beta` is next. Was `beta` until a
+  pre-release amdgpu/Mesa regression hung the login compositor on hardware (DD-018).
 - **Composition:** `from-file: common-base.yml` → `from-file: common-identity.yml` →
   `type: initramfs` → `type: signing`. Rendered module order:
 
@@ -56,11 +57,11 @@ described here or in `files/system/`.
   `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)"`. All other upstream
   fields survive untouched.
 
-### `recipe-cachyos.yml` (the CachyOS-kernel variant)
+### CachyOS-kernel recipes
 
 - **Identity:** `name: qubix-os-bluebuild-cachyos` → a *separate* image, so switching
   kernels is a rebase and the fallback is a published image (DD-017).
-- Same base, same overlay, same packages, same flatpaks. The kernel variant adds
+- Same overlay, packages, and flatpaks. Both kernel variants add
   `common-kernel-cachyos.yml` and a second `PRETTY_NAME` rewrite, then places its own
   `initramfs` run after that swap instead of using the standard recipe's placement.
 - **The swap:** COPR `bieszczaders/kernel-cachyos`, then two `containerfile` snippets —
@@ -69,15 +70,29 @@ described here or in `files/system/`.
   `kernel-cachyos{,-core,-modules,-devel-matched}`, `depmod`, assert one kernel with a
   `vmlinuz` and a `modules.dep`; (2) diff the package list and reinstall the
   libguestfs/`virt-v2v` stack and `virtualbox-guest-additions`.
-- Also installs `sbsigntools` and `mokutil` — Secure Boot tooling, this variant only.
+- Also installs `sbsigntools` and `mokutil` — Secure Boot tooling, both CachyOS variants.
 - **Requires x86-64-v3 hardware, and Secure Boot off unless the user signs the kernel.**
   The CachyOS `vmlinuz` has no PE signature and there is no vendor cert to enrol, so
   `docs/variants.md` documents the Machine Owner Key procedure. Neither requirement is
   checkable at build time. Signing in CI is open as `IMG-009`.
 
+### NVIDIA recipes
+
+- `recipe-nvidia.yml` publishes `qubix-os-bluebuild-nvidia` from
+  `aurora-dx-nvidia-open:latest`. Fedora's kernel, NVIDIA Open module, userspace driver,
+  and Universal Blue integration are inherited as one matched unit. Turing or newer only.
+- `recipe-nvidia-cachyos.yml` publishes `qubix-os-bluebuild-nvidia-cachyos`. It runs the
+  CachyOS swap, then `common-nvidia-cachyos.yml` installs Negativo17 `akmod-nvidia` and
+  invokes `akmods` directly against the one installed CachyOS kernel. The build asserts
+  all five NVIDIA modules through `modinfo`, the open licence, and `nvidia-smi` before
+  rebuilding initramfs (DD-051).
+- The combined path is experimental. BlueBuild's `akmods` module explicitly does not
+  support custom kernels; CI compilation and real NVIDIA hardware remain the checks.
+
 ## Gotchas
 
-- **Where does a change go?** Every image → `common-base.yml`. One image → that recipe.
+- **Where does a change go?** Every image → `common-base.yml`. One dimension → the
+  matching shared variant module. One image → that recipe.
   Editing a shared file changes every published image; check the whole matrix is green.
 - A `common-*.yml` file must **never** be added to the build matrix — it has no
   `name`/`base-image` and is not a buildable recipe.
@@ -88,9 +103,9 @@ described here or in `files/system/`.
   `dracut`, which dies on the missing `modules.dep` and fails the whole build. The build
   runs `depmod` itself instead. Removing that setopt reintroduces the failure.
 - A kernel swap **must** be followed by the `initramfs` module. Nothing else generates
-  `/usr/lib/modules/<kver>/initramfs.img` in a container build. The standard recipe now
+  `/usr/lib/modules/<kver>/initramfs.img` in a container build. Fedora-kernel recipes now
   runs the module too, for a different reason: Aurora's inherited archive predates the
-  Qubix Plymouth overlay (DD-049). Do not move either run into `common-base.yml`; that is
+  Qubix Plymouth overlay (DD-049). Do not move any run into `common-base.yml`; that is
   before the CachyOS swap.
 - Removing `kernel-core` removes **every dependent package**, not just kernel modules —
   on Aurora DX that is libguestfs, `guestfs-tools`, `virt-v2v`, `libguestfs-appliance`,
@@ -102,7 +117,8 @@ described here or in `files/system/`.
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
 - `firefox-langpacks` must be removed explicitly — dependency removal is not automatic.
   It looks redundant and is not.
-- **No Firefox in either form.** The browser is Ungoogled Chromium (DD-023). The RPM
+- **No Firefox in either form, in any variant.** The browser is Ungoogled Chromium
+  (DD-023). The RPM
   removal now has two reasons — packaging *and* not shipping a second browser — so do not
   "restore" it when reading DD-006 alone.
 - **`default-flatpaks` v2 installs; it cannot uninstall.** The `configurations:` form has no
