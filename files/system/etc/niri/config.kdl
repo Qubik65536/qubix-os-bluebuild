@@ -40,6 +40,15 @@ input {
     }
 }
 
+// ── Application environment ──────────────────────────────────────────────────
+// Fedora's Fcitx profile enables its GTK module broadly. Niri already provides the
+// Wayland text-input protocol, so native GTK clients should use that path instead of
+// opening a duplicate Fcitx module path. The profile.d override also covers applications
+// launched by systemd services, which do not inherit this compositor block. DD-050.
+environment {
+    GTK_IM_MODULE null
+}
+
 // ── Layout ────────────────────────────────────────────────────────────────────
 // Niri is a scrollable-tiling compositor: windows form an infinite horizontal strip
 // of columns rather than a subdivided rectangle.

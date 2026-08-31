@@ -17,11 +17,13 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/xdg/fcitx5/profile` | Fcitx 5 XDG config cascade | System fallback group with `keyboard-us` and `pinyin`; `~/.config/fcitx5/profile` wins and is never rewritten (DD-050) |
 | `etc/xdg/fcitx5/config` | Fcitx 5 XDG config cascade | Replaces the default trigger list with `Super+space` (Windows/Meta + Space) for Plasma; `~/.config/fcitx5/config` wins (DD-050) |
 | `etc/xdg/kwinrc` | KWin / KDE's Virtual Keyboard KCM | Selects Fedora's host Fcitx desktop entry as Plasma's Wayland input method; `~/.config/kwinrc` wins (DD-050) |
+| `etc/profile.d/zz-qubix-fcitx-wayland.sh` | graphical sessions and interactive shells | Sorts after Fedora's `fcitx5.sh` and unsets its global `GTK_IM_MODULE` only on Wayland; preserves `XMODIFIERS` and Qt compatibility (DD-050) |
+| `etc/gtk-{3,4}.0/settings.ini` | GTK 3 and GTK 4 | Selects the packaged Fcitx module as the X11/XWayland fallback without forcing native Wayland clients away from compositor text-input; personal settings win (DD-050) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012); `XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:+…:}/etc/xdg`, without which the WezTerm config below is unreachable (DD-034). **Appends, not defaults**, and reaches only what the user manager starts — `etc/profile.d/qubix-shell-env.sh` carries the same append for every shell (DD-038) |
 | `etc/xdg/wezterm/wezterm.lua` | WezTerm | System-wide config: font stack, `Oxocarbon Dark`, no title bar, 0.75 opacity. Found via `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it wholesale (DD-034) |
 | `etc/xdg/wezterm/colors/*.toml` | WezTerm | Two custom schemes. Found because `colors/` sits in a config dir, so they stay available to a user's *own* `wezterm.lua` (DD-034) |
 | `usr/share/licenses/monaspace-krypton-nf/LICENSE` | nobody — legal | The OFL text for a font the recipe installs from upstream. **Vendored because Monaspace's archive ships none** (DD-034) |
-| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds (`Mod+Space` launcher) plus `Ctrl+Space` invoking `fcitx5-remote -t`; `eDP-1` pinned to `scale 1`; window rule hiding the Xwayland Video Bridge; `include`s the theme (DD-014, DD-015, DD-019, DD-024, DD-050) |
+| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds (`Mod+Space` launcher) plus `Ctrl+Space` invoking `fcitx5-remote -t`; explicitly unsets `GTK_IM_MODULE` for compositor-launched clients; `eDP-1` pinned to `scale 1`; window rule hiding the Xwayland Video Bridge; `include`s the theme (DD-014, DD-015, DD-019, DD-024, DD-050) |
 | `etc/niri/qubix-theme.kdl` | niri, via `include` | The `#56728B` palette for niri. **Separate so a personal config can include it** and keep tracking the image (DD-022, DD-025) |
 | `usr/share/qubix-os/dms-theme.json` | DankMaterialShell, as `customThemeFile` | The same palette for the shell. Watched by DMS, so a rebase reloads it live (DD-022, DD-025) |
 | `usr/bin/qubix-dms-theme` | `qubix-dms-theme.service` | Enforces the theme pointer every Niri login and migrates DMS's native floating-bar settings plus the canonical cube launcher once per preset version. Version 2 makes `BarCanvas` transparent while retaining rounded `BasePill` backgrounds without outlines. Preserves widget arrays and unrelated settings; stamps completion under `$XDG_STATE_HOME/qubix-os/` (DD-025, DD-048). **Only executable in the overlay** |
@@ -154,6 +156,13 @@ system config invokes the same running instance with `fcitx5-remote -t` on `Ctrl
 KWin's KConfig cascade similarly gives the user's `kwinrc` priority over
 `/etc/xdg/kwinrc`. These make the Pinyin setup a default rather than a seeder or an
 image-owned preference (DD-050).
+
+Fedora's `fcitx5-autostart` also ships `/etc/profile.d/fcitx5.sh`, which exports
+`GTK_IM_MODULE=fcitx` broadly. `zz-qubix-fcitx-wayland.sh` must continue sorting after that
+package file: it removes the variable only when `XDG_SESSION_TYPE=wayland`, as upstream
+recommends when the compositor frontend works. Do not replace it with notification
+suppression. GTK 3/4 X11 fallback is deliberately carried by their two `settings.ini`
+files instead (DD-050).
 
 lazygit is the counter-example worth remembering: it also has no `/usr` path, but
 `LG_CONFIG_FILE` takes a *list*, so its config stays in `/usr` and the user's file is

@@ -2983,6 +2983,23 @@ the input-method process, and its Fedora profile fragment provides compatibility
 for toolkit and XWayland applications. Do not remove IBus or any KDE component; the change
 is additive.
 
+That [Fedora profile fragment](https://src.fedoraproject.org/rpms/fcitx5/raw/rawhide/f/fcitx5.sh)
+deliberately chooses the broad compatibility setting
+`GTK_IM_MODULE=fcitx` for every graphical session. It is too broad once a Wayland
+compositor's input-method frontend is working: Fcitx diagnoses both the forced GTK module
+and the native text-input path and warns that the environment variable should be unset.
+Ship `/etc/profile.d/zz-qubix-fcitx-wayland.sh` after Fedora's `fcitx5.sh` to unset only
+`GTK_IM_MODULE` in Wayland sessions. Also set it to `null` in Niri's compositor environment
+as a local defence; the profile fragment remains necessary for applications launched by
+systemd services, which do not inherit Niri's environment block.
+
+Unsetting a global variable must not discard GTK X11/XWayland input. Follow
+[Fcitx's recommended split](https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland) by setting
+`gtk-im-module=fcitx` in GTK 3 and GTK 4's system
+`settings.ini` files. Native Wayland GTK prefers its built-in input path, while GTK on X11
+can select the packaged module. Leave `XMODIFIERS` and `QT_IM_MODULE` from Fedora's profile
+intact: X11 still needs the former and non-KWin Qt applications still need the latter.
+
 **Consequences.**
 
 - No input-method component is compiled in this repository, and no third-party repository
@@ -2992,12 +3009,18 @@ is additive.
 - The shortcuts intentionally differ by session: Plasma uses `Super+Space`; Niri uses
   `Ctrl+Space` for input and retains `Super+Space` for its application launcher. Niri's
   live hotkey overlay and the desktop reference show both compositor bindings.
+- Native GTK applications no longer open a second Fcitx module path alongside the working
+  Wayland frontend, so the **Wayland Diagnose** notification in Niri is resolved rather
+  than hidden. GTK 3/4 X11 and XWayland clients keep a settings-based module fallback.
 - `~/.config/fcitx5/profile` and `~/.config/fcitx5/config` win over their `/etc/xdg`
   fallbacks, and `~/.config/kwinrc` wins over `/etc/xdg/kwinrc`. The first user change
   becomes persistent without the image ever rewriting it.
 - The default physical layout inside the Fcitx group is US. Users with another layout can
   replace `keyboard-us` in KDE's Input Method page; that creates the personal profile which
   then remains theirs.
+- Personal GTK 3/4 `settings.ini` files can replace the system input-module default, and a
+  user remains free to export `GTK_IM_MODULE` deliberately after the image's profile
+  fragment if a specific application requires it.
 - A checkout can verify package names, file syntax, and cascade paths, but actual Pinyin
   entry in native Wayland and XWayland clients under both sessions needs the built image.
 

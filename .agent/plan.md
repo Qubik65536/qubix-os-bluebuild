@@ -1478,7 +1478,9 @@ should look at.
     its KDE configuration tool because RHEL-family repositories do not carry the complete
     stack. Fedora carries all of them, so Qubix OS can use signed distro packages instead
     of maintaining locally compiled copies. The image supplies an XDG fallback profile;
-    a user's own Fcitx or KWin configuration remains higher priority.
+    a user's own Fcitx or KWin configuration remains higher priority. The first Niri
+    hardware check found Fedora's broad `GTK_IM_MODULE` export alongside a working
+    Wayland frontend; the image now narrows that environment and awaits a rebuilt check.
   - **Acceptance criteria:**
     - Every image installs Fcitx 5, Fedora's Pinyin engine, the KDE configuration UI,
       autostart integration, and GTK/Qt input-method bridges from Fedora packages
@@ -1488,6 +1490,9 @@ should look at.
       with `Ctrl+Space` through Fcitx's remote-control interface
     - Plasma selects the host Fcitx desktop entry as its default Wayland virtual keyboard;
       Niri starts Fcitx through XDG autostart
+    - Wayland sessions leave `GTK_IM_MODULE` unset so native GTK uses the compositor's
+      working text-input protocol without Fcitx's duplicate-path diagnostic; GTK 3/4
+      X11 and XWayland clients select the packaged Fcitx module through system settings
     - Per-user Fcitx and KWin settings override the image defaults and are not rewritten
     - The recipe, desktop, design-decision, and context-cache documentation covers the setup
     - On the rebased image, Pinyin enters Simplified Chinese in native Wayland and XWayland

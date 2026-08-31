@@ -541,6 +541,8 @@ compiled locally and no EPEL or COPR repository is involved (DD-050).
 | Plasma toggle | `/etc/xdg/fcitx5/config` | `Super+Space` (Windows/Meta key + Space) switches between direct keyboard input and Pinyin |
 | Niri toggle | `/etc/niri/config.kdl` | `Ctrl+Space` runs `fcitx5-remote -t` to switch the same Fcitx method group |
 | Plasma Wayland launch | `/etc/xdg/kwinrc` | Selects `/usr/share/applications/org.fcitx.Fcitx5.desktop` as KWin's input-method client |
+| Native GTK Wayland path | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Unsets Fedora's broad `GTK_IM_MODULE` export in Wayland sessions so GTK uses compositor text-input |
+| GTK X11 fallback | `/etc/gtk-{3,4}.0/settings.ini` | Selects the packaged Fcitx module for GTK 3/4 clients running through X11 or XWayland |
 
 Plasma starts Fcitx through KWin's dedicated Wayland input-method socket, which is the
 equivalent of selecting **Fcitx 5** under *System Settings → Keyboard → Virtual Keyboard*.
@@ -551,6 +553,14 @@ application launcher and instead binds `Ctrl+Space` at the compositor level to
 second input-method profile. If you copied the Niri config into `~/.config/niri/`, that
 personal file still wins: add the `Ctrl+Space` binding there as well, or use
 `qubix-config --diff niri` to inspect the image change.
+
+Fedora's `fcitx5-autostart` package exports `GTK_IM_MODULE=fcitx` for every graphical
+session. That is useful when a compositor lacks Wayland input-method support, but Niri and
+KWin already provide a working native frontend. Qubix OS therefore unsets only that
+variable in Wayland sessions. This resolves Fcitx's **Wayland Diagnose** duplicate-path
+notification and lets native GTK 3/4 use text-input-v3; `XMODIFIERS` and the Qt fallback
+remain available, while the GTK settings files retain the Fcitx module for GTK 3/4
+X11/XWayland clients. The diagnostic is fixed at its cause rather than disabled.
 
 The three image files are **fallbacks, not migrations**. Personal
 `~/.config/fcitx5/profile`, `~/.config/fcitx5/config`, and `~/.config/kwinrc` files take
