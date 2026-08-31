@@ -46,7 +46,10 @@ image, or confirm anything renders. Those need CI — and the kernel needs real 
 | `recipe.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild` |
 | `recipe-cachyos.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild-cachyos` |
 | `recipe-nvidia.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild-nvidia` |
-| `recipe-nvidia-cachyos.yml` | `ghcr.io/qubik65536/qubix-os-bluebuild-nvidia-cachyos` |
+
+`recipe-nvidia-cachyos.yml` remains in the repository but is **disabled**: it is absent
+from both the automatic matrix and manual choices, so CI does not build, sign, or publish
+it (DD-052). A registry tag left by an earlier attempt is not a current release.
 
 `recipes/common-*.yml` files are **included**, never built ([`variants.md`](variants.md),
 DD-016).
@@ -55,15 +58,15 @@ DD-016).
 
 `select-recipes` emits a JSON array that becomes the matrix:
 
-- Push, PR, schedule → every recipe.
-- `workflow_dispatch` → the `recipe` input: `all` (default) or a single recipe filename.
+- Push, PR, schedule → the three active recipes.
+- `workflow_dispatch` → the `recipe` input: `all` (default) or one active recipe filename.
 
 Manual single-variant runs exist for the case where one image needs a rebuild — an
-upstream fix, or a COPR that was briefly broken — and rebuilding both would be waste.
+upstream fix, or a COPR that was briefly broken — and rebuilding all three would be waste.
 
-**Adding a variant means editing this file in two places:** the `workflow_dispatch`
-`options` list and the `all` branch of `select-recipes`. They are ten lines apart and both
-carry a comment saying so.
+**Adding or re-enabling a variant means editing the workflow in two places:** the
+`workflow_dispatch` `options` list and the `all` branch of `select-recipes`. Both carry a
+comment saying so.
 
 ### Triggers
 
@@ -109,7 +112,6 @@ All images are signed with the same key. Verify the published images:
 cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild
 cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild-cachyos
 cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild-nvidia
-cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild-nvidia-cachyos
 ```
 
 Because the trust policy ships inside the image, a machine that has never run Qubix OS
@@ -162,18 +164,20 @@ BlueBuild action's changelog before merging — a major bump can change module s
    - **A package vanished from the CachyOS variant** → check the "Packages the kernel
      removal took with it" list in that build's log against the reinstall line in
      `common-kernel-cachyos.yml`.
-   - **`akmod-nvidia` `%post` says “Not to be used as root”** (NVIDIA+CachyOS) → Fedora's
+   - **While re-enabling the parked NVIDIA+CachyOS recipe:** `akmod-nvidia` `%post` says
+     **“Not to be used as root”** → Fedora's
      `akmods-ostree-post` compose hook ran instead of the recipe's privilege-separated
      build. Confirm `akmods` is installed before the hook-suppression step, that
      `akmod-nvidia` is installed between suppression and restoration, and that the
      explicit `akmods` call follows restoration. See DD-051.
-   - **`rpm-tmp…: Permission denied` / `failed to create package build directory`**
-     (NVIDIA+CachyOS) → the `akmods` account cannot use RPM's scratch directories. Keep
-     `/tmp` and `/var/tmp` at mode `1777` and retain the preflight write checks immediately
-     before `akmods`. See DD-051.
-   - **NVIDIA+CachyOS fails in `akmods` or `modinfo`** → the current NVIDIA Open source
-     did not compile or package against the current CachyOS kernel. Do not bypass the
-     assertions; use the Fedora-kernel NVIDIA image until the two upstreams align. DD-051.
+   - **While re-enabling NVIDIA+CachyOS:** `rpm-tmp…: Permission denied` or
+     `failed to create package build directory` → the `akmods` account cannot use RPM's
+     scratch directories. Keep `/tmp` and `/var/tmp` at mode `1777` and retain the
+     preflight write checks immediately before `akmods`. See DD-051.
+   - **While re-enabling NVIDIA+CachyOS:** `akmods` or `modinfo` fails → the current
+     NVIDIA Open source did not compile or package against the current CachyOS kernel.
+     Do not bypass the assertions or add the recipe back to CI; use the Fedora-kernel
+     NVIDIA image until the combined recipe builds cleanly. DD-051, DD-052.
    - **`test "$(git -C … rev-parse HEAD)" = …` failed** (all variants) → the
      `zsh-completions` tag no longer points at the pinned commit, or the clone failed. The
      assertion is doing its job: check the tag upstream, then update **both** the tag and
@@ -187,7 +191,7 @@ BlueBuild action's changelog before merging — a major bump can change module s
      `files/system/etc/zellij/config.kdl` does not parse, or zellij did not resolve
      `/etc/zellij` as its config directory. The preceding `zellij setup --check` output is
      in the build log and names the error. See DD-033.
-   - **Disk space** → confirm `maximize_build_space: true` is still set. Four large image
+   - **Disk space** → confirm `maximize_build_space: true` is still set. Three large image
      jobs run independently, and each gets its own runner.
    - **Signing failure** → `SIGNING_SECRET` missing, malformed, or rotated.
 3. Record anything non-obvious: a `plan.md` task if it needs fixing, a `DD-###` record if

@@ -465,6 +465,25 @@ Nothing stays in **Open** merely because CI has not run yet.
     - Each matrix job's name identifies the variant it builds
     - `docs/build-and-release.md` and `.agent/context/ci.md` match the workflow
 
+- [x] **BLD-002** — Temporarily disable NVIDIA+CachyOS publication
+  - **Category:** Build / CI
+  - **Depends on:** BLD-001, IMG-005
+  - **Notes:** Requested 2026-08-31 after repeated Fedora 44 builds failed while compiling
+    the NVIDIA Open module against the replacement CachyOS kernel. The combined recipe and
+    shared module remain as parked implementation work, but every automatic and manual CI
+    selection now excludes the recipe. The plain NVIDIA image remains the supported choice
+    for Turing-or-newer NVIDIA hardware while this path is disabled.
+  - **Acceptance criteria:**
+    - Push, pull-request, schedule, and manual `all` runs select only the standard,
+      CachyOS, and NVIDIA recipes
+    - `workflow_dispatch` cannot select `recipe-nvidia-cachyos.yml` directly
+    - The parked recipe remains in the repository and user-facing documentation clearly
+      says that it is neither built nor currently published
+    - Build, variant, recipe-reference, design-decision, and context-cache documentation
+      reflects the three active images and the parked combined recipe
+    - Workflow and recipe YAML parse locally, and the active selector contains exactly
+      the three intended recipe filenames *(checked 2026-08-31)*
+
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content
   - **Depends on:** IMG-005
@@ -1443,36 +1462,6 @@ Implemented, documented, and shipped; waiting only on a check that needs a built
 real hardware. A task here is **not** work anybody should pick up — it is work somebody
 should look at.
 
-### Image variants
-
-- [ ] **IMG-037** — Publish NVIDIA and NVIDIA+CachyOS variants
-  - **Category:** Image content
-  - **Depends on:** IMG-004, IMG-005, BLD-001
-  - **Notes:** Requested 2026-08-30. Aurora now publishes NVIDIA support as the
-    `aurora-dx-nvidia-open` image, using NVIDIA's open kernel modules for Turing and newer
-    GPUs. Its prebuilt module matches Fedora's kernel exactly and cannot survive the
-    CachyOS swap. The combined variant therefore rebuilds Negativo17's `akmod-nvidia`
-    against `kernel-cachyos-devel-matched`; BlueBuild's `akmods` module cannot do this
-    because it explicitly does not support custom kernels. Two Fedora 44 CI failures
-    established the required build plumbing: suppress the root-only compose hook during
-    package installation, then restore it and standard `1777` modes on `/tmp` and
-    `/var/tmp` before the privilege-separated build. The recipe preflights both paths as
-    the `akmods` account. All recipes parse, embedded shell passes syntax checks, the
-    restore/permission/build order is asserted, local documentation links resolve, and CI
-    selects all four recipes *(checked 2026-08-31)*.
-  - **Acceptance criteria:**
-    - `recipe-nvidia.yml` publishes `qubix-os-bluebuild-nvidia` from
-      `aurora-dx-nvidia-open`, preserving its matching NVIDIA Open driver and Fedora kernel
-    - `recipe-nvidia-cachyos.yml` publishes `qubix-os-bluebuild-nvidia-cachyos`, performs
-      the shared CachyOS swap, rebuilds NVIDIA Open modules for that exact kernel, and
-      fails the build unless the kernel modules and `nvidia-smi` are present
-    - CI builds all four recipes automatically and can dispatch either new recipe alone
-    - The recipe, CI, user documentation, context cache, and a `DD-###` record explain the
-      supported GPU generation, custom-kernel risk, Secure Boot caveat, and variant names
-    - Both new recipes pass local YAML parsing and composition/order checks
-    - Both published images boot on matching NVIDIA hardware; `nvidia-smi` works on each,
-      and the combined image reports the CachyOS kernel *(open — needs builds and hardware)*
-
 ### Desktop sessions
 
 - [ ] **IMG-036** — Configure Simplified Chinese Pinyin input with Fcitx 5
@@ -1676,6 +1665,30 @@ on 2026-08-04.*
 ## Open
 
 ### Image variants
+
+- [ ] **IMG-037** — Publish NVIDIA and NVIDIA+CachyOS variants
+  - **Category:** Image content
+  - **Depends on:** IMG-004, IMG-005, BLD-001
+  - **Notes:** Requested 2026-08-30. The Fedora-kernel NVIDIA recipe remains active and
+    inherits Aurora's matched NVIDIA Open stack. The combined recipe rebuilds
+    Negativo17's `akmod-nvidia` against `kernel-cachyos-devel-matched`, but repeated Fedora
+    44 CI failures prevented it from reaching hardware validation. BLD-002 and DD-052 now
+    park that recipe outside every CI selector. Resume this task only when the combined
+    build can pass cleanly without weakening its module assertions; then re-enable it in
+    both workflow selector locations before returning this task to Awaiting confirmation.
+  - **Acceptance criteria:**
+    - `recipe-nvidia.yml` publishes `qubix-os-bluebuild-nvidia` from
+      `aurora-dx-nvidia-open`, preserving its matching NVIDIA Open driver and Fedora kernel
+    - `recipe-nvidia-cachyos.yml` publishes `qubix-os-bluebuild-nvidia-cachyos`, performs
+      the shared CachyOS swap, rebuilds NVIDIA Open modules for that exact kernel, and
+      fails the build unless the kernel modules and `nvidia-smi` are present
+    - CI builds all four recipes automatically and can dispatch either NVIDIA recipe alone
+    - The recipe, CI, user documentation, context cache, and a `DD-###` record explain the
+      supported GPU generation, custom-kernel risk, Secure Boot caveat, and variant names
+    - Both new recipes pass local YAML parsing and composition/order checks
+    - Both published images boot on matching NVIDIA hardware; `nvidia-smi` works on each,
+      and the combined image reports the CachyOS kernel *(open — combined publication is
+      parked; needs a clean build and hardware)*
 
 - [ ] **IMG-009** — Sign the CachyOS kernel at build time
   - **Category:** Image content

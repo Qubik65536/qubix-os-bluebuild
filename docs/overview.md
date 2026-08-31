@@ -12,8 +12,8 @@ tree of files to overlay. There is no imperative installer and no local build st
 | Property | Value |
 |---|---|
 | Image family | `qubix-os-bluebuild` |
-| Published to | `ghcr.io/qubik65536/qubix-os-bluebuild{,-cachyos,-nvidia,-nvidia-cachyos}` |
-| Variants | Standard, CachyOS, NVIDIA, NVIDIA+CachyOS — see [`variants.md`](variants.md) |
+| Published to | `ghcr.io/qubik65536/qubix-os-bluebuild{,-cachyos,-nvidia}` |
+| Active variants | Standard, CachyOS, NVIDIA; NVIDIA+CachyOS is parked — see [`variants.md`](variants.md) |
 | Base images | `ghcr.io/ublue-os/aurora-dx` and `ghcr.io/ublue-os/aurora-dx-nvidia-open` |
 | Base tag | `latest` |
 | Desktops | KDE Plasma (via Fedora Kinoite → Aurora) and Niri + DankMaterialShell, switchable at login |
@@ -60,8 +60,8 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Niri shell | DankMaterialShell, started by systemd under Niri only | `files/system/usr/lib/systemd/user/niri.service.d/` |
 | Flatpaks | Flathub configured; `io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` installed system-wide | `recipe.yml` (`default-flatpaks`) |
 | Trust | Cosign signing policy installed so signed rebases verify | `recipe.yml` (`signing`) |
-| Kernel *(CachyOS variants only)* | Fedora's kernel replaced with `kernel-cachyos`; initramfs regenerated | `recipe*-cachyos.yml`, `common-kernel-cachyos.yml` |
-| NVIDIA *(NVIDIA variants only)* | NVIDIA Open userspace and kernel driver inherited from Aurora; rebuilt from `akmod-nvidia` after the custom-kernel swap | `recipe-nvidia*.yml`, `common-nvidia-cachyos.yml` |
+| Kernel *(active CachyOS variant; parked combined recipe)* | Fedora's kernel replaced with `kernel-cachyos`; initramfs regenerated | `recipe*-cachyos.yml`, `common-kernel-cachyos.yml` |
+| NVIDIA | The active NVIDIA image inherits Aurora's matched NVIDIA Open userspace and Fedora-kernel driver; the parked combined recipe contains an inactive `akmod-nvidia` rebuild path | `recipe-nvidia*.yml`, `common-nvidia-cachyos.yml` |
 
 That's the entire surface area. Anything not in that table is upstream behaviour and
 should be reported upstream, not patched here — see

@@ -13,14 +13,16 @@ Upstream module documentation: <https://blue-build.org/reference/module/>
 | [`recipe.yml`](../recipes/recipe.yml) | Recipe (built) | The standard image: identity keys + composition |
 | [`recipe-cachyos.yml`](../recipes/recipe-cachyos.yml) | Recipe (built) | The CachyOS-kernel image ([`variants.md`](variants.md)) |
 | [`recipe-nvidia.yml`](../recipes/recipe-nvidia.yml) | Recipe (built) | Fedora kernel plus Aurora's matching NVIDIA Open driver |
-| [`recipe-nvidia-cachyos.yml`](../recipes/recipe-nvidia-cachyos.yml) | Recipe (built) | CachyOS kernel plus a locally rebuilt NVIDIA Open driver |
+| [`recipe-nvidia-cachyos.yml`](../recipes/recipe-nvidia-cachyos.yml) | Recipe (**parked; not built**) | Disabled CachyOS kernel plus locally rebuilt NVIDIA Open experiment (DD-052) |
 | [`common-base.yml`](../recipes/common-base.yml) | Module list (included) | Overlay, packages, flatpaks, zsh-completions — shared by every image |
 | [`common-identity.yml`](../recipes/common-identity.yml) | Module list (included) | The `os-release` rewrite — shared by every image |
 | [`common-kernel-cachyos.yml`](../recipes/common-kernel-cachyos.yml) | Module list (included) | The kernel swap — both CachyOS recipes |
 | [`common-nvidia-cachyos.yml`](../recipes/common-nvidia-cachyos.yml) | Module list (included) | Rebuild and assert NVIDIA Open — combined recipe only |
 
-**`recipe*.yml` is built; `common-*.yml` is only ever included.** The build matrix names
-recipe files explicitly, so a shared file is never built by accident. Rationale: DD-016.
+**Only recipes explicitly named by CI are built; `common-*.yml` is only ever included.**
+The matrix names the three active recipes and deliberately omits
+`recipe-nvidia-cachyos.yml`, so neither shared files nor the parked recipe are built by
+accident. Rationale: DD-016, DD-052.
 
 Every file starts with a `yaml-language-server` schema comment — `recipe-v1` for recipes,
 `module-list-v1` for shared module lists. Keep them; they give editors and agents live
@@ -597,8 +599,8 @@ These distinguish one or more recipes from the shared Qubix composition. Full co
 
 ### V2. `dnf` + `containerfile` — NVIDIA for CachyOS
 
-*Defined in `common-nvidia-cachyos.yml`, immediately after the kernel swap in
-`recipe-nvidia-cachyos.yml` only.*
+*Defined in `common-nvidia-cachyos.yml`, immediately after the kernel swap in the parked
+`recipe-nvidia-cachyos.yml` only. CI does not currently execute this path (DD-052).*
 
 The first `dnf` module installs Fedora's `akmods` orchestrator and creates its dedicated
 build account. A short `containerfile` step then backs up and suppresses
@@ -619,7 +621,7 @@ executable.
   `kernel-cachyos-devel-matched`; before `common-identity.yml` and `initramfs`.
 - **Why not BlueBuild's `akmods` module:** its published NVIDIA cache supports named stock
   kernels and explicitly does not support custom kernels. This source build is therefore
-  an experimental, fail-closed exception (DD-051).
+  a parked experimental, fail-closed exception (DD-051, DD-052).
 
 ### V3. `containerfile` — variant identity
 
@@ -632,7 +634,7 @@ Rewrites `PRETTY_NAME` a second time, from scratch:
 | Standard | none |
 | CachyOS | `CachyOS Kernel` |
 | NVIDIA | `NVIDIA Open` |
-| NVIDIA+CachyOS | `NVIDIA Open, CachyOS Kernel` |
+| NVIDIA+CachyOS *(parked)* | `NVIDIA Open, CachyOS Kernel` |
 
 `ID` and `NAME` are deliberately left shared — same distribution, different build.
 
@@ -644,8 +646,8 @@ The module itself is documented above because every recipe uses it. In a CachyOS
 it is additionally **mandatory after the kernel swap**: installing a kernel RPM
 inside a container build does not produce an `initramfs.img`; on a normal system
 `rpm-ostree` does that on the client, and there is no client at build time. Its late
-placement covers that requirement, Qubix's Plymouth branding, and — in the combined image
-— the rebuilt NVIDIA modules in one dracut run.
+placement covers that requirement, Qubix's Plymouth branding, and—if the combined recipe
+is re-enabled—the rebuilt NVIDIA modules in one dracut run.
 
 ## Modules available but not used
 

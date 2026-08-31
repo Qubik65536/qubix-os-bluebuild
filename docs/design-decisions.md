@@ -3136,3 +3136,48 @@ NVIDIA userspace. A failed driver build is a failed variant build.
   enforcement does not turn that into a locked-down boot chain.
 - CI grows from two to four independent matrix jobs. `fail-fast: false` keeps a driver or
   CachyOS regression from cancelling the unaffected variants.
+
+---
+
+## DD-052 — Suspend NVIDIA+CachyOS publication but retain its recipe
+
+**Status:** Accepted
+
+**Implements:** `BLD-002`
+
+**Amends:** [DD-051](#dd-051--nvidia-variants-inherit-aurora-open-cachyos-rebuilds-that-driver-from-source)
+
+**Context.** DD-051 deliberately made the combined NVIDIA+CachyOS build fail closed when
+the replacement-kernel driver could not be compiled. Repeated Fedora 44 CI attempts did
+exactly that: first the `akmod-nvidia` package hook rejected a root build, then the
+privilege-separated build account could not create RPM scratch files. Each workaround
+revealed another compose-specific failure before any image reached hardware validation.
+
+The Fedora-kernel NVIDIA recipe is independent of that custom build. It inherits Aurora's
+kernel and NVIDIA Open driver as one matched unit and has no reason to be held back. The
+standard and plain CachyOS images are independent too. Continuing to put the failing
+combined experiment in every matrix wastes a runner and makes otherwise healthy workflow
+runs red without producing a usable fourth release.
+
+**Decision.** Remove `recipe-nvidia-cachyos.yml` from both automatic `all` selection and
+the `workflow_dispatch` choices. Publish three active images: standard, CachyOS, and
+Fedora-kernel NVIDIA. Keep `recipe-nvidia-cachyos.yml` and
+`common-nvidia-cachyos.yml` in the repository as parked implementation work; do not delete
+their fail-closed module assertions or silently publish a userspace-only substitute.
+
+Documentation must call the combined image disabled and unpublished. Users with supported
+NVIDIA hardware are directed to the active Fedora-kernel NVIDIA image. Re-enabling the
+combined recipe requires a clean CI build first, then restoring it in both workflow
+selector locations and updating the task, documentation, and this decision's successor.
+
+**Consequences.**
+
+- Scheduled, push, pull-request, and manual `all` runs contain three matrix jobs.
+- Manual dispatch cannot accidentally build or publish the parked recipe.
+- An old registry tag, if one exists from an earlier attempt, is not deleted by this
+  repository change and must be treated as stale rather than as a supported release.
+- There is temporarily no Qubix image combining CachyOS with NVIDIA. Supported NVIDIA
+  users choose the Fedora-kernel NVIDIA image; the active CachyOS image remains for
+  systems that do not need NVIDIA's out-of-tree driver.
+- DD-051 continues to define the retained recipe's fail-closed design, while this record
+  suspends its publication policy.

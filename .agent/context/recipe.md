@@ -14,7 +14,8 @@ described here or in `files/system/`.
 
 | Pattern | Kind | Built? |
 |---|---|---|
-| `recipe.yml`, `recipe-*.yml` | Recipe: identity keys + a module list | **Yes**, one CI job each |
+| `recipe.yml`, active `recipe-*.yml` | Recipe: identity keys + a module list | **Yes**, one CI job each |
+| `recipe-nvidia-cachyos.yml` | Complete but parked experimental recipe | **No**, disabled by DD-052 |
 | `common-*.yml` | Module list, spliced in with `from-file:` | No, only included |
 
 - **Headers:** `yaml-language-server` schema comments — `recipe-v1` for recipes,
@@ -71,7 +72,8 @@ described here or in `files/system/`.
   `kernel-cachyos{,-core,-modules,-devel-matched}`, `depmod`, assert one kernel with a
   `vmlinuz` and a `modules.dep`; (2) diff the package list and reinstall the
   libguestfs/`virt-v2v` stack and `virtualbox-guest-additions`.
-- Also installs `sbsigntools` and `mokutil` — Secure Boot tooling, both CachyOS variants.
+- Also installs `sbsigntools` and `mokutil`—Secure Boot tooling in the active CachyOS
+  image and parked combined recipe.
 - **Requires x86-64-v3 hardware, and Secure Boot off unless the user signs the kernel.**
   The CachyOS `vmlinuz` has no PE signature and there is no vendor cert to enrol, so
   `docs/variants.md` documents the Machine Owner Key procedure. Neither requirement is
@@ -82,7 +84,8 @@ described here or in `files/system/`.
 - `recipe-nvidia.yml` publishes `qubix-os-bluebuild-nvidia` from
   `aurora-dx-nvidia-open:latest`. Fedora's kernel, NVIDIA Open module, userspace driver,
   and Universal Blue integration are inherited as one matched unit. Turing or newer only.
-- `recipe-nvidia-cachyos.yml` publishes `qubix-os-bluebuild-nvidia-cachyos`. It runs the
+- `recipe-nvidia-cachyos.yml` is parked and is not selected or published by CI (DD-052).
+  Its retained design would publish `qubix-os-bluebuild-nvidia-cachyos`: it runs the
   CachyOS swap, then `common-nvidia-cachyos.yml` installs `akmods`, temporarily suppresses
   Fedora 44's root-only ostree build hook while installing Negativo17 `akmod-nvidia`,
   restores the hook plus the standard `1777` modes on `/tmp` and `/var/tmp`, and invokes
@@ -90,14 +93,16 @@ described here or in `files/system/`.
   account can write both scratch directories before the orchestrator delegates compilation
   to it. The build asserts all five NVIDIA modules through `modinfo`, the open licence, and
   `nvidia-smi` before rebuilding initramfs (DD-051).
-- The combined path is experimental. BlueBuild's `akmods` module explicitly does not
-  support custom kernels; CI compilation and real NVIDIA hardware remain the checks.
+- The combined path is parked experimental work. BlueBuild's `akmods` module explicitly
+  does not support custom kernels; a clean CI compile and real NVIDIA hardware remain
+  prerequisites before publication can be restored.
 
 ## Gotchas
 
 - **Where does a change go?** Every image → `common-base.yml`. One dimension → the
   matching shared variant module. One image → that recipe.
-  Editing a shared file changes every published image; check the whole matrix is green.
+  Editing a shared file changes every active image and may affect the parked composition;
+  check the three-job matrix is green.
 - A `common-*.yml` file must **never** be added to the build matrix — it has no
   `name`/`base-image` and is not a buildable recipe.
 - In the kernel swap, **remove before install**: `kernel-cachyos-core` declares

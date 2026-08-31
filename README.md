@@ -19,18 +19,19 @@ Everything else is inherited upstream. The full delta is in
 
 ## Variants
 
-Four images are published across kernel and NVIDIA-support dimensions — see
+Three images are currently published across kernel and NVIDIA-support dimensions — see
 [`docs/variants.md`](docs/variants.md).
 
-| Variant | Image suffix | Kernel / driver | Requirements |
+| Variant | Image suffix | Kernel / driver | Status / requirements |
 |---|---|---|---|
-| **Standard** | `qubix-os-bluebuild` | Fedora / generic | — |
-| **CachyOS** | `qubix-os-bluebuild-cachyos` | CachyOS / generic | x86-64-v3; CachyOS Secure Boot caveat |
-| **NVIDIA** | `qubix-os-bluebuild-nvidia` | Fedora / NVIDIA Open | Turing or newer |
-| **NVIDIA+CachyOS** | `qubix-os-bluebuild-nvidia-cachyos` | CachyOS / NVIDIA Open | Turing or newer; x86-64-v3; experimental |
+| **Standard** | `qubix-os-bluebuild` | Fedora / generic | Active |
+| **CachyOS** | `qubix-os-bluebuild-cachyos` | CachyOS / generic | Active; x86-64-v3; CachyOS Secure Boot caveat |
+| **NVIDIA** | `qubix-os-bluebuild-nvidia` | Fedora / NVIDIA Open | Active; Turing or newer |
+| **NVIDIA+CachyOS** | `qubix-os-bluebuild-nvidia-cachyos` | CachyOS / NVIDIA Open | **Disabled; not built or published** |
 
 Run Standard on non-NVIDIA hardware or NVIDIA on a supported NVIDIA GPU; choose CachyOS
-only when you specifically want its kernel.
+only when you specifically want its kernel. The combined NVIDIA+CachyOS recipe is parked
+after repeated driver-build failures and must not be used while disabled.
 
 ## Documentation
 
@@ -79,7 +80,7 @@ the policy, the second one uses it.
   systemctl reboot
   ```
 
-For another variant, substitute its image suffix from the table in both commands. Read
+For another **active** variant, substitute its image suffix from the table in both commands. Read
 [`docs/variants.md`](docs/variants.md) first: the NVIDIA and CachyOS images have hardware
 and Secure Boot requirements the standard image does not.
 
@@ -99,7 +100,7 @@ These images are signed with [Sigstore](https://www.sigstore.dev/)'s [cosign](ht
 cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild
 ```
 
-Substitute another variant's full image name to verify it.
+Substitute another active variant's full image name to verify it.
 
 ## License
 

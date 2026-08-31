@@ -84,9 +84,8 @@ input check on the built image. Its first Niri check exposed Fedora's duplicate 
 environment; a later terminal test proved Fcitx switching worked but Niri did not invoke
 its system binding. The task now tracks the Wayland correction and Fcitx's dual native
 triggers, with `Ctrl+Space` deliberately absent from Niri's compositor bindings.
-`IMG-037` adds NVIDIA and
-NVIDIA+CachyOS recipes. Its first combined build exposed Fedora 44's root-only ostree hook;
-the recipe now suppresses that hook only during package installation, restores it, and
-uses the privilege-separating `akmods` path. The next build proved that path but exposed
-non-writable RPM scratch directories, so IMG-037 also restores their standard `1777` mode
-and preflights access for the build account. CI plus a real NVIDIA hardware check remain.
+`IMG-037` added NVIDIA and NVIDIA+CachyOS recipes. The plain NVIDIA image remains active;
+repeated Fedora 44 failures kept the combined driver from reaching hardware validation.
+`BLD-002` therefore parks that combined recipe and removes it from automatic and manual
+CI selection (DD-052). IMG-037 is back in Open until a clean combined build justifies
+re-enabling publication; the retained recipe still fails closed.

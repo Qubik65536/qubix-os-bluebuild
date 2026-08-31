@@ -7,10 +7,10 @@ of the quick instructions in the [root README](../README.md).
 > Bazzite, …). Rebasing replaces the OS image while keeping `/home` and `/etc`
 > customisations.
 
-This page uses the **standard** image throughout. Four variants are published; every
-command works for another one by substituting its image suffix. Read
-[`variants.md`](variants.md) before choosing NVIDIA or CachyOS because those images have
-hardware and Secure Boot requirements of their own.
+This page uses the **standard** image throughout. Three variants are active; every command
+works for another active one by substituting its image suffix. The NVIDIA+CachyOS recipe
+is disabled and must not be used. Read [`variants.md`](variants.md) before choosing NVIDIA
+or CachyOS because those images have hardware and Secure Boot requirements of their own.
 
 ## First install (two steps, on purpose)
 

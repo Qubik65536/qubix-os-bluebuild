@@ -15,7 +15,7 @@ How a commit in this repository becomes a bootable operating system.
               │  reads
               ▼
  ┌──────────────────────────────────────────┐
- │ recipes/recipe.yml   recipes/recipe-*.yml│   one matrix job per recipe
+ │ recipes/recipe.yml   active recipe-*.yml │   one matrix job per active recipe
  │  + recipes/common-*.yml (shared modules) │
  │  BlueBuild renders each to a Containerfile│
  └──────────────────────────────────────────┘
@@ -34,14 +34,14 @@ How a commit in this repository becomes a bootable operating system.
    ghcr.io/qubik65536/qubix-os-bluebuild:latest
    ghcr.io/qubik65536/qubix-os-bluebuild-cachyos:latest
    ghcr.io/qubik65536/qubix-os-bluebuild-nvidia:latest
-   ghcr.io/qubik65536/qubix-os-bluebuild-nvidia-cachyos:latest
               │
               ▼
    rpm-ostree rebase on the user's machine
 ```
 
-Each recipe is an independent build producing an independently named, independently
-signed image. What distinguishes them: [`variants.md`](variants.md).
+Each active recipe is an independent build producing an independently named,
+independently signed image. The NVIDIA+CachyOS recipe is parked and absent from the
+matrix (DD-052). What distinguishes them: [`variants.md`](variants.md).
 
 BlueBuild is a **transpiler**, not a runtime: `recipe.yml` is turned into an ordinary
 `Containerfile`, and the result is an ordinary OCI image. Nothing in this repo runs on a
@@ -53,11 +53,13 @@ user's machine at install time; everything happens at build time, once, in CI.
 
 | Pattern | Kind | Built? |
 |---|---|---|
-| `recipe.yml`, `recipe-*.yml` | A complete image definition: identity keys plus a module list | **Yes** — one CI job each |
+| `recipe.yml`, active `recipe-*.yml` | A complete image definition: identity keys plus a module list | **Yes** — one CI job each |
+| `recipe-nvidia-cachyos.yml` | A complete but parked experimental definition | **No** — disabled by DD-052 |
 | `common-*.yml` | A module list included by recipes with `from-file:` | No — only ever included |
 
-Today there are four recipes: standard, CachyOS, NVIDIA, and NVIDIA+CachyOS. All share
-`common-base.yml` and `common-identity.yml`; both CachyOS recipes include
+Today there are three active recipes—standard, CachyOS, and NVIDIA—and one parked
+NVIDIA+CachyOS recipe. All share `common-base.yml` and `common-identity.yml`; both
+CachyOS definitions include
 `common-kernel-cachyos.yml`, and the combined recipe then includes
 `common-nvidia-cachyos.yml`.
 
@@ -98,12 +100,13 @@ image layer. Order is load-bearing. For `recipe.yml`:
 | 7 | `initramfs` | `recipe.yml` | Regenerates the stock kernel's initramfs with the overlaid Plymouth files | Must run after `files`; late so it captures every early-boot change. Aurora's inherited initramfs otherwise retains Aurora's watermark (DD-049). |
 | 8 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
 
-The CachyOS recipes compose the same blocks plus variant modules, in a fixed order:
+The active CachyOS recipe and parked combined recipe compose the same blocks plus variant
+modules, in a fixed order:
 
 | Module | From | What it does | Why it is here |
 |---|---|---|---|
 | `dnf` + `containerfile` ×2 | `common-kernel-cachyos.yml` | Enables the CachyOS kernel COPR; removes Fedora's kernel, installs CachyOS's with scriptlets off, runs `depmod`, asserts one kernel remains; restores the packages the removal took with it | After the shared `dnf` work, **before** the identity rewrite. Removal must precede installation — DD-017. |
-| `dnf` + `containerfile` | `common-nvidia-cachyos.yml` *(combined only)* | Installs `akmod-nvidia`, compiles NVIDIA Open for the replacement kernel, and asserts all five modules plus `nvidia-smi` | Immediately after the swap, while matching CachyOS development files exist; before `initramfs`, which must embed the finished modules — DD-051. |
+| `dnf` + `containerfile` | `common-nvidia-cachyos.yml` *(parked combined recipe only)* | Installs `akmod-nvidia`, compiles NVIDIA Open for the replacement kernel, and asserts all five modules plus `nvidia-smi` | Immediately after the swap, while matching CachyOS development files exist; before `initramfs`, which must embed the finished modules — DD-051. This path is not currently selected by CI — DD-052. |
 | `containerfile` | Each variant recipe | Rewrites `PRETTY_NAME` again, naming the selected dimensions | After the shared identity rewrite, which would otherwise overwrite it. |
 | `initramfs` | Each recipe | Regenerates `/usr/lib/modules/<kver>/initramfs.img` | Late so it embeds the Qubix Plymouth watermark and, for the combined image, the rebuilt NVIDIA modules. For CachyOS it is also required because installing a kernel in a container produces no archive. |
 

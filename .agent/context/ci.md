@@ -18,7 +18,8 @@ automation. CI is the **only** place the image is ever built.
     `blue-build/github-action@v1.11`.
 - **Triggers:** daily cron `00 06 * * *` (~20 min after Universal Blue starts, DD-009);
   `push` with `paths-ignore: "**.md"` (DD-010); every `pull_request`;
-  `workflow_dispatch` with a `recipe` choice input (`all` or any of the four recipes).
+  `workflow_dispatch` with a `recipe` choice input (`all` or any of the three active
+  recipes). The parked NVIDIA+CachyOS recipe is intentionally unavailable (DD-052).
 - **Concurrency:** grouped by workflow + ref, `cancel-in-progress: true` — a newer push
   cancels the running run, whole matrix included.
 - **Permissions:** `contents: read`, `packages: write`, `id-token: write` (OIDC for
@@ -27,8 +28,10 @@ automation. CI is the **only** place the image is ever built.
   `fail-fast: false`, `timeout-minutes: 90`. Job name is `Build <recipe>`.
 - **Inputs:** `cosign_private_key: ${{ secrets.SIGNING_SECRET }}`,
   `registry_token: ${{ github.token }}`, `pr_event_number`, `maximize_build_space: true`.
-- **Images built:** standard, CachyOS, NVIDIA, and NVIDIA+CachyOS recipes → the matching
-  `qubix-os-bluebuild{,-cachyos,-nvidia,-nvidia-cachyos}` images. All use one signing key.
+- **Images built:** standard, CachyOS, and NVIDIA recipes → the matching
+  `qubix-os-bluebuild{,-cachyos,-nvidia}` images. All use one signing key.
+- **Disabled:** `recipe-nvidia-cachyos.yml` remains in `recipes/` but appears in neither
+  selector location, so no trigger can build or publish it (DD-052).
 
 ### `dependabot.yml`
 
@@ -47,7 +50,7 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
 
 ## Gotchas
 
-- **Adding a variant means editing `build.yml` in two places:** the `workflow_dispatch`
+- **Adding or re-enabling a variant means editing `build.yml` in two places:** the `workflow_dispatch`
   `options` list and the `all` branch of `select-recipes`. Miss the second and the image
   is never built; miss the first and it can't be dispatched on its own.
 - Only `recipes/recipe*.yml` may appear there. A `common-*.yml` file has no `name:` or
