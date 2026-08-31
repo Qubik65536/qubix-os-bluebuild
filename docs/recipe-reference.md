@@ -87,11 +87,12 @@ substitution.
   | `/etc/xdg/kwinrc` | KWin fallback: launch Fcitx as Plasma's Wayland input-method client; `~/.config/kwinrc` shadows it (DD-050) |
   | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Runs after Fedora's Fcitx profile and unsets `GTK_IM_MODULE` on Wayland, avoiding a duplicate native GTK input path (DD-050) |
   | `/etc/gtk-{3,4}.0/settings.ini` | Keeps the packaged Fcitx GTK module as the GTK 3/4 X11/XWayland fallback after the global variable is unset (DD-050) |
+  | `/usr/bin/qubix-fcitx-toggle` | Niri's deterministic English/Pinyin switch: queries the current engine, selects and verifies the other profile item, and notifies on failure (DD-050) |
   | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012), and `/etc/xdg` **appended** to `XDG_CONFIG_DIRS` so the file below is reachable (DD-034, DD-038). Reaches only what the systemd user manager starts; `/etc/profile.d/qubix-shell-env.sh` carries the same append for every shell |
   | `/etc/xdg/wezterm/wezterm.lua` | WezTerm's system-wide config. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it (DD-034) |
   | `/etc/xdg/wezterm/colors/*.toml` | The colour schemes it selects. Available to a user's own `wezterm.lua` too (DD-034) |
   | `/usr/share/licenses/monaspace-krypton-nf/LICENSE` | The OFL text for a font installed in module 4d. Vendored because Monaspace's archive carries none (DD-034) |
-  | `/etc/niri/config.kdl` | System-default Niri configuration, including its non-repeating, non-inhibitable `Ctrl+Space` Fcitx toggle (DD-014, DD-050) |
+  | `/etc/niri/config.kdl` | System-default Niri configuration, including its non-repeating, non-inhibitable `Ctrl+Space` binding to `qubix-fcitx-toggle` (DD-014, DD-050) |
   | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
   | `/usr/bin/qubix-dms-theme` | Enforces DMS's Qubix Slate pointer and applies the versioned floating-component bar plus canonical cube launcher once (DD-025, DD-048) |
   | `/usr/lib/systemd/user/qubix-dms-theme.service` | Runs that migration before DMS under Niri; never enabled globally (DD-025, DD-048) |

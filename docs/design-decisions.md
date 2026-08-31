@@ -2974,11 +2974,19 @@ three XDG fallback files in the root overlay:
    input-method client.
 
 Niri keeps `Mod+Space` bound to DMS's spotlight. A compositor consumes that binding before
-clients see it, so Niri also binds `Ctrl+Space` to `/usr/bin/fcitx5-remote -t`. Make the
-binding `repeat=false` so one press cannot toggle twice, and `allow-inhibiting=false` so a
-focused application's shortcut inhibitor cannot swallow it. This toggles the running
-Fcitx instance through its control interface while leaving Plasma's native `Super+Space`
-trigger and the shared input-method profile unchanged.
+clients see it, so Niri also binds `Ctrl+Space` to `/usr/bin/qubix-fcitx-toggle`. Make the
+binding `repeat=false` so one press cannot switch twice, and `allow-inhibiting=false` so a
+focused application's shortcut inhibitor cannot swallow it.
+
+Do not implement the helper with `fcitx5-remote -t`. That generic operation changes
+Fcitx's active/inactive state, and an [upstream Wayland report](https://github.com/fcitx/fcitx5/issues/1428)
+shows it can be ignored by the focused application. Query the current engine with
+`fcitx5-remote --check -n`, then explicitly select `pinyin` or `keyboard-us` with
+`--check -s`. These are the two IDs in the system profile, and failures produce a desktop
+notification instead of disappearing into the compositor's closed standard streams. Read
+the current engine back after selection as well: `SetCurrentIM` has no return value, so a
+personal profile missing the requested engine can otherwise look successful. This leaves
+Plasma's native `Super+Space` trigger and the shared profile unchanged.
 
 Keep `fcitx5-autostart`: its XDG entry starts Fcitx in Niri, where there is no KWin to own
 the input-method process, and its Fedora profile fragment provides compatibility variables
@@ -3011,7 +3019,8 @@ intact: X11 still needs the former and non-KWin Qt applications still need the l
 - The shortcuts intentionally differ by session: Plasma uses `Super+Space`; Niri uses
   `Ctrl+Space` for input and retains `Super+Space` for its application launcher. Niri's
   live hotkey overlay and the desktop reference show both compositor bindings. The Niri
-  toggle is non-repeating and bypasses application shortcut inhibitors.
+  toggle is non-repeating, bypasses application shortcut inhibitors, and explicitly
+  selects the opposite engine rather than relying on Fcitx's generic Wayland toggle.
 - Native GTK applications no longer open a second Fcitx module path alongside the working
   Wayland frontend, so the **Wayland Diagnose** notification in Niri is resolved rather
   than hidden. GTK 3/4 X11 and XWayland clients keep a settings-based module fallback.

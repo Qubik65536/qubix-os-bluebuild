@@ -539,7 +539,7 @@ compiled locally and no EPEL or COPR repository is involved (DD-050).
 | KDE settings page | `kcm-fcitx5` | *System Settings → Keyboard → Input Method* |
 | Default methods | `/etc/xdg/fcitx5/profile` | English (US), then Pinyin |
 | Plasma toggle | `/etc/xdg/fcitx5/config` | `Super+Space` (Windows/Meta key + Space) switches between direct keyboard input and Pinyin |
-| Niri toggle | `/etc/niri/config.kdl` | Non-repeating, non-inhibitable `Ctrl+Space` runs `/usr/bin/fcitx5-remote -t` to switch the same Fcitx method group |
+| Niri toggle | `/etc/niri/config.kdl`, `/usr/bin/qubix-fcitx-toggle` | Non-repeating, non-inhibitable `Ctrl+Space` explicitly selects Pinyin or English through Fcitx's control interface |
 | Plasma Wayland launch | `/etc/xdg/kwinrc` | Selects `/usr/share/applications/org.fcitx.Fcitx5.desktop` as KWin's input-method client |
 | Native GTK Wayland path | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Unsets Fedora's broad `GTK_IM_MODULE` export in Wayland sessions so GTK uses compositor text-input |
 | GTK X11 fallback | `/etc/gtk-{3,4}.0/settings.ini` | Selects the packaged Fcitx module for GTK 3/4 clients running through X11 or XWayland |
@@ -549,10 +549,16 @@ equivalent of selecting **Fcitx 5** under *System Settings → Keyboard → Virt
 Niri has no KWin, so Fedora's XDG autostart entry starts the same host binary there.
 Fcitx's system fallback provides `Super+Space` in Plasma. Niri keeps `Mod+Space` for DMS's
 application launcher and instead binds `Ctrl+Space` at the compositor level to
-`fcitx5-remote -t`; that command toggles the running Fcitx instance without maintaining a
-second input-method profile. If you copied the Niri config into `~/.config/niri/`, that
-personal file still wins: add the `Ctrl+Space` binding there as well, or use
-`qubix-config --diff niri` to inspect the image change.
+`qubix-fcitx-toggle`. The helper queries Fcitx's current engine and explicitly selects
+`pinyin` or `keyboard-us`; it does not use the generic active/inactive `-t` operation,
+which can be ignored by a focused Wayland input context. A failed D-Bus query or engine
+selection produces a desktop notification instead of failing silently. The helper reads
+the engine back after selection too, which catches a personal Fcitx profile that shadows
+the image default but does not contain both engines.
+
+If you copied the Niri config into `~/.config/niri/`, that personal file still wins: add
+the `Ctrl+Space` binding there as well, or use `qubix-config --diff niri` to inspect the
+image change.
 
 The Niri toggle is `repeat=false` because a repeated toggle can switch to Pinyin and
 immediately back to English. It is also `allow-inhibiting=false`, so a focused remote
@@ -562,7 +568,7 @@ a personal `~/.config/niri/config.kdl` rather than the image default. Add this b
 that file or compare it with `qubix-config --diff niri`:
 
 ```kdl
-Ctrl+Space repeat=false allow-inhibiting=false hotkey-overlay-title="Switch English/Pinyin Input" { spawn "/usr/bin/fcitx5-remote" "-t"; }
+Ctrl+Space repeat=false allow-inhibiting=false hotkey-overlay-title="Switch English/Pinyin Input" { spawn "/usr/bin/qubix-fcitx-toggle"; }
 ```
 
 Fedora's `fcitx5-autostart` package exports `GTK_IM_MODULE=fcitx` for every graphical
