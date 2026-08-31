@@ -81,8 +81,9 @@ Plymouth check, and sits in **Awaiting confirmation** until the built image is c
 `IMG-036` tracks the packaged Fcitx 5/Pinyin setup on Plasma's `Super+Space` and Niri's
 `Ctrl+Space` (while Niri retains `Super+Space` for DMS) and waits there for a two-session
 input check on the built image. Its first Niri check exposed Fedora's duplicate GTK module
-environment and an unreliable input toggle; the task now also tracks the Wayland
-correction, hardened Niri binding with explicit engine selection, and rebuild check.
+environment; a later terminal test proved Fcitx switching worked but Niri did not invoke
+its system binding. The task now tracks the Wayland correction and Fcitx's dual native
+triggers, with `Ctrl+Space` deliberately absent from Niri's compositor bindings.
 `IMG-037` adds NVIDIA and
 NVIDIA+CachyOS recipes. Its first combined build exposed Fedora 44's root-only ostree hook;
 the recipe now suppresses that hook only during package installation, restores it, and

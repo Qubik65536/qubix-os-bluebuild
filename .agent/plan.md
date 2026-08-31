@@ -1484,19 +1484,19 @@ should look at.
     of maintaining locally compiled copies. The image supplies an XDG fallback profile;
     a user's own Fcitx or KWin configuration remains higher priority. The first Niri
     hardware check found Fedora's broad `GTK_IM_MODULE` export alongside a working
-    Wayland frontend, and `Ctrl+Space` did not reliably toggle. The image now narrows that
-    environment, makes the compositor binding non-repeating and non-inhibitable, and uses
-    explicit engine selection instead of Fcitx's unreliable generic Wayland toggle. It
-    awaits a rebuilt check.
+    Wayland frontend. A later terminal check proved that both Fcitx's explicit engine
+    selection and the image helper worked, while `Ctrl+Space` remained unresponsive: Niri
+    was not invoking its system compositor binding. The image therefore leaves
+    `Ctrl+Space` unbound in Niri and makes it a native Fcitx trigger alongside
+    `Super+Space`; Niri consumes only the latter for DMS. It awaits a rebuilt check.
   - **Acceptance criteria:**
     - Every image installs Fcitx 5, Fedora's Pinyin engine, the KDE configuration UI,
       autostart integration, and GTK/Qt input-method bridges from Fedora packages
-    - Accounts without personal Fcitx configuration get English (US) and Pinyin;
-      Plasma switches them with `Super+Space` (Windows/Meta key + Space)
-    - Niri keeps `Super+Space` for the DMS application launcher and switches English/Pinyin
-      with `Ctrl+Space` through Fcitx's remote-control interface; the toggle explicitly
-      selects `pinyin` or `keyboard-us`, neither repeats nor yields to an application's
-      keyboard-shortcut inhibitor, and reports an unreachable process or shadowing profile
+    - Accounts without personal Fcitx configuration get English (US) and Pinyin, with
+      native Fcitx triggers for both `Super+Space` (Windows/Meta key + Space) and
+      `Ctrl+Space`
+    - Plasma's documented input shortcut is `Super+Space`; Niri consumes `Super+Space` for
+      the DMS application launcher and leaves `Ctrl+Space` unbound so it reaches Fcitx
     - Plasma selects the host Fcitx desktop entry as its default Wayland virtual keyboard;
       Niri starts Fcitx through XDG autostart
     - Wayland sessions leave `GTK_IM_MODULE` unset so native GTK uses the compositor's

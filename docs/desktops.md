@@ -388,7 +388,7 @@ list, generated from the config actually in use.
 |---|---|
 | `Mod+T` | Terminal (WezTerm) |
 | `Mod+Space` | Application launcher (DMS spotlight) |
-| `Ctrl+Space` | Switch English/Pinyin input through Fcitx 5; always handled by Niri and never repeated (DD-050) |
+| `Ctrl+Space` | Switch English/Pinyin through Fcitx 5 directly; deliberately not a Niri compositor binding (DD-050) |
 | `Mod+V` | Clipboard history |
 | `Mod+N` | Notification centre |
 | `Mod+,` | Shell settings |
@@ -538,8 +538,8 @@ compiled locally and no EPEL or COPR repository is involved (DD-050).
 | Application bridges | `fcitx5-gtk`, `fcitx5-qt` | Covers GTK and Qt applications, including XWayland clients |
 | KDE settings page | `kcm-fcitx5` | *System Settings → Keyboard → Input Method* |
 | Default methods | `/etc/xdg/fcitx5/profile` | English (US), then Pinyin |
-| Plasma toggle | `/etc/xdg/fcitx5/config` | `Super+Space` (Windows/Meta key + Space) switches between direct keyboard input and Pinyin |
-| Niri toggle | `/etc/niri/config.kdl`, `/usr/bin/qubix-fcitx-toggle` | Non-repeating, non-inhibitable `Ctrl+Space` explicitly selects Pinyin or English through Fcitx's control interface |
+| Native toggles | `/etc/xdg/fcitx5/config` | Fcitx accepts `Super+Space` for Plasma and `Ctrl+Space` for Niri |
+| Niri routing | `/etc/niri/config.kdl` | DMS consumes `Super+Space` for its launcher; `Ctrl+Space` stays unbound and reaches Fcitx |
 | Plasma Wayland launch | `/etc/xdg/kwinrc` | Selects `/usr/share/applications/org.fcitx.Fcitx5.desktop` as KWin's input-method client |
 | Native GTK Wayland path | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Unsets Fedora's broad `GTK_IM_MODULE` export in Wayland sessions so GTK uses compositor text-input |
 | GTK X11 fallback | `/etc/gtk-{3,4}.0/settings.ini` | Selects the packaged Fcitx module for GTK 3/4 clients running through X11 or XWayland |
@@ -547,29 +547,16 @@ compiled locally and no EPEL or COPR repository is involved (DD-050).
 Plasma starts Fcitx through KWin's dedicated Wayland input-method socket, which is the
 equivalent of selecting **Fcitx 5** under *System Settings → Keyboard → Virtual Keyboard*.
 Niri has no KWin, so Fedora's XDG autostart entry starts the same host binary there.
-Fcitx's system fallback provides `Super+Space` in Plasma. Niri keeps `Mod+Space` for DMS's
-application launcher and instead binds `Ctrl+Space` at the compositor level to
-`qubix-fcitx-toggle`. The helper queries Fcitx's current engine and explicitly selects
-`pinyin` or `keyboard-us`; it does not use the generic active/inactive `-t` operation,
-which can be ignored by a focused Wayland input context. A failed D-Bus query or engine
-selection produces a desktop notification instead of failing silently. The helper reads
-the engine back after selection too, which catches a personal Fcitx profile that shadows
-the image default but does not contain both engines.
+Fcitx's system fallback declares both shortcuts as native trigger keys. Plasma uses
+`Super+Space`. Niri consumes that same Super chord for DMS's application launcher, but it
+does not bind `Ctrl+Space`, so the key reaches Fcitx and switches the active method there.
+This avoids depending on Niri loading the image's system config: a personal
+`~/.config/niri/config.kdl` cannot remove the Fcitx shortcut unless it adds its own
+conflicting `Ctrl+Space` binding.
 
-If you copied the Niri config into `~/.config/niri/`, that personal file still wins: add
-the `Ctrl+Space` binding there as well, or use `qubix-config --diff niri` to inspect the
-image change.
-
-The Niri toggle is `repeat=false` because a repeated toggle can switch to Pinyin and
-immediately back to English. It is also `allow-inhibiting=false`, so a focused remote
-desktop, VM, or other application cannot ask Niri to pass the shortcut through. Press
-`Mod+Shift+/` and look for **Switch English/Pinyin Input**: if it is absent, Niri is loading
-a personal `~/.config/niri/config.kdl` rather than the image default. Add this binding to
-that file or compare it with `qubix-config --diff niri`:
-
-```kdl
-Ctrl+Space repeat=false allow-inhibiting=false hotkey-overlay-title="Switch English/Pinyin Input" { spawn "/usr/bin/qubix-fcitx-toggle"; }
-```
+`Ctrl+Space` also remains accepted by Fcitx in Plasma. That small overlap is intentional:
+`Super+Space` is the documented Plasma shortcut, while using Fcitx's own second trigger is
+more reliable than asking Niri to spawn a control command.
 
 Fedora's `fcitx5-autostart` package exports `GTK_IM_MODULE=fcitx` for every graphical
 session. That is useful when a compositor lacks Wayland input-method support, but Niri and
@@ -589,10 +576,9 @@ and log out once:
 mv ~/.config/fcitx5/profile ~/.config/fcitx5/profile.backup
 ```
 
-Use the KDE Input Method page to add another engine, change Plasma's `Super+Space`, or
-enable Cloud Pinyin. Those changes create personal configuration and therefore survive
-future rebases. Niri's `Ctrl+Space` is a compositor binding, so change that key in the
-personal Niri config instead.
+Use the KDE Input Method page to add another engine, change either Fcitx trigger, or enable
+Cloud Pinyin. Those changes create personal configuration and therefore survive future
+rebases. Keep Niri's own bindings clear of whichever key you choose for Fcitx.
 `fcitx5-diagnose` reports the running framework, loaded addons, environment, and the
 profile path when input works in one application but not another.
 

@@ -2967,26 +2967,20 @@ three XDG fallback files in the root overlay:
 
 1. `/etc/xdg/fcitx5/profile` defines one group containing `keyboard-us` and `pinyin`, with
    Pinyin as the non-keyboard method.
-2. `/etc/xdg/fcitx5/config` replaces Fcitx's trigger list with `Super+space`, making the
-   Windows/Meta key plus Space toggle between direct keyboard input and Pinyin in Plasma.
+2. `/etc/xdg/fcitx5/config` replaces Fcitx's trigger list with both `Super+space` and
+   `Control+space`. The former is the documented Plasma shortcut; the latter is Niri's.
 3. `/etc/xdg/kwinrc` points KWin's `[Wayland] InputMethod` at Fedora's host
    `/usr/share/applications/org.fcitx.Fcitx5.desktop`, making Fcitx the Plasma Wayland
    input-method client.
 
-Niri keeps `Mod+Space` bound to DMS's spotlight. A compositor consumes that binding before
-clients see it, so Niri also binds `Ctrl+Space` to `/usr/bin/qubix-fcitx-toggle`. Make the
-binding `repeat=false` so one press cannot switch twice, and `allow-inhibiting=false` so a
-focused application's shortcut inhibitor cannot swallow it.
-
-Do not implement the helper with `fcitx5-remote -t`. That generic operation changes
-Fcitx's active/inactive state, and an [upstream Wayland report](https://github.com/fcitx/fcitx5/issues/1428)
-shows it can be ignored by the focused application. Query the current engine with
-`fcitx5-remote --check -n`, then explicitly select `pinyin` or `keyboard-us` with
-`--check -s`. These are the two IDs in the system profile, and failures produce a desktop
-notification instead of disappearing into the compositor's closed standard streams. Read
-the current engine back after selection as well: `SetCurrentIM` has no return value, so a
-personal profile missing the requested engine can otherwise look successful. This leaves
-Plasma's native `Super+Space` trigger and the shared profile unchanged.
+Niri keeps `Mod+Space` bound to DMS's spotlight, so the compositor consumes the Super
+trigger before Fcitx sees it. Deliberately leave `Ctrl+Space` absent from Niri's bindings:
+the key then reaches Fcitx and activates its native `Control+space` trigger. A hardware
+test established why this boundary matters: `fcitx5-remote --check -s pinyin` and the
+image's explicit-switch helper both worked from a terminal, while the Niri key remained
+unresponsive. The compositor was not invoking the system binding, so adding more logic to
+the spawned command could not fix it. Native Fcitx handling also survives a personal Niri
+configuration, provided that configuration does not claim `Ctrl+Space` itself.
 
 Keep `fcitx5-autostart`: its XDG entry starts Fcitx in Niri, where there is no KWin to own
 the input-method process, and its Fedora profile fragment provides compatibility variables
@@ -3016,11 +3010,11 @@ intact: X11 still needs the former and non-KWin Qt applications still need the l
   gains package-script authority. Fedora updates the framework and engines with the base.
 - Plasma gets KWin's native text-input path; Niri and XWayland applications retain Fcitx's
   toolkit path. Both sessions use the same Fcitx profile in the same home directory.
-- The shortcuts intentionally differ by session: Plasma uses `Super+Space`; Niri uses
-  `Ctrl+Space` for input and retains `Super+Space` for its application launcher. Niri's
-  live hotkey overlay and the desktop reference show both compositor bindings. The Niri
-  toggle is non-repeating, bypasses application shortcut inhibitors, and explicitly
-  selects the opposite engine rather than relying on Fcitx's generic Wayland toggle.
+- The effective shortcuts differ by session: Plasma uses `Super+Space`; Niri uses
+  `Ctrl+Space` for input and retains `Super+Space` for its application launcher. Both are
+  native Fcitx triggers, but Niri consumes only the Super chord. `Ctrl+Space` technically
+  remains valid in Plasma too; that overlap trades strict session exclusivity for a switch
+  that does not depend on Niri loading or executing a compositor binding.
 - Native GTK applications no longer open a second Fcitx module path alongside the working
   Wayland frontend, so the **Wayland Diagnose** notification in Niri is resolved rather
   than hidden. GTK 3/4 X11 and XWayland clients keep a settings-based module fallback.

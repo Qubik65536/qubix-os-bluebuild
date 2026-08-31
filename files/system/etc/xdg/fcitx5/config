@@ -1,7 +1,9 @@
 # Fcitx 5 system hotkey fallback for Qubix OS (DD-050).
 # ~/.config/fcitx5/config takes precedence, so user changes are never overwritten.
 
-# Super is the Meta/Windows key. This replaces Fcitx's native Ctrl+Space defaults;
-# Niri supplies its separate Ctrl+Space compositor binding in /etc/niri/config.kdl.
+# Super is the Meta/Windows key and is the documented Plasma shortcut. Control+Space is
+# the Niri path: Niri consumes Super+Space for DMS but deliberately leaves Control+Space
+# to Fcitx itself. Keeping both native triggers avoids depending on a compositor binding.
 [Hotkey/TriggerKeys]
 0=Super+space
+1=Control+space

@@ -15,16 +15,15 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012); `BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop` (DD-023) |
 | `etc/xdg/mimeapps.list` | `xdg-open`, GIO, KIO | Web MIME types → Ungoogled Chromium, i.e. the default browser (DD-023) |
 | `etc/xdg/fcitx5/profile` | Fcitx 5 XDG config cascade | System fallback group with `keyboard-us` and `pinyin`; `~/.config/fcitx5/profile` wins and is never rewritten (DD-050) |
-| `etc/xdg/fcitx5/config` | Fcitx 5 XDG config cascade | Replaces the default trigger list with `Super+space` (Windows/Meta + Space) for Plasma; `~/.config/fcitx5/config` wins (DD-050) |
+| `etc/xdg/fcitx5/config` | Fcitx 5 XDG config cascade | Native triggers are `Super+space` for Plasma and `Control+space` for Niri; Niri consumes only Super for DMS, while `~/.config/fcitx5/config` wins (DD-050) |
 | `etc/xdg/kwinrc` | KWin / KDE's Virtual Keyboard KCM | Selects Fedora's host Fcitx desktop entry as Plasma's Wayland input method; `~/.config/kwinrc` wins (DD-050) |
 | `etc/profile.d/zz-qubix-fcitx-wayland.sh` | graphical sessions and interactive shells | Sorts after Fedora's `fcitx5.sh` and unsets its global `GTK_IM_MODULE` only on Wayland; preserves `XMODIFIERS` and Qt compatibility (DD-050) |
 | `etc/gtk-{3,4}.0/settings.ini` | GTK 3 and GTK 4 | Selects the packaged Fcitx module as the X11/XWayland fallback without forcing native Wayland clients away from compositor text-input; personal settings win (DD-050) |
-| `usr/bin/qubix-fcitx-toggle` | Niri's `Ctrl+Space` binding | Queries the current Fcitx engine, explicitly selects and reads back `pinyin` or `keyboard-us`, and notifies on failure or a shadowing profile without both; avoids the unreliable generic `-t` transition. Mode `100755` (DD-050) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012); `XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:+…:}/etc/xdg`, without which the WezTerm config below is unreachable (DD-034). **Appends, not defaults**, and reaches only what the user manager starts — `etc/profile.d/qubix-shell-env.sh` carries the same append for every shell (DD-038) |
 | `etc/xdg/wezterm/wezterm.lua` | WezTerm | System-wide config: font stack, `Oxocarbon Dark`, no title bar, 0.75 opacity. Found via `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it wholesale (DD-034) |
 | `etc/xdg/wezterm/colors/*.toml` | WezTerm | Two custom schemes. Found because `colors/` sits in a config dir, so they stay available to a user's *own* `wezterm.lua` (DD-034) |
 | `usr/share/licenses/monaspace-krypton-nf/LICENSE` | nobody — legal | The OFL text for a font the recipe installs from upstream. **Vendored because Monaspace's archive ships none** (DD-034) |
-| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds (`Mod+Space` launcher) plus a non-repeating, non-inhibitable `Ctrl+Space` invoking `/usr/bin/qubix-fcitx-toggle`; explicitly unsets `GTK_IM_MODULE` for compositor-launched clients; `eDP-1` pinned to `scale 1`; window rule hiding the Xwayland Video Bridge; `include`s the theme (DD-014, DD-015, DD-019, DD-024, DD-050) |
+| `etc/niri/config.kdl` | niri | System-default session config; DMS keybinds consume `Mod+Space` for the launcher but deliberately leave `Ctrl+Space` to Fcitx; explicitly unsets `GTK_IM_MODULE` for compositor-launched clients; `eDP-1` pinned to `scale 1`; window rule hiding the Xwayland Video Bridge; `include`s the theme (DD-014, DD-015, DD-019, DD-024, DD-050) |
 | `etc/niri/qubix-theme.kdl` | niri, via `include` | The `#56728B` palette for niri. **Separate so a personal config can include it** and keep tracking the image (DD-022, DD-025) |
 | `usr/share/qubix-os/dms-theme.json` | DankMaterialShell, as `customThemeFile` | The same palette for the shell. Watched by DMS, so a rebase reloads it live (DD-022, DD-025) |
 | `usr/bin/qubix-dms-theme` | `qubix-dms-theme.service` | Enforces the theme pointer every Niri login and migrates DMS's native floating-bar settings plus the canonical cube launcher once per preset version. Version 2 makes `BarCanvas` transparent while retaining rounded `BasePill` backgrounds without outlines. Preserves widget arrays and unrelated settings; stamps completion under `$XDG_STATE_HOME/qubix-os/` (DD-025, DD-048). **Only executable in the overlay** |
@@ -152,9 +151,9 @@ WezTerm's search path ends at `$XDG_CONFIG_DIRS`, which conventionally means `/e
 has no `/usr` entry (DD-034).
 
 Fcitx's package-config search falls back from `~/.config/fcitx5/` to
-`$XDG_CONFIG_DIRS/fcitx5/` for both the profile and Plasma's `Super+space` hotkey; Niri's
-system config invokes `qubix-fcitx-toggle` on `Ctrl+Space` to select the other profile
-engine explicitly.
+`$XDG_CONFIG_DIRS/fcitx5/` for both the profile and its `Super+space` plus
+`Control+space` native triggers. Niri consumes the former for DMS and leaves the latter
+unbound, so Fcitx receives `Ctrl+Space` directly without a compositor-spawned helper.
 KWin's KConfig cascade similarly gives the user's `kwinrc` priority over
 `/etc/xdg/kwinrc`. These make the Pinyin setup a default rather than a seeder or an
 image-owned preference (DD-050).

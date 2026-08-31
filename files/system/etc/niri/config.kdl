@@ -175,18 +175,14 @@ binds {
 
     // Applications. WezTerm is the system default terminal — see DD-012.
     Mod+T hotkey-overlay-title="Open a Terminal" { spawn "wezterm"; }
+    // Fcitx handles Ctrl+Space natively. Keep it absent here; Mod+Space is the DMS
+    // launcher and consumes Fcitx's other configured trigger in this session. DD-050.
     Mod+Space hotkey-overlay-title="Application Launcher" { spawn "dms" "ipc" "call" "spotlight" "toggle"; }
     Mod+V hotkey-overlay-title="Clipboard History" { spawn "dms" "ipc" "call" "clipboard" "toggle"; }
     Mod+N hotkey-overlay-title="Notification Centre" { spawn "dms" "ipc" "call" "notifications" "toggle"; }
     Mod+Comma hotkey-overlay-title="Shell Settings" { spawn "dms" "ipc" "call" "settings" "focusOrToggle"; }
     Mod+M hotkey-overlay-title="Task Manager" { spawn "dms" "ipc" "call" "processlist" "focusOrToggle"; }
     Ctrl+Alt+Delete hotkey-overlay-title="Task Manager" { spawn "dms" "ipc" "call" "processlist" "focusOrToggle"; }
-
-    // Niri keeps Mod+Space for its launcher, so use a compositor-level Ctrl+Space
-    // binding to toggle Fcitx without changing Plasma's Super+Space fallback. A toggle
-    // must never key-repeat or be swallowed by an application's shortcut inhibitor.
-    // DD-050.
-    Ctrl+Space repeat=false allow-inhibiting=false hotkey-overlay-title="Switch English/Pinyin Input" { spawn "/usr/bin/qubix-fcitx-toggle"; }
 
     // Screen capture for X11 applications. The Xwayland Video Bridge does not autostart
     // in this session (DD-021), so this is how you turn it on for as long as Discord,

@@ -100,8 +100,8 @@ modules:
         # and Qt 5/6 modules conditionally for toolkits present in Aurora. DD-050.
         #
         # Defaults live in /etc/xdg/fcitx5/{profile,config}, /etc/xdg/kwinrc, Niri's
-        # Ctrl+Space engine-switch helper/environment block, the GTK settings, and the
-        # late profile.d environment correction from module 1.
+        # environment block, the GTK settings, and the late profile.d environment
+        # correction from module 1. Fcitx itself handles both desktop trigger keys.
         # fcitx5-autostart supplies XDG autostart (needed by Niri) and Fedora's input-
         # method environment. The overlay narrows its GTK variable on Wayland so native
         # clients use the compositor protocol; KWin starts Fcitx as its special client.
