@@ -523,6 +523,27 @@ with Loupe. `~/.config/mimeapps.list` is searched first, so *System Settings →
 Applications* — or `xdg-settings set default-web-browser …` — still overrides all of it,
 per user.
 
+## File chooser dialogs in Niri
+
+Zed's save-path dialog and Ungoogled Chromium's download-location dialog use the same
+desktop service: `xdg-desktop-portal`'s `FileChooser` interface. Qubix OS maps that one
+interface to the GTK backend in Niri. The GNOME backend remains first for interfaces it
+provides for Niri, including screen capture, and Plasma keeps its own KDE profile
+(DD-053).
+
+This explicit mapping avoids a dependency trap in niri's upstream profile. It prefers the
+GNOME backend, but GNOME 47 and newer delegates file choosing to Nautilus. The image has
+the GNOME and GTK portal packages but deliberately does not add Nautilus as a second
+graphical file manager. Without the mapping, a portal-aware application asks GNOME for a
+chooser that cannot be provided and appears to do nothing.
+
+The system default is `/etc/xdg-desktop-portal/niri-portals.conf`. A personal
+`~/.config/xdg-desktop-portal/niri-portals.conf` has higher priority and replaces the
+profile rather than merging with it. Start a personal profile with
+`qubix-config niri-portals`; a file containing only `FileChooser=…` can discard the default
+and the explicit mappings for the other portal interfaces. Log out and back in after
+changing portal selection so the user services start with one consistent profile.
+
 ## Simplified Chinese input
 
 Qubix OS ships **Fcitx 5 with the Pinyin engine** for Simplified Chinese (`zh-Hans`)
@@ -592,7 +613,8 @@ not change it in the other.
 
 `xdg-desktop-portal-gnome` and `xdg-desktop-portal-gtk` arrive as weak dependencies of the
 `niri` RPM. They do not affect Plasma: portal selection is per-desktop, driven by
-`$XDG_CURRENT_DESKTOP` and the `*-portals.conf` files each desktop ships.
+`$XDG_CURRENT_DESKTOP` and the `*-portals.conf` files each desktop ships. Qubix overrides
+only niri's profile to route file choosing to GTK; see **File chooser dialogs in Niri**.
 
 Waybar, Fuzzel, and Swaylock also arrive as `niri` weak dependencies. The shipped config
 does not use them — DMS covers all three — but they are left installed as a fallback if

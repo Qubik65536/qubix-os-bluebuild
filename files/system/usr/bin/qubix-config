@@ -6,7 +6,7 @@
 # replaces it and a file of your own shadows it. That is the right default and it stays:
 # nothing is written into $HOME, and everyone who has customised nothing goes on receiving
 # improvements with nothing to re-run (DD-030). What it leaves awkward is *starting* to
-# customise — you have to know which of six paths holds the file, whether your copy replaces
+# customise — you have to know which of seven paths holds the file, whether your copy replaces
 # the image's wholesale or merges with it, and, for niri, that copying it verbatim breaks the
 # session. This is that knowledge, as a command.
 #
@@ -30,7 +30,7 @@ PROGRAM=qubix-config
 CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME:-}/.config}"
 
 # Every name this command knows, in the order --list and --all walk them.
-NAMES="starship fastfetch wezterm zellij lazygit niri"
+NAMES="starship fastfetch wezterm zellij lazygit niri niri-portals"
 
 # ── The table ─────────────────────────────────────────────────────────────────
 # One entry per configuration, setting four globals:
@@ -83,6 +83,12 @@ entry() {
             DESC="the Niri session"
             NOTE="The theme include has been rewritten to the absolute /etc/niri/qubix-theme.kdl, so your copy keeps receiving palette changes. Everything else is now yours: niri ignores /etc/niri/config.kdl completely once this file exists, so keybinds and layout changes from a rebase no longer reach you."
             ;;
+        niri-portals)
+            SRC=/etc/xdg-desktop-portal/niri-portals.conf
+            DEST="$CONFIG_HOME/xdg-desktop-portal/niri-portals.conf"
+            DESC="Niri's portal backend selection"
+            NOTE="This is a complete profile, not a fragment: your copy replaces the image's whole Niri portal selection. Log out and back in after changing it so every portal user service starts from the same profile."
+            ;;
         *)
             return 1
             ;;
@@ -125,10 +131,10 @@ list() {
     for n in $NAMES; do
         entry "$n"
         if [ -e "$DEST" ]; then status="you have your own copy"; else status="not present"; fi
-        printf '  %-10s %s\n' "$n" "$DESC"
-        printf '  %-10s image  %s%s\n' "" "$SRC" \
+        printf '  %-13s %s\n' "$n" "$DESC"
+        printf '  %-13s image  %s%s\n' "" "$SRC" \
             "$([ -r "$SRC" ] || echo '   (MISSING from this image)')"
-        printf '  %-10s yours  %s   (%s)\n' "" "$DEST" "$status"
+        printf '  %-13s yours  %s   (%s)\n' "" "$DEST" "$status"
         echo
     done
     cat <<'EOF'

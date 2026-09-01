@@ -89,3 +89,6 @@ repeated Fedora 44 failures kept the combined driver from reaching hardware vali
 `BLD-002` therefore parks that combined recipe and removes it from automatic and manual
 CI selection (DD-052). IMG-037 is back in Open until a clean combined build justifies
 re-enabling publication; the retained recipe still fails closed.
+`IMG-038` selects the already-installed GTK backend for Niri's file chooser because the
+upstream GNOME selection needs Nautilus, which the image does not install. It waits in
+Awaiting confirmation for Zed and Flatpak Chromium dialog checks on a built image (DD-053).

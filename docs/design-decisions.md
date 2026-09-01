@@ -3181,3 +3181,46 @@ selector locations and updating the task, documentation, and this decision's suc
   systems that do not need NVIDIA's out-of-tree driver.
 - DD-051 continues to define the retained recipe's fail-closed design, while this record
   suspends its publication policy.
+
+---
+
+## DD-053 — Use GTK for Niri's file chooser, without adding Nautilus
+
+**Status:** Accepted
+
+**Implements:** `IMG-038`
+
+**Context.** Zed's save-path selector and Ungoogled Chromium's download-location selector
+both failed to open in Niri. The applications use different toolkits and packaging, but
+both cross the same `org.freedesktop.portal.FileChooser` interface. Niri's upstream portal
+profile sets `default=gnome;gtk;` without mapping that interface. Since GNOME 47,
+`xdg-desktop-portal-gnome` delegates its file chooser to Nautilus. Qubix receives the GNOME
+and GTK portal backends from niri's weak dependencies, but it does not install Nautilus.
+
+Adding Nautilus would also make the chooser work, at the cost of installing and maintaining
+a second graphical file manager on an Aurora/KDE image. Selecting the KDE portal globally
+would couple Niri to Plasma's session services. The already-installed GTK portal implements
+`FileChooser` directly and is niri upstream's documented alternative when Nautilus is not
+installed.
+
+**Decision.** Ship `/etc/xdg-desktop-portal/niri-portals.conf` with niri's complete upstream
+selection plus `org.freedesktop.impl.portal.FileChooser=gtk;`. Keep GNOME first in the
+default list for screencasting and other interfaces, and preserve the explicit GTK Access
+and Notification plus gnome-keyring Secret mappings. Do not install Nautilus and do not
+change KDE's portal profile.
+
+Use the administrator configuration path in `/etc` so this image policy outranks the niri
+RPM's `/usr/share` default. Do not ship a one-key fragment: portal profiles are selected as
+whole files rather than merged across precedence levels.
+
+**Consequences.**
+
+- Portal-aware native and Flatpak applications use the GTK chooser in Niri.
+- Niri screen capture continues through the GNOME backend; Plasma continues through its
+  own KDE profile selected by `$XDG_CURRENT_DESKTOP`.
+- No additional file manager is installed.
+- A personal `~/.config/xdg-desktop-portal/niri-portals.conf` still wins. It must carry the
+  complete desired profile; `qubix-config niri-portals` provides a safe starting copy, and
+  portal services need a fresh login after it changes.
+- The image change can prove the selected configuration and installed backend statically;
+  opening both reported dialogs still requires a built image and a Niri login.

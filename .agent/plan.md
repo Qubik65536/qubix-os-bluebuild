@@ -1464,6 +1464,32 @@ should look at.
 
 ### Desktop sessions
 
+- [ ] **IMG-038** — Restore file chooser dialogs in the Niri session
+  - **Category:** Image content
+  - **Depends on:** IMG-002
+  - **Notes:** Reported 2026-08-31: portal-backed chooser dialogs do not open in Niri,
+    including Zed's save-path selector and Ungoogled Chromium's download-location
+    selector. Niri's upstream portal profile prefers the GNOME backend. Since GNOME 47,
+    that backend delegates file choosing to Nautilus; Qubix installs the GNOME and GTK
+    portal backends through niri's weak dependencies, but not Nautilus. The image now
+    selects the already-installed GTK backend for `FileChooser` explicitly instead of
+    adding a second graphical file manager. Static configuration checks pass; the two
+    reported dialogs await a rebuilt Niri-session check.
+  - **Acceptance criteria:**
+    - The Niri-specific portal profile selects `gtk` for
+      `org.freedesktop.impl.portal.FileChooser`
+    - Niri retains the GNOME backend for screencasting and the existing GTK/gnome-keyring
+      selections for other explicitly mapped interfaces
+    - Plasma's portal selection is unchanged
+    - The portal profile is commented, parses as an INI file, and its backend names match
+      the portal packages installed in every image
+    - `qubix-config niri-portals` copies the complete profile into the user's higher-priority
+      configuration path and the existing build assertion covers its source path
+    - `docs/desktops.md`, `docs/design-decisions.md`, and `.agent/context/files-system.md`
+      document the cause, selection, and override path
+    - On the rebased image, Zed can choose a save path and Ungoogled Chromium can choose a
+      download location in Niri *(open — needs a build and hardware)*
+
 - [ ] **IMG-036** — Configure Simplified Chinese Pinyin input with Fcitx 5
   - **Category:** Image content
   - **Depends on:** —

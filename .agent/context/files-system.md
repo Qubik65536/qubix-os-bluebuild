@@ -17,6 +17,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/xdg/fcitx5/profile` | Fcitx 5 XDG config cascade | System fallback group with `keyboard-us` and `pinyin`; `~/.config/fcitx5/profile` wins and is never rewritten (DD-050) |
 | `etc/xdg/fcitx5/config` | Fcitx 5 XDG config cascade | Native triggers are `Super+space` for Plasma and `Control+space` for Niri; Niri consumes only Super for DMS, while `~/.config/fcitx5/config` wins (DD-050) |
 | `etc/xdg/kwinrc` | KWin / KDE's Virtual Keyboard KCM | Selects Fedora's host Fcitx desktop entry as Plasma's Wayland input method; `~/.config/kwinrc` wins (DD-050) |
+| `etc/xdg-desktop-portal/niri-portals.conf` | `xdg-desktop-portal`, under Niri only | Retains GNOME for Niri's general portal backend but maps `FileChooser` to GTK, because GNOME 47+ needs uninstalled Nautilus for that interface; Plasma reads its own profile (DD-053) |
 | `etc/profile.d/zz-qubix-fcitx-wayland.sh` | graphical sessions and interactive shells | Sorts after Fedora's `fcitx5.sh` and unsets its global `GTK_IM_MODULE` only on Wayland; preserves `XMODIFIERS` and Qt compatibility (DD-050) |
 | `etc/gtk-{3,4}.0/settings.ini` | GTK 3 and GTK 4 | Selects the packaged Fcitx module as the X11/XWayland fallback without forcing native Wayland clients away from compositor text-input; personal settings win (DD-050) |
 | `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012); `XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:+…:}/etc/xdg`, without which the WezTerm config below is unreachable (DD-034). **Appends, not defaults**, and reaches only what the user manager starts — `etc/profile.d/qubix-shell-env.sh` carries the same append for every shell (DD-038) |
@@ -49,7 +50,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/share/qubix-os/lazygit/config.yml` | lazygit, as the **first** entry of `$LG_CONFIG_FILE` | Nerd Font icons + the `#56728B` palette. The user's config is appended after it and **merges over it key by key** (DD-032) |
 | `etc/zellij/config.kdl` | zellij, when a user starts it | The Qubix theme. **The only system-wide path zellij reads**; `~/.config/zellij/` shadows it wholesale (DD-033) |
 | `etc/fastfetch/config.jsonc` | fastfetch, when a user runs it | The system-wide default box. **The only system-wide path fastfetch reads** — its search path has no `/usr` entry (DD-031) |
-| `usr/bin/qubix-config` | nobody — run by hand | Copies any shipped config into `~/.config`, lists them, diffs a copy against the image, and `--check`s its own paths. **Nothing runs it** — it is the alternative to a seeder, not one (DD-039). Mode `100755` |
+| `usr/bin/qubix-config` | nobody — run by hand | Copies any shipped config into `~/.config`, including the complete `niri-portals` profile, lists them, diffs a copy against the image, and `--check`s its own paths. **Nothing runs it** — it is the alternative to a seeder, not one (DD-039, DD-053). Mode `100755` |
 | `etc/distrobox/distrobox.conf` | distrobox on the host, every subcommand | `container_init_hook="/run/host/usr/bin/qubix-distrobox-shell"`. Last system-wide file in distrobox's config hierarchy; the RPM owns nothing here, and ublue-os-just's `*.ini` manifests are untouched. **Flags beat it** — `--init-hooks` and an assemble `init_hooks=` key replace the hook (DD-043) |
 | `usr/bin/qubix-distrobox-shell` | distrobox-init, **inside** a container, as root | Installs zsh, the plugins, starship, atuin and bat from the *container's* repositories, then fills the gaps from `/run/host` — text always, a host binary only after `--version` proves the container can run it; symlinks `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` and `/etc/profile.d/qubix-shell-env.sh` → the host's; writes the source block into the container's global `zshrc` between `# ── Qubix OS ──…` and `# ── end of the Qubix OS block ──…`, **replacing** any block already there, which is the only route a later fix has into a container that exists (DD-046). Idempotent — two runs give a byte-identical file — re-runnable by hand, **exits 0 from inside a container whatever happens**, and **never prints a line starting with `Error:`** (DD-043, DD-045). Mode `100755` |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Reads the gutter **two ways** — a cursor step on fastfetch ≤ 2.63, leading spaces on ≥ 2.64, which reworked logo printing (DD-042) — so it is coupled to how fastfetch renders and needs re-checking when that changes. Mode `100755` in the overlay |
@@ -145,10 +146,16 @@ shipped (DD-036) — and
 *data* dir for presets and logos, not a config dir), and `etc/zellij/config.kdl` (DD-033;
 `/etc/zellij` is zellij's `SYSTEM_DEFAULT_CONFIG_DIR` and there is no `/usr` entry).
 
-`etc/xdg/wezterm/`, `etc/xdg/fcitx5/profile`, and `etc/xdg/kwinrc` are XDG/KConfig
+`etc/xdg/wezterm/`, `etc/xdg/fcitx5/profile`, `etc/xdg/kwinrc`, and
+`etc/xdg-desktop-portal/niri-portals.conf` are XDG/KConfig
 `/etc` cases and additions rather than replacements:
 WezTerm's search path ends at `$XDG_CONFIG_DIRS`, which conventionally means `/etc/xdg`, and
 has no `/usr` entry (DD-034).
+
+The portal file is deliberately in xdg-desktop-portal's administrator path rather than
+`/usr/share`: it must override the niri RPM's profile. It is desktop-specific, so Plasma's
+KDE profile remains selected. A user's same-named file has higher priority and replaces
+the whole profile; copy the complete system file before personalising one (DD-053).
 
 Fcitx's package-config search falls back from `~/.config/fcitx5/` to
 `$XDG_CONFIG_DIRS/fcitx5/` for both the profile and its `Super+space` plus

@@ -49,7 +49,7 @@ with nothing to re-run and nothing stale left behind (DD-030).
 ### Making any of it your own: `qubix-config`
 
 Every file above lives in `/usr` or `/etc`, and a file of your own shadows it. Getting that
-first copy used to mean knowing which of six paths held it — so there is a command:
+first copy used to mean knowing which of seven paths held it — so there is a command:
 
 ```bash
 qubix-config --list          # what can be copied, and what you already have

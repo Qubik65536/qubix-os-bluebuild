@@ -396,7 +396,7 @@ The seventh asserts that `qubix-config` still names files that exist:
           qubix-config --check
 ```
 
-- **It hardcodes six source paths**, one per configuration it can copy, so a path that moves
+- **It hardcodes seven source paths**, one per configuration it can copy, so a path that moves
   would turn into "not in this image" at somebody's terminal instead of failing here.
 - **`--check` writes nothing and needs no home directory**, which is what lets it run in a
   build container as root. It reports both things that can rot: a missing source, and niri's
