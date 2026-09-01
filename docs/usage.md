@@ -151,12 +151,24 @@ Also available: System Settings → **About this System**, which reads
 
 ## Building an offline ISO
 
-The manual [`iso` workflow](../.github/workflows/iso.yml) uses
+The [`iso` workflow](../.github/workflows/iso.yml) uses
 [`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer)
-to embed one already-published Qubix image in an x86_64 Kinoite installer (DD-054). It
-does not rebuild or release the OCI image.
+to embed an already-published Qubix image in an x86_64 Kinoite installer (DD-054, DD-056).
+It does not rebuild or release the OCI image.
 
-### In the GitHub interface
+### Automatic artifacts
+
+After the `bluebuild` image workflow succeeds on the default branch, the ISO workflow
+automatically builds `latest` media for Standard, CachyOS, and NVIDIA in parallel. A
+failed, cancelled, pull-request, or non-default-branch image run does not build ISO media.
+One ISO failure does not cancel the other two.
+
+Open the completed **iso** run and download the desired file from **Artifacts**. Each
+artifact is named like `qubix-os-standard-latest-f44-x86_64` and contains the ISO plus its
+`-CHECKSUM` file. It expires after seven days and is not attached to a GitHub Release.
+Expect a multi-gigabyte download; the exact size is shown on the completed run.
+
+### Manual build in the GitHub interface
 
 1. Open **Actions → iso → Run workflow**.
 2. Select `standard`, `cachyos`, or `nvidia` and enter the published image tag. `latest`
@@ -165,11 +177,7 @@ does not rebuild or release the OCI image.
    workflow derives Fedora's major version from the signed image metadata; there is no
    separate version input to keep in sync.
 
-The artifact is named like `qubix-os-standard-latest-f44-x86_64` and contains both the
-ISO and its `-CHECKSUM` file. It expires after seven days and is not attached to a GitHub
-Release. Expect a multi-gigabyte download; the exact size is shown on the completed run.
-
-### With GitHub CLI
+### Manual build with GitHub CLI
 
 Prerequisites are an authenticated [GitHub CLI](https://cli.github.com/) and permission to
 dispatch this repository's workflows. This exact sequence builds the current standard

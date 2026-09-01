@@ -96,3 +96,5 @@ Awaiting confirmation for Zed and Flatpak Chromium dialog checks on a built imag
 requested on 2026-08-31; `DOC-013` remains open until an artifact is built and booted.
 `BLD-004` changes only the unattended image timer to Sunday at 00:00 UTC each week;
 push, pull-request, and manual image builds remain unchanged (DD-055).
+`BLD-005` completed automatic all-variant ISO artifacts after successful default-branch
+image publication, while retaining the manual single-variant path (DD-056).

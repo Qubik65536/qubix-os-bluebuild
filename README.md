@@ -92,9 +92,10 @@ Updating, rolling back, and uninstalling are covered in [`docs/usage.md`](docs/u
 
 ## ISO
 
-Run the manual [`iso` workflow](.github/workflows/iso.yml) to turn any active, published
-Qubix image into an x86_64 installer. The workflow verifies the image signature, builds
-the ISO with
+Every successful default-branch [`bluebuild` workflow](.github/workflows/build.yml)
+automatically starts the [`iso` workflow](.github/workflows/iso.yml), which turns all three
+active `latest` images into x86_64 installers. A manual run can rebuild one variant or use
+another published tag. The workflow verifies each image signature, builds the ISO with
 [`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer),
 and uploads the ISO and checksum as a GitHub Actions artifact for seven days. It does not
 create a GitHub Release. See [`docs/usage.md`](docs/usage.md#building-an-offline-iso) for

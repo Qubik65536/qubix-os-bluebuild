@@ -36,13 +36,19 @@ are built.
 
 ### `workflows/iso.yml`
 
-- Workflow `iso`, **manual dispatch only**, with one `build-iso` job on `ubuntu-latest`
-  and a 120-minute timeout. It consumes a published image; it never builds or pushes one.
+- Workflow `iso` consumes published images; it never builds or pushes them. It starts on a
+  completed `bluebuild` run filtered to `main`, and still supports manual dispatch.
+- `select-images` guards automatic events on upstream `success`, a non-PR event, and the
+  repository default branch. It emits all three active images at `latest` automatically,
+  or the one manually selected image/tag.
+- `build-iso` is an `ubuntu-latest` matrix with a 120-minute timeout and `fail-fast: false`.
+  Automatic runs build Standard, CachyOS, and NVIDIA independently; manual runs have one
+  cell.
 - Inputs: active `image` choice (`standard`, `cachyos`, `nvidia`) and `image_tag` (default
   `latest`). Fedora's major version is derived from the verified digest's
   `org.opencontainers.image.version` label rather than maintained as another input.
 - Maps the choice to the exact `ghcr.io/qubik65536/qubix-os-bluebuild*` name and rejects
-  unsafe tag/version input before it reaches shell-bearing action inputs.
+  unsafe tag input before it reaches shell-bearing action inputs.
 - Checks out `cosign.pub`, verifies the selected tag, extracts its signed manifest digest,
   and passes that digest as `image_src` to `JasonN3/build-container-installer` v1.5.0.
   All external actions are pinned to immutable commits with release comments.
@@ -50,9 +56,10 @@ are built.
   signature policy. It is distinct from the explicit pre-build cosign verification.
 - Uploads the ISO and its generated checksum together with compression level 0, errors if
   either output is absent, retains them seven days, and has no release/publication step.
-- Concurrency is per image/tag tuple and cancels a superseded identical run.
+- Automatic concurrency is one `all-latest` run, so newer publication supersedes an older
+  in-progress ISO set. Manual concurrency remains per image/tag tuple.
 - Permission is only `contents: read`; source images are public and artifact upload needs
-  no additional token scope. DD-054 owns the rationale.
+  no additional token scope. DD-054 and DD-056 own the rationale and trigger policy.
 
 ### `dependabot.yml`
 
@@ -82,13 +89,17 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
 - A docs-only change therefore can't be "verified by CI". Don't imply it was.
 - `SIGNING_SECRET` is a repository secret; `cosign.key` / `cosign.private` are gitignored
   and must never be committed.
-- ISO generation is not chained to the image workflow. Dispatch it only after the desired
-  tag exists. If BlueBuild changes its version label format, the derivation fails closed.
+- Automatic ISO generation is chained only to a successful default-branch image workflow;
+  failed, cancelled, PR, and non-default-branch completions consume no ISO build jobs.
+  Manual dispatch still requires the desired tag to exist. If BlueBuild changes its
+  version label format, derivation fails closed.
 - `image_signed` does not authenticate the builder's registry copy. The separate cosign
   step and digest-valued `image_src` do; do not remove either or replace the digest with
   the mutable tag.
 - Adding an active variant also requires adding its choice and mapping in `iso.yml`.
 - ISO artifacts expire after seven days and are not GitHub Releases.
+- Each successful default-branch image workflow now creates three multi-gigabyte artifacts;
+  retention and Actions storage consumption are deliberate consequences of DD-056.
 
 ## Update when
 

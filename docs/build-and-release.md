@@ -100,14 +100,15 @@ Nothing needs more; do not widen these.
 
 ## The ISO workflow
 
-[`.github/workflows/iso.yml`](../.github/workflows/iso.yml) is a separate, manual workflow
-that turns one **already published** image into installation media. Keeping it separate
-means routine OCI rebuilds do not create three multi-gigabyte artifacts (DD-054).
+[`.github/workflows/iso.yml`](../.github/workflows/iso.yml) turns **already published**
+images into installation media. It runs automatically after successful default-branch
+image publication and retains a manual single-image/tag path (DD-054, DD-056).
 
 | Aspect | Value |
 |---|---|
-| Name / trigger | `iso` / `workflow_dispatch` only |
+| Name / triggers | `iso` / completed `bluebuild` workflow, plus `workflow_dispatch` |
 | Runner | `ubuntu-latest`, x86_64 output |
+| Automatic matrix | `standard`, `cachyos`, `nvidia` from `latest`; `fail-fast: false` |
 | Installer action | `JasonN3/build-container-installer` v1.5.0, pinned to commit `bed71f8…` |
 | Installer variant | Kinoite |
 | Timeout | 120 minutes |
@@ -122,6 +123,21 @@ means routine OCI rebuilds do not create three multi-gigabyte artifacts (DD-054)
 | `image` | `standard`, `cachyos`, `nvidia` | `standard` | Active images only; the parked combined image is absent. |
 | `image_tag` | Any valid published OCI tag | `latest` | Validated before it reaches the upstream action. |
 
+### Automatic trigger guard
+
+GitHub emits `workflow_run` after every completion of the `bluebuild` workflow. The ISO
+workflow filters that event to `main`, then its selector job requires all three of these:
+
+- the upstream conclusion is `success`;
+- the upstream event is not `pull_request`;
+- the upstream head branch equals the repository's default branch.
+
+An accepted automatic run emits all three active image names and `latest` into the build
+matrix. A manual run emits only the selected image and tag. `fail-fast: false` prevents
+one Lorax failure from cancelling media for the other variants. Because the image workflow
+itself must succeed first, a failed image variant prevents that upstream run from starting
+any automatic ISO jobs.
+
 The preparation step maps the friendly variant to its exact GHCR image. The workflow then
 checks that tag against [`cosign.pub`](../cosign.pub), extracts the signed manifest digest,
 reads Fedora's major from that digest's `org.opencontainers.image.version` label, and gives
@@ -131,7 +147,7 @@ target, where `image_signed: true` enables Qubix's embedded signature policy. Th
 contains the manifest that CI authenticated while later updates continue to follow the
 selected channel and require valid signatures.
 
-After a successful run, download the named artifact from the run summary or use
+After a successful ISO run, download the named artifact from the run summary or use
 `gh run download`; [`usage.md`](usage.md#building-an-offline-iso) has the complete command
 sequence and checksum check.
 
@@ -233,6 +249,9 @@ with release comments so Dependabot can retain the pinning style.
    - **Disk space** → confirm `maximize_build_space: true` is still set. Three large image
      jobs run independently, and each gets its own runner.
    - **Signing failure** → `SIGNING_SECRET` missing, malformed, or rotated.
+   - **ISO workflow has only skipped jobs** → the upstream image run failed, was cancelled,
+     came from a pull request/non-default branch, or no longer reports the expected
+     workflow-run metadata. Skipping is the intended guard in the first three cases.
    - **ISO cosign verification failure** → the selected tag is absent, unsigned, signed by
      another key, or the registry is unavailable. Do not bypass the check.
    - **ISO version-label failure** → the selected image no longer carries BlueBuild's

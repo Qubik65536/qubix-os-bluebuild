@@ -3229,7 +3229,7 @@ whole files rather than merged across precedence levels.
 
 ## DD-054 — Generate installer ISOs manually and retain them only as Actions artifacts
 
-**Status:** Accepted
+**Status:** Accepted — amended by DD-056
 
 **Implements:** `BLD-003`
 
@@ -3310,3 +3310,49 @@ interprets in UTC and runs on Sunday at 00:00. Keep the push, pull-request, and
   urgent upstream release.
 - References to the daily cadence in older decision records describe the policy in force
   when those records were accepted; this record owns the current cadence.
+
+---
+
+## DD-056 — Generate ISO artifacts after successful default-branch image publication
+
+**Status:** Accepted — amends DD-054
+
+**Implements:** `BLD-005`
+
+**Context.** DD-054 made ISO generation manual to avoid routinely retaining three
+multi-gigabyte artifacts. The desired policy is instead that newly published images have
+matching installation media without another maintainer action. The image workflow builds
+on pushes, pull requests, manual dispatches, and the weekly timer, but only a successful
+default-branch run represents a complete current publication suitable for `latest` media.
+
+Triggering on every image-workflow completion without guards would be wrong: a pull-request
+or feature-branch completion would rebuild the unrelated public `latest` tag, and a failed
+or cancelled matrix could produce installation media while the image family was only
+partially refreshed.
+
+**Decision.** Add a `workflow_run` trigger for completed `bluebuild` workflows on `main`.
+Before creating a matrix, require the upstream conclusion to be `success`, reject
+pull-request events, and require its head branch to equal the repository default branch.
+An accepted automatic event builds Standard, CachyOS, and NVIDIA ISOs from `latest` with
+`fail-fast: false`.
+
+Retain DD-054's `workflow_dispatch` route for one active image and an explicit tag. Keep
+signature verification, digest pinning, Fedora-version discovery, checksums, seven-day
+retention, and the no-Release policy unchanged.
+
+**Consequences.**
+
+- Every successful default-branch image publication automatically produces three matching
+  ISO artifacts; the weekly scheduled build therefore produces a weekly set even without
+  repository changes.
+- Successful default-branch pushes and manual `bluebuild` runs also produce a set. A newer
+  automatic event cancels an older automatic ISO run still in progress.
+- Pull-request, non-default-branch, failed, and cancelled image runs may create a skipped
+  ISO workflow record, but consume no ISO build jobs or artifact storage.
+- The whole upstream image matrix must succeed before automatic ISO generation starts. A
+  partially successful image run produces no automatic media, even for the healthy images.
+- Once ISO generation starts, one Lorax failure does not cancel the other variants.
+- Actions storage now holds up to three new multi-gigabyte artifacts per successful
+  default-branch image run for seven days. This cost is intentional and should be reviewed
+  before increasing retention.
+- Manual single-variant/tag generation remains the retry and historical-media path.

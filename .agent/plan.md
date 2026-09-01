@@ -487,8 +487,8 @@ Nothing stays in **Open** merely because CI has not run yet.
 - [x] **BLD-003** — Build installable ISOs as GitHub Actions artifacts
   - **Category:** Build / CI
   - **Depends on:** DOC-007, BLD-001
-  - **Notes:** Requested 2026-08-31. ISO generation is intentionally manual and separate
-    from the scheduled OCI-image workflow so routine rebuilds do not consume artifact storage.
+  - **Notes:** Requested 2026-08-31. This established the manual, separate ISO workflow;
+    BLD-005 later adds automatic generation after successful image publication.
     Actionlint, YAML parsing, shell parsing, the pinned upstream input contract, the current
     Fedora 44 image label, live cosign verification plus digest extraction, and the upstream
     commit-tagged builder container were checked locally on 2026-08-31. A hosted ISO build
@@ -516,6 +516,23 @@ Nothing stays in **Open** merely because CI has not run yet.
     - Build documentation, the design-decision record, and context cache state the weekly
       cadence consistently
     - Workflow YAML parses locally and the configured cron has exactly the intended value
+
+- [x] **BLD-005** — Build ISO artifacts after successful image publication
+  - **Category:** Build / CI
+  - **Depends on:** BLD-003, BLD-004
+  - **Notes:** Requested 2026-08-31. Automatic generation is guarded to a successful,
+    non-PR, default-branch `bluebuild` completion. Actionlint, YAML parsing, shell parsing,
+    and both automatic/manual selector outputs were checked locally on 2026-08-31.
+  - **Acceptance criteria:**
+    - Completion of a successful `bluebuild` workflow on the default branch automatically
+      starts the ISO workflow
+    - An automatic run builds standard, CachyOS, and NVIDIA ISO artifacts from `latest`,
+      with one variant failure not cancelling the other variants
+    - Failed, cancelled, pull-request, and non-default-branch image runs do not build ISOs
+    - Manual dispatch still builds one selected active variant from an explicit tag
+    - Workflow comments, build/usage documentation, context cache, and a `DD-###` record
+      describe the trigger relationship and artifact-storage consequence
+    - Workflow YAML, expressions, and shell blocks pass local validation
 
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content
@@ -1815,10 +1832,11 @@ on 2026-08-04.*
 - [ ] **DOC-013** — Document the ISO generation procedure concretely
   - **Category:** Documentation
   - **Depends on:** DOC-008
-  - **Notes:** BLD-003 replaced the upstream-only link with the exact manual workflow,
-    GitHub CLI, artifact-download, and checksum procedure. The prerequisites and
-    multi-gigabyte expectation are documented. This task remains open until the workflow
-    produces an artifact, its measured size is recorded, and that ISO is booted.
+  - **Notes:** BLD-003 and BLD-005 replaced the upstream-only link with the automatic and
+    manual workflow paths, GitHub CLI, artifact-download, and checksum procedure. The
+    prerequisites and multi-gigabyte expectation are documented. This task remains open
+    until the workflow produces an artifact, its measured size is recorded, and that ISO
+    is booted.
   - **Acceptance criteria:**
     - `docs/usage.md` contains the exact command sequence used for this image
     - Prerequisites and approximate output size are stated
