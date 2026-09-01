@@ -65,6 +65,10 @@ is the **only** place images and ISOs are built.
   uploads the ISO/checksum pair in aligned resumable chunks, verifies both byte counts,
   renames a staging directory into the complete `v-*` set, calculates the literal ISO
   SHA-256, and creates durable anonymous read-only links for both files.
+- Before exchange, the uploader decodes only the non-secret JWT payload and logs `iss`,
+  `sub`, `aud`, repository/environment, and immutable owner/repository IDs. Entra rejection
+  reports one safe HTTP/error-code/description diagnostic; neither assertion nor Graph
+  token is printed.
 - OneDrive layout is `Qubix-OS/ISOs/<variant>/<scheduled|push>/v-<version>/`. After
   publication, Graph permanently deletes complete directories beyond three scheduled or
   five push/manual versions for that variant and channel. Staging directories are
@@ -127,6 +131,10 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
 - The tenant must permit anonymous SharePoint/OneDrive sharing. Organization-only links
   are rejected because GitHub Releases are public; short-lived Graph download URLs must
   never be persisted in release notes.
+- Entra federation matching is exact and case-sensitive. The traditional subject is
+  `repo:Qubik65536/qubix-os-bluebuild:environment:onedrive`, with issuer
+  `https://token.actions.githubusercontent.com` and audience `api://AzureADTokenExchange`.
+  Newer GitHub immutable subjects can add numeric IDs; the logged `sub` is authoritative.
 - Retention uses `permanentDelete`, not ordinary drive-item deletion. Excess versions do
   not enter the recycle bin and cannot be restored. Item IDs come only from the selected
   variant directory, and retention begins only after both new files verify.

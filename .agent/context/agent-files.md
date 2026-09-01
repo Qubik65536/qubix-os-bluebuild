@@ -110,6 +110,9 @@ manual ISO routes into the bounded push pool, and serializes whole ISO workflow 
 builds are normal releases, push/manual builds are prereleases, the literal SHA-256 sits
 beside the OneDrive link, count purges remove matching release/tag records, and generated
 releases older than three months are cleaned up best-effort (DD-060).
+`BLD-009` makes Entra federation failures diagnosable without tokens: the uploader logs
+safe GitHub OIDC claims, captures one structured Entra rejection, and the setup guide uses
+canonical owner case while explaining exact and immutable subject matching.
 `BRD-006` remains in Awaiting confirmation while hardware iterations converge: the menu
 now overrides bootupd's one-second timeout, respects GRUB's reverse canvas order, omits its
 minimum-sized progress widget, and uses protocol-v2 bounded Monaspace Krypton NF PF2 fonts.

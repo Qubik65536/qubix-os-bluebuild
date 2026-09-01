@@ -62,13 +62,40 @@ urlencode() {
   jq -rn --arg value "$1" '$value | @uri'
 }
 
+# Decode only the JWT payload for diagnostics. Signature validation belongs to Entra; this
+# helper never treats claims as authority and never prints the signed token itself.
+decode_jwt_payload() {
+  local token=$1
+  local encoded_payload
+  local padding_count
+
+  [[ "${token}" == *.*.* ]] || return 1
+  encoded_payload="${token#*.}"
+  encoded_payload="${encoded_payload%%.*}"
+  encoded_payload="${encoded_payload//-/+}"
+  encoded_payload="${encoded_payload//_/\/}"
+  padding_count=$(( (4 - ${#encoded_payload} % 4) % 4 ))
+  while (( padding_count > 0 )); do
+    encoded_payload+='='
+    padding_count=$((padding_count - 1))
+  done
+  printf '%s' "${encoded_payload}" | base64 --decode 2>/dev/null
+}
+
 # Fetch a fresh run-scoped GitHub assertion and exchange it for a Graph access token. The
 # same function is used if a long ISO transfer outlives the first access token.
 acquire_graph_token() {
   local oidc_separator='?'
   local oidc_response
   local oidc_token
-  local token_response
+  local oidc_claims
+  local claim_summary
+  local token_status
+  local curl_status
+  local error_code
+  local error_description
+  local correlation_id
+  local trace_id
 
   [[ "${ACTIONS_ID_TOKEN_REQUEST_URL}" == *\?* ]] && oidc_separator='&'
   if ! oidc_response="$(curl --fail --silent --show-error --retry 5 --retry-all-errors \
@@ -80,17 +107,56 @@ acquire_graph_token() {
     || die "GitHub OIDC response did not contain a token"
   echo "::add-mask::${oidc_token}"
 
-  if ! token_response="$(curl --fail --silent --show-error --retry 5 --retry-all-errors \
+  if oidc_claims="$(decode_jwt_payload "${oidc_token}")" && jq -e 'type == "object"' <<< "${oidc_claims}" >/dev/null; then
+    claim_summary="$(jq -r '
+      {
+        iss: (.iss // "<absent>"),
+        sub: (.sub // "<absent>"),
+        aud: (.aud // "<absent>"),
+        repository: (.repository // "<absent>"),
+        environment: (.environment // "<absent>"),
+        repository_id: (.repository_id // "<absent>"),
+        repository_owner_id: (.repository_owner_id // "<absent>")
+      }
+      | to_entries
+      | map("\(.key)=\(.value | if type == "array" then join(",") else tostring end)")
+      | join(" ")
+    ' <<< "${oidc_claims}")"
+    echo "GitHub OIDC claims (non-secret): ${claim_summary}"
+  else
+    echo "::warning::onedrive-upload: could not decode non-secret GitHub OIDC claims"
+  fi
+
+  set +e
+  token_status="$(curl --silent --show-error --retry 5 --retry-all-errors \
     --request POST \
     --data-urlencode "client_id=${ONEDRIVE_CLIENT_ID}" \
     --data-urlencode 'scope=https://graph.microsoft.com/.default' \
     --data-urlencode 'grant_type=client_credentials' \
     --data-urlencode 'client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer' \
     --data-urlencode "client_assertion=${oidc_token}" \
-    "https://login.microsoftonline.com/${ONEDRIVE_TENANT_ID}/oauth2/v2.0/token")"; then
-    die "cannot exchange GitHub OIDC with Microsoft Entra"
+    --output "${work_dir}/token-response" \
+    --write-out '%{http_code}' \
+    "https://login.microsoftonline.com/${ONEDRIVE_TENANT_ID}/oauth2/v2.0/token")"
+  curl_status=$?
+  set -e
+  [[ ${curl_status} -eq 0 ]] || die "network failure exchanging GitHub OIDC with Microsoft Entra"
+
+  if [[ ! "${token_status}" =~ ^2[0-9][0-9]$ ]]; then
+    error_code="$(jq -r '.error // "unknown_error"' "${work_dir}/token-response" 2>/dev/null || echo unknown_error)"
+    error_description="$(jq -r '.error_description // "Microsoft Entra rejected the assertion"' \
+      "${work_dir}/token-response" 2>/dev/null || echo 'Microsoft Entra rejected the assertion')"
+    correlation_id="$(jq -r '.correlation_id // "unavailable"' "${work_dir}/token-response" 2>/dev/null || echo unavailable)"
+    trace_id="$(jq -r '.trace_id // "unavailable"' "${work_dir}/token-response" 2>/dev/null || echo unavailable)"
+    error_description="${error_description//${oidc_token}/[redacted]}"
+    error_description="${error_description//$'\r'/ }"
+    error_description="${error_description//$'\n'/ }"
+    error_description="${error_description:0:1200}"
+    echo "Microsoft Entra token exchange failed: HTTP ${token_status}; ${error_code}: ${error_description}; correlation_id=${correlation_id}; trace_id=${trace_id}" >&2
+    die "cannot exchange GitHub OIDC with Microsoft Entra; compare the logged iss/sub/aud claims with the app federated credential"
   fi
-  graph_token="$(jq -er '.access_token' <<< "${token_response}")" \
+
+  graph_token="$(jq -er '.access_token' "${work_dir}/token-response")" \
     || die "Microsoft Entra response did not contain a Graph token"
   echo "::add-mask::${graph_token}"
 }

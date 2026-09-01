@@ -184,7 +184,7 @@ user, including a tenant-native `user@tenant.onmicrosoft.com` account. One-time 
    It can write every SharePoint site and OneDrive in the tenant, so use a dedicated app
    registration and review its consent like any other tenant-wide automation identity.
 4. Add a federated credential to the app registration: scenario **GitHub Actions deploying
-   Azure resources**, organisation `qubik65536`, repository `qubix-os-bluebuild`, entity
+   Azure resources**, organisation `Qubik65536`, repository `qubix-os-bluebuild`, entity
    type **Environment**, environment `onedrive`. Its audience remains
    `api://AzureADTokenExchange`.
 5. In GitHub, create the `onedrive` Actions environment and set these environment
@@ -200,6 +200,26 @@ No Azure subscription is required. The `build-iso` job names that environment, r
 `id-token: write`, and exchanges the run-scoped GitHub token directly for a Microsoft
 Graph token. An environment approval rule can put a human gate before all three automatic
 uploads, but it also means every automatic ISO run waits for that approval.
+
+Issuer, subject, and audience matching is exact and case-sensitive. For the repository's
+traditional name-based GitHub subject, the federated credential must contain:
+
+| Federated credential field | Exact value |
+|---|---|
+| Issuer | `https://token.actions.githubusercontent.com` |
+| Subject | `repo:Qubik65536/qubix-os-bluebuild:environment:onedrive` |
+| Audience | `api://AzureADTokenExchange` |
+
+GitHub repositories created, renamed, or transferred under its newer immutable-subject
+policy can instead emit a subject containing numeric owner/repository IDs, such as
+`repo:Qubik65536@<owner-id>/qubix-os-bluebuild@<repository-id>:environment:onedrive`.
+Do not infer which form applies. The uploader prints a **non-secret** `GitHub OIDC claims`
+line containing the exact `iss`, `sub`, `aud`, repository, environment, and immutable IDs
+before exchange. Compare those three claims character-for-character with the Entra app's
+federated credential; delete and recreate a mismatched credential. See GitHub's
+[`sub` claim formats](https://docs.github.com/en/actions/reference/security/oidc) and
+Microsoft's
+[exact-match requirements](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations).
 
 ### OneDrive layout and retention
 
@@ -406,9 +426,12 @@ uploader is repository-local and changes with this repository.
      tag's installer repositories. The Fedora version is derived from the image, not typed.
    - **OneDrive action reports a required value is missing** → create/configure the GitHub
      `onedrive` environment and its three variables exactly as documented above.
-   - **OneDrive OIDC exchange fails** → the Entra federated credential's organisation,
-     repository, environment (`onedrive`), or audience does not match the GitHub token.
-     Do not replace federation with a stored client secret.
+   - **OneDrive OIDC exchange fails** → read the single Entra HTTP/error diagnostic, then
+     compare the logged non-secret `iss`, `sub`, and `aud` claims character-for-character
+     with the app's federated credential. Owner/repository/environment case matters, and a
+     newer immutable subject may include numeric IDs. An application-not-found error
+     instead points to the client ID or tenant ID. Do not replace federation with a stored
+     client secret.
    - **OneDrive Graph request returns access denied** → confirm the app has the Graph
      application permission `Sites.ReadWrite.All` with tenant admin consent, and that the
      configured work/school user's OneDrive is provisioned.

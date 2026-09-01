@@ -607,6 +607,28 @@ Nothing stays in **Open** merely because CI has not run yet.
       retention mapping, and whitespace checks pass locally; CI remains the external
       verification for GitHub and Microsoft APIs
 
+- [x] **BLD-009** — Make OneDrive OIDC exchange failures actionable
+  - **Category:** Build / CI
+  - **Depends on:** BLD-006, BLD-008
+  - **Notes:** Requested 2026-09-01 after Entra returned six opaque curl 401 messages.
+    Bash/YAML, a synthetic immutable-subject JWT, one-attempt mocked `AADSTS700213`
+    rejection, successful mocked token exchange through the first Graph request, token
+    redaction, documentation identity values, task-ID uniqueness, and whitespace were
+    checked locally on 2026-09-01. A rerun with the configured app remains the external
+    federation verification.
+  - **Acceptance criteria:**
+    - The uploader logs the GitHub token's non-secret issuer, subject, audience, repository,
+      environment, and immutable repository IDs before exchanging it
+    - A rejected Entra exchange reports one safe HTTP/error-code/description diagnostic
+      instead of six opaque curl 401 messages, without exposing either token
+    - Setup documentation uses the repository owner's canonical case, explains exact
+      case-sensitive claim matching and newer immutable GitHub subjects, and gives a
+      concrete comparison procedure
+    - Context cache and failure triage reflect the diagnostic behavior
+    - Bash syntax, mocked successful and rejected exchanges, token-redaction checks, YAML,
+      task/design IDs, and whitespace pass locally; a configured CI run remains the
+      external federation verification
+
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content
   - **Depends on:** IMG-005
