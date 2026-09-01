@@ -19,7 +19,7 @@ tree of files to overlay. There is no imperative installer and no local build st
 | Desktops | KDE Plasma (via Fedora Kinoite → Aurora) and Niri + DankMaterialShell, switchable at login |
 | Build system | [BlueBuild](https://blue-build.org) |
 | Signing | Sigstore cosign (`cosign.pub`) |
-| Rebuild cadence | Daily, 06:00 UTC, plus on every push |
+| Rebuild cadence | Weekly, Sunday at 00:00 UTC, plus on every push |
 
 ## The lineage
 

@@ -17,7 +17,7 @@ are built.
   - `select-recipes` — emits a JSON array of recipe filenames as its `recipes` output.
   - `bluebuild` — a matrix over that array; each job does all its work through
     `blue-build/github-action@v1.11`.
-- **Triggers:** daily cron `00 06 * * *` (~20 min after Universal Blue starts, DD-009);
+- **Triggers:** weekly cron `00 00 * * 0` (Sunday at 00:00 UTC, DD-055);
   `push` with `paths-ignore: "**.md"` (DD-010); every `pull_request`;
   `workflow_dispatch` with a `recipe` choice input (`all` or any of the three active
   recipes). The parked NVIDIA+CachyOS recipe is intentionally unavailable (DD-052).

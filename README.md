@@ -9,7 +9,7 @@ on top of [Universal Blue](https://universal-blue.org)'s Aurora DX.
 | **Base** | Aurora DX (`aurora-dx` or `aurora-dx-nvidia-open`, `latest`) |
 | **Desktop** | KDE Plasma, plus a Niri session |
 | **Signed** | Sigstore cosign — `cosign.pub` |
-| **Rebuilt** | Daily at 06:00 UTC, and on every push |
+| **Rebuilt** | Weekly on Sunday at 00:00 UTC, and on every push |
 
 Qubix OS is a thin, deliberately small layer over Aurora DX: Qubix branding, a rewritten
 system identity, a handful of extra packages, and Ungoogled Chromium as the default

@@ -488,7 +488,7 @@ Nothing stays in **Open** merely because CI has not run yet.
   - **Category:** Build / CI
   - **Depends on:** DOC-007, BLD-001
   - **Notes:** Requested 2026-08-31. ISO generation is intentionally manual and separate
-    from the daily OCI-image workflow so routine rebuilds do not consume artifact storage.
+    from the scheduled OCI-image workflow so routine rebuilds do not consume artifact storage.
     Actionlint, YAML parsing, shell parsing, the pinned upstream input contract, the current
     Fedora 44 image label, live cosign verification plus digest extraction, and the upstream
     commit-tagged builder container were checked locally on 2026-08-31. A hosted ISO build
@@ -504,6 +504,18 @@ Nothing stays in **Open** merely because CI has not run yet.
     - Workflow inputs, retention, Fedora-version alignment, download steps, and failure
       triage are documented in `docs/`, the root README, and `.agent/context/`
     - The workflow parses as YAML and its action inputs match the pinned upstream action
+
+- [x] **BLD-004** — Reduce scheduled image builds to weekly
+  - **Category:** Build / CI
+  - **Depends on:** BLD-001
+  - **Notes:** Requested 2026-08-31. Only the timer-based build changes; push, pull-request,
+    and manual dispatch triggers remain available.
+  - **Acceptance criteria:**
+    - The image workflow schedule is `00 00 * * 0` (Sunday at 00:00 UTC)
+    - Push, pull-request, and manual dispatch behaviour is unchanged
+    - Build documentation, the design-decision record, and context cache state the weekly
+      cadence consistently
+    - Workflow YAML parses locally and the configured cron has exactly the intended value
 
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content

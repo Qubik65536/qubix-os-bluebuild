@@ -219,7 +219,7 @@ image itself via the `signing` module.
 
 ## DD-009 — Rebuild daily at 06:00 UTC
 
-**Status:** Accepted
+**Status:** Superseded by DD-055
 
 **Context.** The image is a thin layer over Aurora DX. When upstream publishes a new
 Aurora build with security fixes, this image does not receive them until it is rebuilt.
@@ -3283,3 +3283,30 @@ Release or push installation media to another store.
 - Local YAML and action-contract checks can validate the workflow definition; only an
   actual GitHub run can prove Lorax completes, and only booting the result can prove the
   resulting installation media on hardware.
+
+---
+
+## DD-055 — Rebuild weekly on Sunday at 00:00 UTC
+
+**Status:** Accepted — supersedes DD-009
+
+**Implements:** `BLD-004`
+
+**Context.** DD-009 scheduled an unattended build every day so Qubix would follow Aurora
+updates within roughly 24 hours. Each scheduled run now builds three active variants, and
+the desired unattended cadence is once a week. Push, pull-request, and manual dispatch
+already provide immediate builds when repository work or an urgent refresh requires one.
+
+**Decision.** Schedule the image workflow with `00 00 * * 0`, which GitHub Actions
+interprets in UTC and runs on Sunday at 00:00. Keep the push, pull-request, and
+`workflow_dispatch` triggers unchanged.
+
+**Consequences.**
+
+- Without an intervening push or manual dispatch, Qubix can trail a newly published
+  Aurora base, CachyOS kernel, or NVIDIA base by nearly seven days.
+- Routine unattended CI usage drops from seven matrix runs per week to one.
+- Maintainers can still dispatch a single active variant or all active variants after an
+  urgent upstream release.
+- References to the daily cadence in older decision records describe the policy in force
+  when those records were accepted; this record owns the current cadence.

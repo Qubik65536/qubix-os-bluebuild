@@ -72,7 +72,7 @@ comment saying so.
 
 | Trigger | When | Notes |
 |---|---|---|
-| `schedule` | `00 06 * * *` (daily, 06:00 UTC) | ~20 min after Universal Blue starts building. DD-009. |
+| `schedule` | `00 00 * * 0` (weekly, Sunday at 00:00 UTC) | Refreshes active images once a week. DD-055. |
 | `push` | Any branch, **except** commits touching only `**.md` | `paths-ignore` — DD-010. |
 | `pull_request` | Every PR | Always builds, even docs-only. This validates the recipe before merge. |
 | `workflow_dispatch` | Manual | Use after an upstream fix lands, instead of waiting for the cron. Takes a `recipe` input to build one variant. |
@@ -102,7 +102,7 @@ Nothing needs more; do not widen these.
 
 [`.github/workflows/iso.yml`](../.github/workflows/iso.yml) is a separate, manual workflow
 that turns one **already published** image into installation media. Keeping it separate
-means daily OCI rebuilds do not create three multi-gigabyte artifacts (DD-054).
+means routine OCI rebuilds do not create three multi-gigabyte artifacts (DD-054).
 
 | Aspect | Value |
 |---|---|

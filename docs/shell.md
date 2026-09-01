@@ -488,7 +488,7 @@ of the binary asserted at build time (DD-033).
 |---|---|
 | `rpm -q zellij` finds nothing | Check the version with `zellij --version` |
 | The web server is not merely off, it is **absent** | `zellij web` and browser session sharing do not exist in this build |
-| The version is pinned | New zellij releases arrive when this repository bumps two lines, not with the daily rebuild |
+| The version is pinned | New zellij releases arrive when this repository bumps two lines, not with the weekly rebuild |
 
 ### fastfetch — system information
 

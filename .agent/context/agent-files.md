@@ -94,3 +94,5 @@ upstream GNOME selection needs Nautilus, which the image does not install. It wa
 Awaiting confirmation for Zed and Flatpak Chromium dialog checks on a built image (DD-053).
 `BLD-003` completed the manual, signed-source, digest-pinned, artifact-only ISO workflow
 requested on 2026-08-31; `DOC-013` remains open until an artifact is built and booted.
+`BLD-004` changes only the unattended image timer to Sunday at 00:00 UTC each week;
+push, pull-request, and manual image builds remain unchanged (DD-055).

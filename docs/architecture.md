@@ -5,7 +5,7 @@ How a commit in this repository becomes a bootable operating system.
 ## The pipeline
 
 ```
- git push / daily cron / manual dispatch
+ git push / weekly Sunday cron / manual dispatch
               │
               ▼
  ┌──────────────────────────────────────────┐

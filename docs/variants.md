@@ -131,7 +131,7 @@ one-step answer; the [Secure Boot](#secure-boot) section below is the other one.
   Either upstream can break that compilation even when the three active variants remain
   healthy.
 - No Fedora QA. The kernel version follows CachyOS's releases and can change between two
-  daily builds of this image.
+  weekly builds of this image.
 
 Everything else that comes out with Fedora's kernel goes back in: the
 libguestfs/`virt-v2v` stack and `virtualbox-guest-additions` only require `kernel`, which
