@@ -3224,3 +3224,62 @@ whole files rather than merged across precedence levels.
   portal services need a fresh login after it changes.
 - The image change can prove the selected configuration and installed backend statically;
   opening both reported dialogs still requires a built image and a Niri login.
+
+---
+
+## DD-054 — Generate installer ISOs manually and retain them only as Actions artifacts
+
+**Status:** Accepted
+
+**Implements:** `BLD-003`
+
+**Context.** Qubix previously pointed users at a local BlueBuild ISO procedure. That made
+installation media depend on a Fedora Atomic workstation and left no reproducible record
+of the generator version or inputs. The requested use case needs the file after a CI run,
+but does not need a durable public release.
+
+Generating an installer after every daily image build would create three multi-gigabyte
+artifacts even when nobody needs installation media. It would also couple a successful OCI
+publication to a second, unrelated Lorax build. A manual workflow can instead select an
+existing tag when media is actually needed.
+
+The upstream
+[`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer)
+action accepts the registry, image name, tag, Fedora version, and Kinoite variant, and
+emits an ISO plus checksum. Its `image_signed` input configures the installed deployment's
+future update reference as signed; it does not authenticate the action's own registry copy.
+A mutable `latest` tag could also change between an independent verification and that copy.
+
+**Decision.** Add a separate `iso` workflow with `workflow_dispatch` as its only trigger.
+It supports the three active published images and an explicit OCI tag. It derives Fedora's
+major version from the verified manifest's `org.opencontainers.image.version` label rather
+than asking the dispatcher to duplicate image metadata. It builds x86_64 Kinoite media
+with `build-container-installer` v1.5.0 pinned to its immutable commit.
+
+Before invoking the generator, verify the selected tag against the repository's
+`cosign.pub`, extract the signed manifest digest, and pass `docker://…@sha256:…` through
+the action's `image_src` input. Retain the human-selected tag as the installed system's
+signed update target. Pin every workflow action to a commit and annotate its release.
+
+Upload the ISO and generated SHA-256 checksum together as an uncompressed GitHub Actions
+artifact, fail if either is missing, and retain it for seven days. Do not create a GitHub
+Release or push installation media to another store.
+
+**Consequences.**
+
+- ISO generation consumes no runner or artifact storage until a maintainer dispatches it.
+- A successful image build does not imply a successful installer build; the ISO workflow
+  has its own run, logs, 120-minute timeout, and failure triage.
+- The ISO payload is tied to the digest whose Qubix signature was verified, even when the
+  requested update channel is the mutable `latest` tag.
+- The dispatcher cannot accidentally pair a tag with the wrong installer repositories.
+  Version discovery is metadata-only and comes from the exact signed digest.
+- If BlueBuild removes or reformats `org.opencontainers.image.version`, ISO generation
+  fails closed until the workflow identifies another signed source of the Fedora major.
+- Artifacts are temporary and require download within seven days. They are not releases;
+  users verify the accompanying checksum before writing media.
+- The combined NVIDIA+CachyOS recipe remains unavailable because DD-052 does not publish
+  it. Re-enabling that image also requires adding it to the ISO choice and mapping.
+- Local YAML and action-contract checks can validate the workflow definition; only an
+  actual GitHub run can prove Lorax completes, and only booting the result can prove the
+  resulting installation media on hardware.

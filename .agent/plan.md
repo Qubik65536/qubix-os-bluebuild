@@ -484,6 +484,27 @@ Nothing stays in **Open** merely because CI has not run yet.
     - Workflow and recipe YAML parse locally, and the active selector contains exactly
       the three intended recipe filenames *(checked 2026-08-31)*
 
+- [x] **BLD-003** — Build installable ISOs as GitHub Actions artifacts
+  - **Category:** Build / CI
+  - **Depends on:** DOC-007, BLD-001
+  - **Notes:** Requested 2026-08-31. ISO generation is intentionally manual and separate
+    from the daily OCI-image workflow so routine rebuilds do not consume artifact storage.
+    Actionlint, YAML parsing, shell parsing, the pinned upstream input contract, the current
+    Fedora 44 image label, live cosign verification plus digest extraction, and the upstream
+    commit-tagged builder container were checked locally on 2026-08-31. A hosted ISO build
+    remains the operational verification.
+  - **Acceptance criteria:**
+    - A manually dispatched workflow builds an x86_64 Kinoite installer for any active
+      Qubix image variant and an explicitly selected published image tag
+    - The workflow uses `JasonN3/build-container-installer` at a fixed released revision,
+      verifies the selected source with `cosign.pub`, pins that digest for the ISO payload,
+      and configures signed future updates through the image's embedded policy
+    - The ISO and its generated checksum are uploaded together as a GitHub Actions artifact
+      with no GitHub Release or other publication step
+    - Workflow inputs, retention, Fedora-version alignment, download steps, and failure
+      triage are documented in `docs/`, the root README, and `.agent/context/`
+    - The workflow parses as YAML and its action inputs match the pinned upstream action
+
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content
   - **Depends on:** IMG-005
@@ -1782,8 +1803,10 @@ on 2026-08-04.*
 - [ ] **DOC-013** — Document the ISO generation procedure concretely
   - **Category:** Documentation
   - **Depends on:** DOC-008
-  - **Notes:** `docs/usage.md` currently links upstream. A concrete, tested command
-    sequence for this image would be more useful.
+  - **Notes:** BLD-003 replaced the upstream-only link with the exact manual workflow,
+    GitHub CLI, artifact-download, and checksum procedure. The prerequisites and
+    multi-gigabyte expectation are documented. This task remains open until the workflow
+    produces an artifact, its measured size is recorded, and that ISO is booted.
   - **Acceptance criteria:**
     - `docs/usage.md` contains the exact command sequence used for this image
     - Prerequisites and approximate output size are stated

@@ -24,7 +24,7 @@ image, or confirm anything renders. Those need CI — and the kernel needs real 
 > **For agents:** never describe a change as "verified" or "working" on the basis of local
 > inspection. Say what you checked and say that CI is the actual verification.
 
-## The workflow
+## The image workflow
 
 [`.github/workflows/build.yml`](../.github/workflows/build.yml)
 
@@ -98,6 +98,43 @@ superseded.
 
 Nothing needs more; do not widen these.
 
+## The ISO workflow
+
+[`.github/workflows/iso.yml`](../.github/workflows/iso.yml) is a separate, manual workflow
+that turns one **already published** image into installation media. Keeping it separate
+means daily OCI rebuilds do not create three multi-gigabyte artifacts (DD-054).
+
+| Aspect | Value |
+|---|---|
+| Name / trigger | `iso` / `workflow_dispatch` only |
+| Runner | `ubuntu-latest`, x86_64 output |
+| Installer action | `JasonN3/build-container-installer` v1.5.0, pinned to commit `bed71f8…` |
+| Installer variant | Kinoite |
+| Timeout | 120 minutes |
+| Output | ISO plus generated SHA-256 checksum |
+| Storage | GitHub Actions artifact, seven days, compression disabled |
+| Publication | No GitHub Release and no registry upload |
+
+### ISO inputs
+
+| Input | Values | Default | Constraint |
+|---|---|---|---|
+| `image` | `standard`, `cachyos`, `nvidia` | `standard` | Active images only; the parked combined image is absent. |
+| `image_tag` | Any valid published OCI tag | `latest` | Validated before it reaches the upstream action. |
+
+The preparation step maps the friendly variant to its exact GHCR image. The workflow then
+checks that tag against [`cosign.pub`](../cosign.pub), extracts the signed manifest digest,
+reads Fedora's major from that digest's `org.opencontainers.image.version` label, and gives
+the installer action a `docker://…@sha256:…` source. There is deliberately no separately
+maintained Fedora-version input. The mutable tag remains the installed system's update
+target, where `image_signed: true` enables Qubix's embedded signature policy. Thus the ISO
+contains the manifest that CI authenticated while later updates continue to follow the
+selected channel and require valid signatures.
+
+After a successful run, download the named artifact from the run summary or use
+`gh run download`; [`usage.md`](usage.md#building-an-offline-iso) has the complete command
+sequence and checksum check.
+
 ## Signing
 
 | Piece | Where it lives |
@@ -130,16 +167,18 @@ installation failing verification until it rebases.
 | PR tags | Pull-request builds are tagged separately via `pr_event_number` and are not `latest`. |
 
 `latest` tracks builds, not Fedora versions. The Fedora base is pinned by
-`image-version: latest` in the recipe, so a major Fedora jump only happens when that value
-is deliberately changed. Note the two unrelated meanings of `latest` here: this project's
-own `latest` tag is the newest successful build, while the base image's `latest` channel is
-the current *stable* Fedora (DD-018).
+`image-version: latest` in the recipe, which names Aurora's stable channel rather than one
+Fedora release. A major Fedora jump therefore happens when Aurora promotes a new stable
+release into that channel; no recipe edit is required. Note the two related-but-distinct
+meanings: this project's `latest` tag is its newest successful build, while the base
+image's `latest` channel is the current stable Fedora (DD-018).
 
 ## Dependency updates
 
 [`.github/dependabot.yml`](../.github/dependabot.yml) checks GitHub Actions daily and
-opens PRs for new versions (in practice, `blue-build/github-action`). Review the
-BlueBuild action's changelog before merging — a major bump can change module semantics.
+opens PRs for the BlueBuild, checkout, cosign, container-installer, and artifact actions.
+Review upstream changelogs before merging. ISO workflow actions use immutable commit SHAs
+with release comments so Dependabot can retain the pinning style.
 
 ## When a build fails
 
@@ -194,5 +233,14 @@ BlueBuild action's changelog before merging — a major bump can change module s
    - **Disk space** → confirm `maximize_build_space: true` is still set. Three large image
      jobs run independently, and each gets its own runner.
    - **Signing failure** → `SIGNING_SECRET` missing, malformed, or rotated.
+   - **ISO cosign verification failure** → the selected tag is absent, unsigned, signed by
+     another key, or the registry is unavailable. Do not bypass the check.
+   - **ISO version-label failure** → the selected image no longer carries BlueBuild's
+     recognisable `org.opencontainers.image.version`; update the parser only after checking
+     the replacement label is part of the verified manifest.
+   - **ISO Lorax/repository failure** → Fedora may have retired or moved the selected old
+     tag's installer repositories. The Fedora version is derived from the image, not typed.
+   - **ISO upload says no files were found** → the installer action failed to emit the ISO
+     or checksum at its advertised outputs. Keep `if-no-files-found: error` intact.
 3. Record anything non-obvious: a `plan.md` task if it needs fixing, a `DD-###` record if
    it changes a decision, and a note in the relevant `docs/` page.

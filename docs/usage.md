@@ -44,9 +44,10 @@ rpm-ostree upgrade
 systemctl reboot
 ```
 
-`latest` always points at the most recent successful CI build. Because `image-version` in
-the recipe pins the Aurora channel, `latest` will not silently move you to the next major
-Fedora release.
+`latest` always points at the most recent successful CI build. `image-version: latest`
+pins the stable Aurora **channel**, not a Fedora release number, so a new Fedora major can
+arrive after Aurora promotes it to that channel (DD-018). Keep a previous deployment for
+rollback when crossing a major release.
 
 ## Rolling back
 
@@ -150,11 +151,58 @@ Also available: System Settings → **About this System**, which reads
 
 ## Building an offline ISO
 
-BlueBuild can generate an installable ISO from a published image. Follow the upstream
-guide: <https://blue-build.org/how-to/generate-iso/>
+The manual [`iso` workflow](../.github/workflows/iso.yml) uses
+[`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer)
+to embed one already-published Qubix image in an x86_64 Kinoite installer (DD-054). It
+does not rebuild or release the OCI image.
 
-ISOs are not published as GitHub release artifacts — they exceed the size limits for free
-hosting. Generate one locally on a Fedora Atomic host when you need installation media.
+### In the GitHub interface
+
+1. Open **Actions → iso → Run workflow**.
+2. Select `standard`, `cachyos`, or `nvidia` and enter the published image tag. `latest`
+   is the normal choice.
+3. When the run succeeds, open it and download the artifact from **Artifacts**. The
+   workflow derives Fedora's major version from the signed image metadata; there is no
+   separate version input to keep in sync.
+
+The artifact is named like `qubix-os-standard-latest-f44-x86_64` and contains both the
+ISO and its `-CHECKSUM` file. It expires after seven days and is not attached to a GitHub
+Release. Expect a multi-gigabyte download; the exact size is shown on the completed run.
+
+### With GitHub CLI
+
+Prerequisites are an authenticated [GitHub CLI](https://cli.github.com/) and permission to
+dispatch this repository's workflows. This exact sequence builds the current standard
+Fedora 44 image and downloads its artifact:
+
+```bash
+gh workflow run iso.yml --ref main \
+  -f image=standard \
+  -f image_tag=latest
+
+run_id="$(gh run list --workflow=iso.yml --event=workflow_dispatch --limit=1 \
+  --json databaseId --jq '.[0].databaseId')"
+gh run watch "${run_id}" --exit-status
+gh run download "${run_id}" \
+  --name qubix-os-standard-latest-f44-x86_64 \
+  --dir qubix-os-standard-latest-f44-x86_64
+```
+
+Verify the downloaded ISO before writing it to media:
+
+```bash
+cd qubix-os-standard-latest-f44-x86_64
+sha256sum -c qubix-os-standard-latest-f44-x86_64.iso-CHECKSUM
+```
+
+On macOS, use `shasum -a 256 -c` in place of `sha256sum -c`.
+
+The workflow verifies the selected tag with `cosign.pub`, pins the verified digest for the
+ISO payload, derives Fedora's major version from that digest's
+`org.opencontainers.image.version` label, and configures the installed system to enforce
+Qubix's signed-image policy for later updates. A missing/unrecognisable version label,
+missing tag, invalid signature, installer failure, or missing output fails the run before
+an artifact is retained.
 
 ## Uninstalling
 

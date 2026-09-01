@@ -84,13 +84,21 @@ For another **active** variant, substitute its image suffix from the table in bo
 [`docs/variants.md`](docs/variants.md) first: the NVIDIA and CachyOS images have hardware
 and Secure Boot requirements the standard image does not.
 
-The `latest` tag will automatically point to the latest build. That build will still always use the Fedora version specified in the recipe, so you won't get accidentally updated to the next major version.
+The Qubix `latest` tag points to the newest successful build. Its Aurora base also follows
+the stable `latest` channel, so a new Fedora major arrives after Aurora promotes it to
+stable; `latest` pins a channel, not a Fedora number (DD-018).
 
 Updating, rolling back, and uninstalling are covered in [`docs/usage.md`](docs/usage.md).
 
 ## ISO
 
-If build on Fedora Atomic, you can generate an offline ISO with the instructions available [here](https://blue-build.org/how-to/generate-iso/#_top). These ISOs cannot unfortunately be distributed on GitHub for free due to large sizes, so for public projects something else has to be used for hosting.
+Run the manual [`iso` workflow](.github/workflows/iso.yml) to turn any active, published
+Qubix image into an x86_64 installer. The workflow verifies the image signature, builds
+the ISO with
+[`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer),
+and uploads the ISO and checksum as a GitHub Actions artifact for seven days. It does not
+create a GitHub Release. See [`docs/usage.md`](docs/usage.md#building-an-offline-iso) for
+the inputs and download commands.
 
 ## Verification
 

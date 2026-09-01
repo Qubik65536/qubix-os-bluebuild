@@ -92,3 +92,5 @@ re-enabling publication; the retained recipe still fails closed.
 `IMG-038` selects the already-installed GTK backend for Niri's file chooser because the
 upstream GNOME selection needs Nautilus, which the image does not install. It waits in
 Awaiting confirmation for Zed and Flatpak Chromium dialog checks on a built image (DD-053).
+`BLD-003` completed the manual, signed-source, digest-pinned, artifact-only ISO workflow
+requested on 2026-08-31; `DOC-013` remains open until an artifact is built and booted.
