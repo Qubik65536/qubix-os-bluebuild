@@ -1597,6 +1597,39 @@ should look at.
 
 ### Boot branding
 
+- [ ] **BRD-006** — Theme GRUB as the Qubix Boot Console
+  - **Category:** Branding
+  - **Depends on:** BRD-002
+  - **Notes:** Approved 2026-08-31 from a background sketch and a full representative
+    boot-menu mockup. Fedora Atomic keeps GRUB's readable assets on the mutable `/boot`
+    filesystem, outside the image's `/usr`; both bootupd's static configuration and
+    Fedora's generated configuration source `/boot/grub2/custom.cfg`. The image therefore
+    owns immutable source assets in `/usr/share/qubix-os/` and installs a delimited theme
+    hook plus those assets into `/boot` without regenerating or replacing the boot menu.
+    A first manual install showed the background only briefly before a blank handoff;
+    bootupd's static config defaults to a one-second timeout, so the managed block now
+    explicitly displays the approved menu for eight seconds.
+  - **Acceptance criteria:**
+    - GRUB renders the approved near-black Qubix Slate background, wireframe cube,
+      terminal-style frame, boot-entry list, selected slate row, navigation help, and
+      an eight-second timeout indicator long enough to use the menu
+    - The theme styles whatever entries GRUB supplies; it does not hard-code operating
+      systems, deployments, kernels, or firmware entries
+    - An idempotent image-owned installer atomically synchronises the theme into
+      content-addressed `/boot/grub2/themes/qubix-v<version>-<manifest-hash>` storage and
+      manages only its delimited block in `custom.cfg`, preserving unrelated user content
+    - The installer works with bootupd's static GRUB configuration and Fedora's legacy
+      generated configuration without running `grub2-mkconfig`
+    - The setup applies to every image variant, has a documented opt-out/reapply path,
+      and fails safely without making the machine unbootable if `/boot` is unavailable
+    - Build assertions cover required assets, executable syntax, GRUB theme structure,
+      the visible timeout, and the managed-block markers
+    - `docs/branding.md`, `docs/design-decisions.md`, `docs/recipe-reference.md`, and the
+      context cache document the implementation and ownership boundaries
+    - On a rebased image, the visible GRUB menu remains available for eight seconds,
+      matches the approved design, and still boots current, rollback, firmware, and
+      discovered external entries *(open — needs a build and hardware)*
+
 - [ ] **IMG-007** — Replace inherited branding throughout boot and Plasma login
   - **Category:** Image content
   - **Depends on:** —

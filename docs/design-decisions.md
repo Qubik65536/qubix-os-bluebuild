@@ -3356,3 +3356,81 @@ retention, and the no-Release policy unchanged.
   default-branch image run for seven days. This cost is intentional and should be reviewed
   before increasing retention.
 - Manual single-variant/tag generation remains the retry and historical-media path.
+
+---
+
+## DD-057 — Deliver the GRUB theme through `custom.cfg`, without regenerating the menu
+
+**Status:** Accepted
+
+**Implements:** `BRD-006`
+
+**Extends:** [DD-004](#dd-004--rebrand-by-overwriting-upstream-asset-paths) and
+[DD-022](#dd-022--theme-the-niri-session-from-56728b-not-from-the-logo-green)
+
+**Context.** The approved Qubix Boot Console design is a mostly TUI interface: a quiet
+near-black grid, cropped wireframe cube, square terminal frame, Qubix Slate selection row,
+IBM Plex Mono text, keyboard help, and a live timeout. GRUB supports those pieces through
+its [theme format](https://www.gnu.org/software/grub/manual/grub/html_node/Theme-file-format.html),
+but an Atomic image cannot deliver them like normal desktop branding.
+
+GRUB reads before the root deployment is mounted and expects readable assets on `/boot`.
+That filesystem is machine-local and mutable; `/usr` belongs to the image. Putting theme
+files only under `files/system/boot/` would pretend `/boot` participates in an OSTree
+deployment when it does not. Pointing GRUB into `/usr` would also fail on common layouts
+where `/boot` is separate and the root is encrypted.
+
+Regenerating the menu at runtime is the wrong bridge. It rewrites boot-critical state,
+duplicates work already owned by OSTree/bootupd, and can fail against an active composefs
+deployment. More importantly, it is unnecessary. bootupd's static GRUB configuration
+[sources `$prefix/custom.cfg`](https://github.com/coreos/bootupd/blob/main/src/grub2/configs.d/41_custom.cfg),
+and Fedora's generated configuration has the same supported path in
+[`41_custom.in`](https://github.com/rhboot/grub2/blob/fedora-44/util/grub.d/41_custom.in).
+
+**Decision.** Keep canonical artwork, layout, solid UI primitives, and an installer under
+`/usr/share/qubix-os/grub-theme/` and `/usr/bin/`. Enable a system oneshot which runs after
+local filesystems mount and performs three bounded operations:
+
+1. Validate the build-generated SHA-256 manifest, derive a content-addressed revision, and
+   stage the complete theme before renaming it into `/boot/grub2/themes/qubix-v1-<digest>`.
+2. Preserve existing `/boot/grub2/custom.cfg` lines outside one exact pair of Qubix marker
+   lines, then atomically replace that file with the current managed block. Refuse symlinks
+   and malformed marker pairs rather than guessing ownership.
+3. Have the managed block load the three PF2 fonts and `gfxmenu`, request
+   `1920x1080,auto`, override bootupd's one-second default with a visible eight-second
+   menu, and set `theme` to the content-addressed `theme.txt`. Never call `grub2-mkconfig`
+   and never emit a `menuentry`.
+
+Generate the PF2 fonts during the image build from Fedora's already-selected IBM Plex Mono
+package using `grub2-mkfont`; GRUB cannot read OTF. Install `grub2-tools-extra` explicitly
+because that package owns the converter. The theme's `boot_menu` renders whatever BLS,
+OSTree, firmware, or OS discovery supplies, so the representative labels in the approved
+mockup are not baked into the image. The mockup's `UEFI · x86_64` label is omitted because
+a static theme cannot truthfully query that state.
+
+The service is an enforced image default. Masking it and running
+`qubix-grub-theme --remove` is the documented opt-out; unmasking and `--install` reapplies
+it. Removing the block leaves copied assets inert, which is safer and recoverable.
+
+**Consequences.**
+
+- Bootupd-static and Fedora-generated GRUB installations use one integration path, without
+  replacing their configuration or changing their menu-entry lifecycle.
+- The menu is intentionally visible for eight seconds. A shorter inherited timeout made
+  the background flash and disappear before the list was usable; after the countdown or an
+  explicit boot, any blank interval belongs to the kernel/Plymouth handoff, not the theme.
+- A missing/read-only `/boot`, corrupt image manifest, symlinked `custom.cfg`, or malformed
+  Qubix block fails the service and leaves GRUB's existing text/graphical menu in place.
+- The first boot into an image that introduces the theme cannot display it: that boot occurs
+  before the service has copied the assets. The following boot can. Later theme revisions
+  are installed alongside older content-addressed directories, avoiding in-place assets
+  while firmware may be reading them at the cost of a small amount of retained `/boot`
+  space.
+- `custom.cfg` remains a shared user extension point. Unrelated content survives, but the
+  Qubix-marked block is image-owned and is restored on each boot unless the service is
+  masked.
+- The theme requests 1920×1080 first and uses percentage placement; `auto` is the firmware
+  fallback. Serial and non-graphical paths remain GRUB fallbacks, not Qubix surfaces.
+- Local checks can validate PNGs, shell syntax, markers, fonts, manifest integrity, and
+  required theme components. Only a built image on real firmware can confirm rendering and
+  every boot target; `BRD-006` waits in **Awaiting confirmation** for that check.

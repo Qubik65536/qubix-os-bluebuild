@@ -66,6 +66,9 @@ modules:
         # upstream in module 4d below.
         - ibm-plex-mono-fonts
         - ibm-plex-sans-fonts
+        # Converts IBM Plex Mono into the PF2 bitmap fonts GRUB can load. The generated
+        # files land with the theme in module 4j; GRUB cannot read OTF directly. DD-057.
+        - grub2-tools-extra
         # CJK coverage, in place of IBM Plex Sans SC/TC/JP: those exist only as ~1.2 GB of
         # GitHub release archives, and Fedora's ibm-plex-fonts carries no CJK subpackage at
         # all. The STATIC package, not google-noto-sans-cjk-vf-fonts, because the .ttc files
@@ -191,7 +194,7 @@ modules:
       - scope: user # Also add Flathub user repo, but no user packages
 
   # 4. Build steps no BlueBuild module covers: things that are not an RPM and not a file
-  #    that can simply be copied. Three snippets, each its own layer.
+  #    that can simply be copied. Ten snippets, each its own layer.
   #
   #    4a. zsh-completions: completion functions for tools zsh does not cover itself.
   #    A raw build step because there is nothing to install FROM: Fedora does not package
@@ -577,15 +580,66 @@ modules:
             fi; \
             test -x "${hook#/run/host}"
 
-  # 5. Enable the one system service this image adds.
+      #    4j. Build and validate the GRUB theme payload.
+      #
+      #        GRUB cannot consume the OTF IBM Plex Mono files used by the desktop. Its
+      #        gfxmenu engine needs PF2 bitmap fonts, generated here with Fedora's
+      #        grub2-mkfont. They live beside the immutable source artwork until the
+      #        runtime installer copies the complete content-addressed directory to /boot.
+      #
+      #        The manifest is generated LAST and excludes itself. It gives the installer
+      #        both integrity checking and a content-derived destination, so an image
+      #        update never overwrites assets GRUB may be reading. Shell syntax, executable
+      #        mode, component presence, marker pairing, exact approved labels, and every
+      #        theme asset are asserted before the image can publish. DD-057.
+      #
+      #        Ordering: after `files` (theme, installer, unit) and `dnf` (IBM Plex Mono
+      #        plus grub2-mkfont from grub2-tools-extra).
+      - |
+        RUN set -eu; \
+            theme=/usr/share/qubix-os/grub-theme; \
+            mono=/usr/share/fonts/ibm-plex-mono-fonts; \
+            grub2-mkfont --name='Qubix Mono' --size=16 \
+                --output="$theme/qubix-mono-16.pf2" "$mono/IBMPlexMono-Regular.otf"; \
+            grub2-mkfont --name='Qubix Mono' --size=20 \
+                --output="$theme/qubix-mono-20.pf2" "$mono/IBMPlexMono-Regular.otf"; \
+            grub2-mkfont --name='Qubix Mono' --size=20 \
+                --output="$theme/qubix-mono-bold-20.pf2" "$mono/IBMPlexMono-Bold.otf"; \
+            strings "$theme/qubix-mono-16.pf2" | grep -qF 'Qubix Mono Regular 16'; \
+            strings "$theme/qubix-mono-20.pf2" | grep -qF 'Qubix Mono Regular 20'; \
+            strings "$theme/qubix-mono-bold-20.pf2" | grep -qF 'Qubix Mono Bold 20'; \
+            bash -n /usr/bin/qubix-grub-theme; \
+            test -x /usr/bin/qubix-grub-theme; \
+            grep -qxF '+ boot_menu {' "$theme/theme.txt"; \
+            grep -qxF '+ progress_bar {' "$theme/theme.txt"; \
+            grep -qF 'QUBIX OS // BOOT CONSOLE' "$theme/theme.txt"; \
+            grep -qF '[UP/DOWN] Navigate   [ENTER] Boot   [E] Edit   [C] Console' \
+                "$theme/theme.txt"; \
+            grep -qF 'set timeout_style=menu' /usr/bin/qubix-grub-theme; \
+            grep -qF 'set timeout=8' /usr/bin/qubix-grub-theme; \
+            test "$(grep -cF '# >>> Qubix OS GRUB theme >>>' /usr/bin/qubix-grub-theme)" -eq 1; \
+            test "$(grep -cF '# <<< Qubix OS GRUB theme <<<' /usr/bin/qubix-grub-theme)" -eq 1; \
+            for asset in VERSION theme.txt background.png panel.png line.png selected_c.png \
+                         qubix-mono-16.pf2 qubix-mono-20.pf2 qubix-mono-bold-20.pf2; do \
+                test -s "$theme/$asset"; \
+            done; \
+            (cd "$theme"; \
+             LC_ALL=C find . -maxdepth 1 -type f ! -name MANIFEST.sha256 -printf '%P\n' \
+                 | LC_ALL=C sort | xargs sha256sum > MANIFEST.sha256; \
+             sha256sum --check --status MANIFEST.sha256)
+
+  # 5. Enable the system services this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already
   #    exist — the only thing in the terminal environment that cannot be delivered as a
   #    file, because /etc/passwd is per machine. The command that was documented instead,
   #    `chsh`, is deleted from the image by Aurora, so there was no manual path either.
-  #    The unit and its script come from the overlay (module 1); this only enables it.
-  #    DD-035.
+  #    qubix-grub-theme.service copies the immutable theme into machine-local /boot and
+  #    activates it through GRUB's custom.cfg hook without regenerating menu entries.
+  #    Both units and scripts come from the overlay (module 1); this only enables them.
+  #    DD-035, DD-057.
   #    Ordering: after `files`, which ships the unit.
   - type: systemd
     system:
       enabled:
         - qubix-default-shell.service
+        - qubix-grub-theme.service

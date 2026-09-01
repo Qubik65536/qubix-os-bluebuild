@@ -22,9 +22,9 @@ described here or in `files/system/`.
   `module-list-v1` for shared module lists. Keep them.
 - **Shared files (DD-016):**
   - `common-base.yml` — modules 1–5: `files`, `dnf`, `default-flatpaks`, `containerfile`
-    (zsh completions + login-shell checks + zellij + fonts + the `/etc/zshrc` append), and
-    `systemd` (the login-shell service). Everything that makes an image "Qubix OS".
-  - `common-identity.yml` — module 5: the `os-release` rewrite. Split out because of its
+    (terminal setup/assertions plus GRUB PF2 generation and manifest), and `systemd` (the
+    login-shell and GRUB-theme services). Everything that makes an image "Qubix OS".
+  - `common-identity.yml` — module 6: the `os-release` rewrite. Split out because of its
     ordering constraint (must run late).
   - `common-kernel-cachyos.yml` — the kernel swap. Both CachyOS recipes only.
   - `common-nvidia-cachyos.yml` — Negativo17 `akmod-nvidia`, a Fedora 44 compose-hook
@@ -47,10 +47,10 @@ described here or in `files/system/`.
   | # | Module | From | Effect | Ordering constraint |
   |---|---|---|---|---|
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
-  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm` + its config's fonts (`ibm-plex-mono-fonts`, `ibm-plex-sans-fonts`, `google-noto-sans-cjk-fonts`) + `unzip`, `niri`, `dms` + fonts + `cliphist`, Fcitx 5 + Chinese addons + autostart/toolkit/KDE integration, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `lazygit`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
+  | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm` + its config's fonts (`ibm-plex-mono-fonts`, `ibm-plex-sans-fonts`, `google-noto-sans-cjk-fonts`) + `unzip`, `grub2-tools-extra` for PF2 generation, `niri`, `dms` + fonts + `cliphist`, Fcitx 5 + Chinese addons + autostart/toolkit/KDE integration, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `lazygit`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
-  | 4 | `containerfile` | `common-base.yml` | Nine snippets: `zsh-completions` from a pinned tag into `/usr/share/zsh/site-functions`; assert `usermod` exists and `/usr/bin/zsh` is in `/etc/shells`; install `zellij` from upstream's pinned `no-web` release + its completions, asserting the SHA-256 and that `/etc/zellij/config.kdl` resolves and parses; install Monaspace Krypton NF + IBM Plex Math from pinned upstream archives, asserting both SHA-256s; assert `wezterm ls-fonts` resolves `/etc/xdg/wezterm/wezterm.lua` and all seven of its families; append the zsh wiring to Fedora's `/etc/zshrc`; assert `qubix-config --check` — every path that command names exists, and niri's relative theme include still matches; assert that `fastfetch` survives `/etc/profile.d` unaliased; assert the distrobox hook — distrobox is present, still reads `/etc/distrobox/distrobox.conf`, that file names an executable `qubix-distrobox-shell`, and that script still writes both of its block markers | after `dnf` (needs `zsh`, `git`, `unzip`, `wezterm`) and after `files` (needs `/etc/zellij`, `/etc/xdg/wezterm`, `/usr/share/qubix-os/shell/`); the WezTerm snippet after the font one — DD-026, DD-033, DD-034, DD-035, DD-036, DD-039, DD-040, DD-043, DD-046 |
-  | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service` | after `files`, which ships the unit — DD-035 |
+  | 4 | `containerfile` | `common-base.yml` | Ten snippets: the existing nine terminal/setup assertions, then GRUB theme font conversion, source/marker/timeout checks, and manifest generation | after `dnf` and `files`; GRUB generation needs `grub2-mkfont`, IBM Plex Mono, and the overlaid source — DD-026, DD-033…DD-046, DD-057 |
+  | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service` and `qubix-grub-theme.service`; the latter installs the theme and an eight-second visible menu into machine-local GRUB state | after `files`, which ships both units — DD-035, DD-057 |
   | 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
   | 7 | `initramfs` | `recipe.yml` | Rebuilds the stock kernel's archive with the overlaid Qubix Plymouth watermark | after `files`, late (DD-049) |
   | 8 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |

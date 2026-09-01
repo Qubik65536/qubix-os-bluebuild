@@ -1,0 +1,219 @@
+#!/usr/bin/bash
+# Install the image-owned Qubix GRUB theme onto the mutable /boot filesystem.
+#
+# Fedora Atomic keeps /usr immutable and /boot machine-local. Both bootupd's static GRUB
+# configuration and Fedora's generated 41_custom fragment source /boot/grub2/custom.cfg,
+# so this command manages one delimited block there without regenerating the boot menu.
+# Unknown or malformed custom content is preserved; failure leaves GRUB's normal menu.
+
+set -euo pipefail
+
+readonly SOURCE_DIR="/usr/share/qubix-os/grub-theme"
+readonly BOOT_GRUB_DIR="/boot/grub2"
+readonly CUSTOM_CFG="${BOOT_GRUB_DIR}/custom.cfg"
+readonly BEGIN_MARKER="# >>> Qubix OS GRUB theme >>>"
+readonly END_MARKER="# <<< Qubix OS GRUB theme <<<"
+
+usage() {
+    printf 'Usage: %s [--install|--remove|--check]\n' "${0##*/}"
+}
+
+say() {
+    printf 'qubix-grub-theme: %s\n' "$*"
+}
+
+# ── Validate immutable source and the writable boot target ───────────────────
+source_revision() {
+    local version manifest_hash
+
+    version="$(tr -d '\n' < "${SOURCE_DIR}/VERSION")"
+    if [[ ! "$version" =~ ^[0-9]+$ ]]; then
+        say "invalid source VERSION: ${version:-<empty>}" >&2
+        return 1
+    fi
+
+    manifest_hash="$(sha256sum "${SOURCE_DIR}/MANIFEST.sha256" | cut -c1-12)"
+    if [[ ! "$manifest_hash" =~ ^[0-9a-f]{12}$ ]]; then
+        say "could not derive the source revision" >&2
+        return 1
+    fi
+
+    printf 'v%s-%s\n' "$version" "$manifest_hash"
+}
+
+check_source() {
+    local required
+
+    for required in VERSION MANIFEST.sha256 theme.txt background.png panel.png line.png \
+                    selected_c.png qubix-mono-16.pf2 qubix-mono-20.pf2 \
+                    qubix-mono-bold-20.pf2; do
+        if [[ ! -f "${SOURCE_DIR}/${required}" ]]; then
+            say "source asset is missing: ${required}" >&2
+            return 1
+        fi
+    done
+
+    (cd "$SOURCE_DIR" && sha256sum --check --status MANIFEST.sha256)
+}
+
+check_boot_target() {
+    if [[ ! -d "$BOOT_GRUB_DIR" ]]; then
+        say "${BOOT_GRUB_DIR} is unavailable; leaving the existing bootloader untouched"
+        return 1
+    fi
+    if [[ ! -w "$BOOT_GRUB_DIR" ]]; then
+        say "${BOOT_GRUB_DIR} is not writable; leaving the existing bootloader untouched"
+        return 1
+    fi
+    if [[ -L "$CUSTOM_CFG" ]]; then
+        say "${CUSTOM_CFG} is a symlink; preserving it and skipping installation"
+        return 1
+    fi
+}
+
+# ── Copy a content-addressed theme directory into /boot ───────────────────────
+install_assets() {
+    local revision target_dir stage_dir stale_dir
+
+    revision="$(source_revision)"
+    target_dir="${BOOT_GRUB_DIR}/themes/qubix-${revision}"
+
+    if [[ -d "$target_dir" ]] \
+        && (cd "$target_dir" && sha256sum --check --status MANIFEST.sha256); then
+        printf '%s\n' "$target_dir"
+        return 0
+    fi
+
+    install -d -m 0755 "${BOOT_GRUB_DIR}/themes"
+    stage_dir="$(mktemp -d "${BOOT_GRUB_DIR}/themes/.qubix-${revision}.XXXXXX")"
+    trap 'rm -rf -- "$stage_dir"' RETURN
+    cp -a "${SOURCE_DIR}/." "$stage_dir/"
+    chmod 0755 "$stage_dir"
+    find "$stage_dir" -type f -exec chmod 0644 {} +
+    (cd "$stage_dir" && sha256sum --check --status MANIFEST.sha256)
+
+    if [[ -e "$target_dir" ]]; then
+        stale_dir="${target_dir}.replaced.$$"
+        mv -- "$target_dir" "$stale_dir"
+        if ! mv -- "$stage_dir" "$target_dir"; then
+            mv -- "$stale_dir" "$target_dir"
+            return 1
+        fi
+        rm -rf -- "$stale_dir"
+    else
+        mv -- "$stage_dir" "$target_dir"
+    fi
+    trap - RETURN
+
+    printf '%s\n' "$target_dir"
+}
+
+# ── Preserve user content while replacing only the marked Qubix block ────────
+strip_managed_block() {
+    local input=$1 output=$2
+
+    awk -v begin="$BEGIN_MARKER" -v end="$END_MARKER" '
+        $0 == begin {
+            if (inside) exit 42
+            inside = 1
+            found_begin++
+            next
+        }
+        $0 == end {
+            if (!inside) exit 43
+            inside = 0
+            found_end++
+            next
+        }
+        !inside { print }
+        END {
+            if (inside || found_begin != found_end || found_begin > 1) exit 44
+        }
+    ' "$input" > "$output"
+}
+
+write_custom_cfg() {
+    local target_dir=$1 theme_dir tmp mode
+
+    theme_dir="${target_dir#${BOOT_GRUB_DIR}/}"
+    tmp="$(mktemp "${BOOT_GRUB_DIR}/.custom.cfg.qubix.XXXXXX")"
+    trap 'rm -f -- "$tmp"' RETURN
+
+    if [[ -f "$CUSTOM_CFG" ]]; then
+        if ! strip_managed_block "$CUSTOM_CFG" "$tmp"; then
+            say "managed markers in ${CUSTOM_CFG} are malformed; refusing to rewrite it" >&2
+            return 1
+        fi
+        mode="$(stat -c '%a' "$CUSTOM_CFG")"
+    else
+        : > "$tmp"
+        mode=0600
+    fi
+
+    printf '%s\n' \
+        "$BEGIN_MARKER" \
+        "# Managed by /usr/bin/qubix-grub-theme; mask its service before editing." \
+        "if [ -f \$prefix/${theme_dir}/theme.txt ]; then" \
+        "    set timeout_style=menu" \
+        "    set timeout=8" \
+        "    set gfxmode=1920x1080,auto" \
+        "    load_video" \
+        "    insmod gfxterm" \
+        "    insmod gfxmenu" \
+        "    terminal_output gfxterm" \
+        "    loadfont \$prefix/${theme_dir}/qubix-mono-16.pf2" \
+        "    loadfont \$prefix/${theme_dir}/qubix-mono-20.pf2" \
+        "    loadfont \$prefix/${theme_dir}/qubix-mono-bold-20.pf2" \
+        "    set theme=\$prefix/${theme_dir}/theme.txt" \
+        "    export theme" \
+        "fi" \
+        "$END_MARKER" >> "$tmp"
+
+    chmod "$mode" "$tmp"
+    mv -f -- "$tmp" "$CUSTOM_CFG"
+    trap - RETURN
+}
+
+remove_custom_block() {
+    local tmp mode
+
+    [[ -f "$CUSTOM_CFG" ]] || return 0
+    tmp="$(mktemp "${BOOT_GRUB_DIR}/.custom.cfg.qubix.XXXXXX")"
+    trap 'rm -f -- "$tmp"' RETURN
+    if ! strip_managed_block "$CUSTOM_CFG" "$tmp"; then
+        say "managed markers in ${CUSTOM_CFG} are malformed; refusing to rewrite it" >&2
+        return 1
+    fi
+    mode="$(stat -c '%a' "$CUSTOM_CFG")"
+    chmod "$mode" "$tmp"
+    mv -f -- "$tmp" "$CUSTOM_CFG"
+    trap - RETURN
+}
+
+# ── Command dispatch ─────────────────────────────────────────────────────────
+case "${1:---install}" in
+    --install)
+        check_source
+        check_boot_target || exit 0
+        target_dir="$(install_assets)"
+        write_custom_cfg "$target_dir"
+        say "installed ${target_dir#${BOOT_GRUB_DIR}/} and activated its custom.cfg block"
+        ;;
+    --remove)
+        check_boot_target || exit 0
+        remove_custom_block
+        say "removed the managed custom.cfg block; copied theme assets remain inert"
+        ;;
+    --check)
+        check_source
+        bash -n "$0"
+        say "immutable source assets and script syntax are valid"
+        ;;
+    -h|--help)
+        usage
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac

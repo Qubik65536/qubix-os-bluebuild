@@ -12,6 +12,7 @@ terms over synonyms.
 | **Base image** | The image named in `base-image:` — what the recipe builds `FROM`. |
 | **bat** | `cat` with syntax highlighting. Aliased over `cat` in interactive shells (DD-026). |
 | **BlueBuild** | The build system used here. Transpiles a recipe in `recipes/` into a `Containerfile` and builds it. <https://blue-build.org> |
+| **bootupd** | Fedora Atomic's bootloader updater. Its static GRUB configuration and Fedora's generated configuration both expose the `custom.cfg` hook used by Qubix Boot Console (DD-057). |
 | **BORE** | Burst-Oriented Response Enhancer — the CPU scheduler the CachyOS kernel uses by default. |
 | **Branding asset** | A file under `files/system/` that replaces an upstream logo, banner, or watermark. See [`branding.md`](branding.md). |
 | **CachyOS** | A performance-focused Linux distribution whose patched kernel is packaged for Fedora in COPR `bieszczaders/kernel-cachyos`. Used by the active CachyOS image and the parked NVIDIA+CachyOS recipe (DD-017, DD-051, DD-052). |
@@ -28,6 +29,7 @@ terms over synonyms.
 | **Fragment (configuration)** | A file this image ships that sets only the keys it cares about, letting everything else resolve from the files upstream already ships — `/etc/xdg/kdeglobals` (merged key by key) and `/etc/xdg/mimeapps.list` (resolved type by type). Never a wholesale replacement. |
 | **`from-file:`** | The recipe key that splices a shared `recipes/common-*.yml` module list into a recipe at that position (DD-016). |
 | **GHCR** | GitHub Container Registry — where the image is published. |
+| **GRUB** | The boot selector that loads Qubix, rollback deployments, firmware, and discovered external systems. Qubix Boot Console themes its live entry list from machine-local `/boot` without generating entries (DD-057). |
 | **`image-version`** | The base image *tag* (`latest` here). A channel, not a Fedora version number. See DD-018. |
 | **`IMAGE_VERSION`** | A field Universal Blue writes into `os-release`, identifying the upstream build. Interpolated into `PRETTY_NAME` (DD-003). |
 | **initramfs** | The RAM filesystem the kernel boots into before mounting the real root. Every recipe regenerates it for Plymouth branding; CachyOS additionally needs an archive for its replacement kernel, and NVIDIA+CachyOS needs its rebuilt driver included. |
@@ -46,6 +48,7 @@ terms over synonyms.
 | **NVIDIA Open** | NVIDIA's open kernel-module flavour for Turing and newer GPUs. Inherited with Fedora's kernel or rebuilt from Negativo17 `akmod-nvidia` for CachyOS (DD-051). See [`variants.md`](variants.md). |
 | **Overlay** | The `files/system/` tree, copied verbatim into the image root. Repository path = image path. |
 | **Override** | Shipping a file at an upstream path so the upstream file is replaced in the image. The branding mechanism (DD-004). |
+| **PF2** | GRUB's bitmap font format. Module 4j converts IBM Plex Mono OTF faces into three PF2 files for Qubix Boot Console (DD-057). |
 | **Plymouth** | The boot splash system. Reads the watermark this image overrides. |
 | **Quickshell** | The QtQuick-based shell toolkit DankMaterialShell is written against. |
 | **`qubix-default-shell`** | The boot service that gives an account which already exists zsh as its login shell, once per account. It exists because `/etc/passwd` is per machine and Aurora deletes `chsh` from the image (DD-035). See [`shell.md`](shell.md#the-login-shell). |

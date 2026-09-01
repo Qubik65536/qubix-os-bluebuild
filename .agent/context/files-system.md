@@ -34,6 +34,14 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/share/applications/qubix-video-bridge.desktop` | XDG application menu / DMS launcher | A **new** entry (upstream's is `NoDisplay=true`), `OnlyShowIn=niri;` (IMG-013) |
 | `usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | systemd user manager | `Wants=dms.service`, so the shell starts under Niri **only** (DD-015) |
 
+## Boot branding
+
+| Path | Consumer | Effect |
+|---|---|---|
+| `usr/share/qubix-os/grub-theme/` | `qubix-grub-theme`, then GRUB `gfxmenu` from `/boot` | Immutable Qubix Boot Console source: approved 1920×1080 wireframe-cube background, percentage layout, solid UI primitives and protocol `VERSION`. Module 4j adds three IBM Plex Mono PF2 fonts plus `MANIFEST.sha256` (DD-057) |
+| `usr/bin/qubix-grub-theme` | systemd or root by hand | Validates the source, atomically stages it under content-addressed `/boot/grub2/themes/qubix-v1-*`, and atomically replaces only its delimited block in `custom.cfg`. Sets an eight-second visible menu; never runs `grub2-mkconfig` or emits entries. `--check` is read-only; `--remove` leaves inert assets (DD-057). Mode `100755` |
+| `usr/lib/systemd/system/qubix-grub-theme.service` | systemd, after local filesystems | Reasserts the image-owned theme block each boot. Enabled in every variant; masking plus `--remove` is the opt-out (DD-057) |
+
 ## Terminal environment
 
 | Path | Consumer | Effect |
@@ -55,8 +63,9 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/bin/qubix-distrobox-shell` | distrobox-init, **inside** a container, as root | Installs zsh, the plugins, starship, atuin and bat from the *container's* repositories, then fills the gaps from `/run/host` — text always, a host binary only after `--version` proves the container can run it; symlinks `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` and `/etc/profile.d/qubix-shell-env.sh` → the host's; writes the source block into the container's global `zshrc` between `# ── Qubix OS ──…` and `# ── end of the Qubix OS block ──…`, **replacing** any block already there, which is the only route a later fix has into a container that exists (DD-046). Idempotent — two runs give a byte-identical file — re-runnable by hand, **exits 0 from inside a container whatever happens**, and **never prints a line starting with `Error:`** (DD-043, DD-045). Mode `100755` |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Reads the gutter **two ways** — a cursor step on fastfetch ≤ 2.63, leading spaces on ≥ 2.64, which reworked logo printing (DD-042) — so it is coupled to how fastfetch renders and needs re-checking when that changes. Mode `100755` in the overlay |
 
-**Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, and one system
-service that touches `/etc/passwd` (DD-030, DD-031, DD-035). An earlier design also seeded a
+**Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, one system
+service that touches `/etc/passwd`, and one bounded bridge that writes its marked GRUB block
+plus image assets under `/boot` (DD-030, DD-031, DD-035, DD-057). An earlier design also seeded a
 `source` line into `~/.zshrc` from a systemd *user* service and vendored the LazyVim starter;
 both are gone. The login-shell service came back in DD-035, because the single `chsh` it was
 traded for does not exist on Aurora — upstream deletes `/usr/bin/chsh` from the image.
@@ -99,7 +108,9 @@ Two constraints explain the rest of the layout:
 
 - **Mechanism:** branding works by *overwriting upstream paths* (DD-004). Files are
   therefore named after the component that reads them, **not** after their contents.
-- **Five distinct source images**, everything else is a byte-identical copy (DD-005):
+- **Six principal source artworks**; the GRUB panel/line/selection PNGs are solid UI
+  primitives, and the remaining logo/banner placements are byte-identical copies (DD-005,
+  DD-057):
 
   | Artwork | Form | Size | SHA-256 prefix | Copies live at |
   |---|---|---|---|---|
@@ -108,6 +119,7 @@ Two constraints explain the rest of the layout:
   | C | SVG banner | 1600×450 | `46d7526f…` | `pixmaps/qubixos-banner.svg`, `aurora-banner.svg` |
   | D | PNG banner | 1600×450 | `38879687…` | `pixmaps/fedora-logo.png`, `fedora_logo_med.png` |
   | E | PNG watermark | 128×36 | `41ba5629…` | `plymouth/themes/spinner/watermark.png`, `kinoite-watermark.png`, `pixmaps/fedora-logo-small.png` |
+  | F | PNG GRUB background | 1920×1080 | `6e8a8383…` | `qubix-os/grub-theme/background.png` |
 
 - **Plasma splash (DD-049):** `usr/share/plasma/look-and-feel/com.qubixos.desktop/` is a
   Qubix-native, splash-only package selected by the distro-profile `ksplashrc`. Its QML
@@ -119,6 +131,12 @@ Two constraints explain the rest of the layout:
 - **Plymouth:** both spinner watermark paths are only the source files. Each recipe must
   run `initramfs` after the overlay or early boot keeps the Aurora bytes embedded by the
   base image (DD-049).
+- **GRUB (DD-057):** `/usr/share/qubix-os/grub-theme/` is only the immutable source.
+  GRUB reads from machine-local `/boot`, so the enabled system service validates and copies
+  a content-addressed set there, then uses the `custom.cfg` hook shared by bootupd-static
+  and Fedora-generated configurations. The first boot introducing it cannot show it; the
+  next one can. The marked block enforces an eight-second menu because bootupd's inherited
+  one second only flashed the background before kernel handoff.
 - **Text branding:**
   `usr/share/kde-settings/kde-profile/default/xdg/kcm-about-distrorc` — KDE "About this
   System". Sets `Name=Qubix OS`, a `Variant` string, and
@@ -201,8 +219,9 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   in the image so they go on tracking it — and **niri's copy is not a byte copy**: its
   relative `include "qubix-theme.kdl"` is rewritten to an absolute path, because a verbatim
   copy names a file that is not in `~/.config/niri/` and the session does not load (DD-039).
-- **File modes carry through.** `usr/bin/qubix-video-bridge`, `usr/bin/qubix-dms-theme` and
-  `usr/bin/qubix-config` and `usr/share/qubix-os/fastfetch/retune.sh` are executable only because git records mode
+- **File modes carry through.** `usr/bin/qubix-video-bridge`, `usr/bin/qubix-dms-theme`,
+  `usr/bin/qubix-grub-theme`, `usr/bin/qubix-config` and
+  `usr/share/qubix-os/fastfetch/retune.sh` are executable only because git records mode
   `100755`; the `files` module copies the bit as it finds it. A rewrite that drops it
   produces a script that silently cannot run.
 - **fastfetch's box is pinned to its logo, and the logo is pinned on purpose.** The four
@@ -213,10 +232,11 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   tries `ID`, `NAME`, then `ID_LIKE`, and the base image's `ID_LIKE=fedora` matches, so the
   block is not what chooses Fedora — it is what stops a fastfetch release or a base-image
   change from choosing something else (DD-041; DD-031 said "penguin", which was wrong).
-- **Four files now carry the palette, and nothing enforces agreement.**
+- **Five files now carry the palette, and nothing enforces agreement.**
   `etc/niri/qubix-theme.kdl`, `usr/share/qubix-os/dms-theme.json`,
-  `etc/zellij/config.kdl` and `usr/share/qubix-os/lazygit/config.yml` are the same
-  `#56728B` ramp in four formats (DD-022, DD-032, DD-033). Drift is invisible until someone
+  `etc/zellij/config.kdl`, `usr/share/qubix-os/lazygit/config.yml`, and
+  `usr/share/qubix-os/grub-theme/theme.txt` are the same
+  `#56728B` ramp in five formats (DD-022, DD-032, DD-033, DD-057). Drift is invisible until someone
   looks at two of them side by side. The structural tones are `hsl(208, 24%, L)`; the
   accents are `hsl(h, 55%, 50%)` — compute them, do not eyeball them. **zellij's accents are
   the same hues at L68**, not L50, because there every accent is text on a dark surface and
@@ -331,5 +351,6 @@ You add, remove, or change any asset or configuration file. For configuration, a
 ```bash
 shasum -a 256 files/system/usr/share/pixmaps/* \
               files/system/usr/share/plymouth/themes/spinner/* \
-              files/system/usr/share/icons/hicolor/scalable/*.svg | sort
+              files/system/usr/share/icons/hicolor/scalable/*.svg \
+              files/system/usr/share/qubix-os/grub-theme/*.png | sort
 ```

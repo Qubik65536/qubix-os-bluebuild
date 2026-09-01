@@ -41,8 +41,8 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Area | Change | Where |
 |---|---|---|
 | Identity | `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` rewritten to Qubix OS | `recipe.yml` (containerfile snippet) |
-| Branding | Distro logos, banners, Plymouth boot watermark, KDE splash and "About this system" | `files/system/usr/share/**` |
-| Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `dms` + fonts + `cliphist` (Niri's shell, from COPR), Fcitx 5 + Pinyin + toolkit/KDE integration (Simplified Chinese input) | `recipe.yml` (`dnf`) |
+| Branding | Qubix Boot Console for GRUB; distro logos, banners, Plymouth boot watermark, KDE splash and "About this system" | `files/system/usr/share/**`, `files/system/usr/bin/qubix-grub-theme` |
+| Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `dms` + fonts + `cliphist` (Niri's shell, from COPR), Fcitx 5 + Pinyin + toolkit/KDE integration (Simplified Chinese input), `grub2-tools-extra` (PF2 font generation) | `recipe.yml` (`dnf`) |
 | Terminal environment | `zsh` + its plugins, `atuin`, `bat`, `yazi` (from COPR), `lazygit` (from COPR), `fastfetch`, `neovim` and what LazyVim calls; `zsh-completions` from a pinned upstream tag | `recipe.yml` (`dnf`, `containerfile`) |
 | Multiplexer | `zellij`, from upstream's pinned `no-web` release — not packaged by Fedora and endorsed by no COPR. Nothing starts it (DD-033) | `recipe.yml` (`containerfile`), `files/system/etc/zellij/config.kdl` |
 | Shell configuration | starship initialised at last, plugins loaded, atuin made explicitly local, `cat`→`bat`, `y`→yazi, `lg`→lazygit. System files only — nothing is written to `$HOME` (DD-026, DD-030, DD-036) | `files/system/etc/profile.d/`, a block appended to `/etc/zshrc`, `files/system/usr/share/qubix-os/shell/` |
@@ -71,8 +71,10 @@ should be reported upstream, not patched here — see
 
 1. **Stay thin.** Prefer inheriting from Aurora DX over reimplementing. The delta above
    should stay small enough to read in one sitting.
-2. **Stay declarative.** Changes belong in the recipes or in `files/system/`, not in
-   post-install scripts run on user machines.
+2. **Stay declarative.** Changes belong in the recipes or in `files/system/`. A narrow,
+   idempotent system bridge is allowed only when the consumer owns machine-local state
+   outside the image, as GRUB does under `/boot`; its ownership and opt-out must be explicit
+   (DD-057).
 3. **Stay reproducible.** Every published image is built by CI from a commit, and signed.
 4. **Stay documented.** Every decision has a record; every file has a context-cache entry.
 

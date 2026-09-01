@@ -97,6 +97,9 @@ substitution.
   | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
   | `/usr/bin/qubix-dms-theme` | Enforces DMS's Qubix Slate pointer and applies the versioned floating-component bar plus canonical cube launcher once (DD-025, DD-048) |
   | `/usr/lib/systemd/user/qubix-dms-theme.service` | Runs that migration before DMS under Niri; never enabled globally (DD-025, DD-048) |
+  | `/usr/share/qubix-os/grub-theme/` | Immutable Qubix Boot Console source: layout, background, UI primitives, build-generated PF2 fonts, and integrity manifest (DD-057) |
+  | `/usr/bin/qubix-grub-theme` | Copies that validated source into machine-local `/boot/grub2/themes/` and maintains only its marked `custom.cfg` block; never regenerates GRUB entries (DD-057) |
+  | `/usr/lib/systemd/system/qubix-grub-theme.service` | Runs the GRUB installer after local filesystems mount. Enabled by module 5 in every variant (DD-057) |
   | `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's interactive setup (DD-026, DD-030) |
   | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on. **Replaces** shadow-utils' copy (DD-030) |
   | `/usr/bin/qubix-default-shell` | Moves accounts that already exist to zsh, once each (DD-035) |
@@ -133,7 +136,8 @@ substitution.
   install:
     packages:
       [micro, starship, wezterm,
-       ibm-plex-mono-fonts, ibm-plex-sans-fonts, google-noto-sans-cjk-fonts, unzip,
+       ibm-plex-mono-fonts, ibm-plex-sans-fonts, grub2-tools-extra,
+       google-noto-sans-cjk-fonts, unzip,
        niri, dms,
        material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist,
        fcitx5, fcitx5-autostart, fcitx5-chinese-addons,
@@ -147,7 +151,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `grub2-tools-extra` converts IBM Plex Mono to GRUB's PF2 format in module 4j (DD-057); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
 | `remove.packages` | Removed RPMs. `firefox` goes because a browser belongs in a Flatpak (DD-006) and because the browser here is Ungoogled Chromium (DD-023); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
@@ -183,6 +187,7 @@ The packages WezTerm's own configuration needs (DD-034):
 | `ibm-plex-mono-fonts`, `ibm-plex-sans-fonts` | Entries 3 and 4 of WezTerm's font fallback chain. The two families ahead of them are not packaged by anyone and come from module 4d below |
 | `google-noto-sans-cjk-fonts` | CJK coverage, standing in for IBM Plex Sans SC/TC/JP — published only as ~1.2 GB of release archives, and absent from Fedora's `ibm-plex-fonts`. The **static** package, not `-vf-`, because its `.ttc` files expose `Noto Sans CJK SC` / `TC` / `JP` as plain family names |
 | `unzip` | Needed by module 4d, which unpacks two upstream font archives. Listed rather than assumed, for the same reason `git` is |
+| `grub2-tools-extra` | Owns `grub2-mkfont`, used in module 4j to convert the packaged IBM Plex Mono OTF faces into the three PF2 files GRUB loads (DD-057) |
 
 The Simplified Chinese input stack (DD-050):
 
@@ -236,10 +241,10 @@ No `repo` is specified, so Flathub is used by default.
 
 ### 4. `containerfile` — build steps no module covers
 
-*Defined in `common-base.yml`. Nine snippets: zsh completions, the login-shell assertions,
+*Defined in `common-base.yml`. Ten snippets: zsh completions, the login-shell assertions,
 zellij, WezTerm's two upstream fonts, the WezTerm configuration assertion, the zsh wiring
 appended to `/etc/zshrc`, the `qubix-config` assertion, the `fastfetch` alias assertion, and
-the distrobox hook assertion.*
+the distrobox hook assertion, followed by GRUB theme font generation and validation.*
 
 ```yaml
 - type: containerfile
@@ -449,6 +454,18 @@ The ninth asserts that the distrobox hook can be reached and is what it claims (
   replacing the first — inside a container, where no build can see it. Grepping for the two
   literals is the only part of that a build *can* check.
 
+The tenth snippet builds the **Qubix Boot Console payload** (DD-057):
+
+- `grub2-mkfont` converts Fedora's IBM Plex Mono Regular at 16/20 points and Bold at 20
+  points to PF2. The exact embedded font names are asserted because `theme.txt` must name
+  them literally.
+- It parses `qubix-grub-theme` with `bash -n`, verifies its executable mode and marker
+  pairing, and checks the approved header/help text, eight-second timeout, and required
+  GRUB components.
+- It asserts every source asset, then writes `MANIFEST.sha256` last and immediately verifies
+  it. The runtime installer hashes that manifest into the `/boot` directory name, so a
+  changed image gets a new complete directory instead of modifying live assets in place.
+
 - **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm` and the packaged
   fonts; after the `files` module, which ships `/etc/zellij/config.kdl`,
   `/etc/xdg/wezterm/`, `/usr/share/qubix-os/shell/qubix.zsh`, `/usr/bin/qubix-config`,
@@ -456,7 +473,7 @@ The ninth asserts that the distrobox hook can be reached and is what it claims (
   `qubix-config` names. The fifth snippet must follow the fourth. Before the identity
   rewrite, though nothing forces that.
 
-### 5. `systemd` — enable the login-shell service
+### 5. `systemd` — enable machine-local bridge services
 
 *Defined in `common-base.yml`.*
 
@@ -465,16 +482,21 @@ The ninth asserts that the distrobox hook can be reached and is what it claims (
   system:
     enabled:
       - qubix-default-shell.service
+      - qubix-grub-theme.service
 ```
 
-The only unit this image enables, and the only thing in the terminal environment that is not
-a file: it sets zsh as the login shell for accounts that already exist, which no image can do
-declaratively because `/etc/passwd` is per machine (DD-035).
+The module enables two narrow bridges from immutable image policy to machine-local state:
 
-- The unit and its script are shipped by module 1; this module only enables it.
-- It runs `Before=systemd-user-sessions.service`, so nobody is logged in while it rewrites
+- `qubix-default-shell.service` runs `Before=systemd-user-sessions.service`, so nobody is logged in while it rewrites
   `/etc/passwd`, and stamps each account in `/var/lib/qubix-os/default-shell/` so an account
   is only ever changed once. Full behaviour: [`shell.md`](shell.md#the-login-shell).
+- `qubix-grub-theme.service` runs after local filesystems mount. Its idempotent installer
+  validates `/usr/share/qubix-os/grub-theme`, copies it into content-addressed storage under
+  `/boot/grub2/themes/`, and atomically maintains one marked block in `custom.cfg`. That
+  block overrides bootupd's one-second default with an eight-second visible menu. It does
+  not call `grub2-mkconfig` or generate entries. Full behaviour and opt-out:
+  [`branding.md`](branding.md#installing-and-overriding-the-grub-theme).
+- Both units and scripts are shipped by module 1; this module only enables them.
 - **Ordering:** after `files`, which ships the unit. Nothing else depends on it.
 
 ### 6. `containerfile` — raw build steps
@@ -655,7 +677,6 @@ is re-enabled—the rebuilt NVIDIA modules in one dracut run.
 |---|---|---|
 | `akmods` | Install Universal Blue's cached out-of-tree modules | NVIDIA's stock-kernel module is inherited from Aurora; the module explicitly does not support the custom CachyOS kernel, which is built from source instead (DD-051). |
 | `script` | Run scripts from `files/scripts/` at build time | Nothing needs imperative build logic yet; `example.sh` is the untouched template placeholder. |
-| `systemd` | Enable/disable units | No custom units. |
 | `rpm-ostree` | Older package module | Superseded by `dnf`. |
 | `bling`, `fonts`, `gschema-overrides`, … | Assorted conveniences | Not needed; see upstream docs before adding one. |
 

@@ -1,0 +1,15 @@
+# Qubix OS — synchronise the GRUB theme from the immutable image into /boot.
+[Unit]
+Description=Install the Qubix OS GRUB theme
+After=local-fs.target
+ConditionPathIsDirectory=/boot/grub2
+
+# The installer is idempotent and preserves content outside its marked custom.cfg block.
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/qubix-grub-theme --install
+RemainAfterExit=yes
+
+# Run after every new deployment so an image update can advance the content-addressed theme.
+[Install]
+WantedBy=multi-user.target
