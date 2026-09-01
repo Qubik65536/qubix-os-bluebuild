@@ -200,6 +200,14 @@ then disappear into the kernel handoff before the list is usable. A blank interv
 the full eight-second countdown or after pressing Enter** is no longer GRUB—the bootloader
 has handed control to the selected kernel, and Plymouth/initramfs diagnostics apply.
 
+GRUB's canvas has a counterintuitive z-order: its Fedora implementation
+[prepends each component and paints that list from the head](https://github.com/rhboot/grub2/blob/fedora-44/grub-core/gfxmenu/gui_canvas.c),
+so components render in reverse theme-file order. The opaque panel must therefore be the
+last component in `theme.txt`; declaring it first produces exactly the failed hardware
+result seen on 2026-08-31—the background and panel render, but the panel covers every
+label, actual boot entry, selection row, divider, and countdown. The build asserts the
+panel remains last.
+
 Content outside these exact markers is preserved byte-for-byte by intent:
 
 ```text

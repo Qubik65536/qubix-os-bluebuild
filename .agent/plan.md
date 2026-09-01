@@ -1608,7 +1608,12 @@ should look at.
     hook plus those assets into `/boot` without regenerating or replacing the boot menu.
     A first manual install showed the background only briefly before a blank handoff;
     bootupd's static config defaults to a one-second timeout, so the managed block now
-    explicitly displays the approved menu for eight seconds.
+    explicitly displays the approved menu for eight seconds. The next hardware photo
+    showed the background and opaque panel but none of the labels or actual entries.
+    Fedora GRUB's canvas prepends each parsed component and then paints the list from its
+    head, reversing theme-file order: the panel declared first was painted last over every
+    foreground component. The theme now declares foreground components first and its
+    opaque panel last, with a build assertion protecting that counterintuitive ordering.
   - **Acceptance criteria:**
     - GRUB renders the approved near-black Qubix Slate background, wireframe cube,
       terminal-style frame, boot-entry list, selected slate row, navigation help, and
@@ -1623,7 +1628,7 @@ should look at.
     - The setup applies to every image variant, has a documented opt-out/reapply path,
       and fails safely without making the machine unbootable if `/boot` is unavailable
     - Build assertions cover required assets, executable syntax, GRUB theme structure,
-      the visible timeout, and the managed-block markers
+      reverse canvas ordering, the visible timeout, and the managed-block markers
     - `docs/branding.md`, `docs/design-decisions.md`, `docs/recipe-reference.md`, and the
       context cache document the implementation and ownership boundaries
     - On a rebased image, the visible GRUB menu remains available for eight seconds,

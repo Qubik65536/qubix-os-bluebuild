@@ -462,6 +462,9 @@ The tenth snippet builds the **Qubix Boot Console payload** (DD-057):
 - It parses `qubix-grub-theme` with `bash -n`, verifies its executable mode and marker
   pairing, and checks the approved header/help text, eight-second timeout, and required
   GRUB components.
+- It requires `panel.png` to belong to the final component in `theme.txt`. GRUB paints its
+  canvas in reverse source order, so the opaque panel must be declared last to remain
+  behind the live menu and labels (DD-057).
 - It asserts every source asset, then writes `MANIFEST.sha256` last and immediately verifies
   it. The runtime installer hashes that manifest into the `/boot` directory name, so a
   changed image gets a new complete directory instead of modifying live assets in place.

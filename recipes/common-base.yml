@@ -590,8 +590,9 @@ modules:
       #        The manifest is generated LAST and excludes itself. It gives the installer
       #        both integrity checking and a content-derived destination, so an image
       #        update never overwrites assets GRUB may be reading. Shell syntax, executable
-      #        mode, component presence, marker pairing, exact approved labels, and every
-      #        theme asset are asserted before the image can publish. DD-057.
+      #        mode, component presence, reverse canvas ordering, marker pairing, exact
+      #        approved labels, and every theme asset are asserted before the image can
+      #        publish. DD-057.
       #
       #        Ordering: after `files` (theme, installer, unit) and `dnf` (IBM Plex Mono
       #        plus grub2-mkfont from grub2-tools-extra).
@@ -615,6 +616,9 @@ modules:
             grep -qF 'QUBIX OS // BOOT CONSOLE' "$theme/theme.txt"; \
             grep -qF '[UP/DOWN] Navigate   [ENTER] Boot   [E] Edit   [C] Console' \
                 "$theme/theme.txt"; \
+            test "$(grep -cF 'file = "panel.png"' "$theme/theme.txt")" -eq 1; \
+            awk '/^\+ / { last_start=NR } /file = "panel.png"/ { panel=NR } \
+                 END { exit !(panel > last_start) }' "$theme/theme.txt"; \
             grep -qF 'set timeout_style=menu' /usr/bin/qubix-grub-theme; \
             grep -qF 'set timeout=8' /usr/bin/qubix-grub-theme; \
             test "$(grep -cF '# >>> Qubix OS GRUB theme >>>' /usr/bin/qubix-grub-theme)" -eq 1; \

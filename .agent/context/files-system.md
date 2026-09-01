@@ -38,7 +38,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 
 | Path | Consumer | Effect |
 |---|---|---|
-| `usr/share/qubix-os/grub-theme/` | `qubix-grub-theme`, then GRUB `gfxmenu` from `/boot` | Immutable Qubix Boot Console source: approved 1920×1080 wireframe-cube background, percentage layout, solid UI primitives and protocol `VERSION`. Module 4j adds three IBM Plex Mono PF2 fonts plus `MANIFEST.sha256` (DD-057) |
+| `usr/share/qubix-os/grub-theme/` | `qubix-grub-theme`, then GRUB `gfxmenu` from `/boot` | Immutable Qubix Boot Console source: approved 1920×1080 wireframe-cube background, percentage layout, solid UI primitives and protocol `VERSION`. GRUB paints components in reverse source order, so the opaque panel is deliberately the final component in `theme.txt`; moving it first covers the entire live menu. Module 4j asserts that order and adds three IBM Plex Mono PF2 fonts plus `MANIFEST.sha256` (DD-057) |
 | `usr/bin/qubix-grub-theme` | systemd or root by hand | Validates the source, atomically stages it under content-addressed `/boot/grub2/themes/qubix-v1-*`, and atomically replaces only its delimited block in `custom.cfg`. Sets an eight-second visible menu; never runs `grub2-mkconfig` or emits entries. `--check` is read-only; `--remove` leaves inert assets (DD-057). Mode `100755` |
 | `usr/lib/systemd/system/qubix-grub-theme.service` | systemd, after local filesystems | Reasserts the image-owned theme block each boot. Enabled in every variant; masking plus `--remove` is the opt-out (DD-057) |
 

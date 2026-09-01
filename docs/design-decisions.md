@@ -3399,7 +3399,9 @@ local filesystems mount and performs three bounded operations:
 3. Have the managed block load the three PF2 fonts and `gfxmenu`, request
    `1920x1080,auto`, override bootupd's one-second default with a visible eight-second
    menu, and set `theme` to the content-addressed `theme.txt`. Never call `grub2-mkconfig`
-   and never emit a `menuentry`.
+   and never emit a `menuentry`. Within `theme.txt`, declare foreground components first
+   and the opaque panel last: Fedora GRUB's canvas prepends components before painting,
+   which reverses their source order.
 
 Generate the PF2 fonts during the image build from Fedora's already-selected IBM Plex Mono
 package using `grub2-mkfont`; GRUB cannot read OTF. Install `grub2-tools-extra` explicitly
@@ -3419,6 +3421,10 @@ it. Removing the block leaves copied assets inert, which is safer and recoverabl
 - The menu is intentionally visible for eight seconds. A shorter inherited timeout made
   the background flash and disappear before the list was usable; after the countdown or an
   explicit boot, any blank interval belongs to the kernel/Plymouth handoff, not the theme.
+- The first full hardware render showed only the background and opaque panel. This was not
+  a missing-entry or font failure: GRUB painted the first-declared panel last, over every
+  later component. The panel is now last in source so it paints first, and the build asserts
+  that ordering because a balanced theme file cannot otherwise detect this visual failure.
 - A missing/read-only `/boot`, corrupt image manifest, symlinked `custom.cfg`, or malformed
   Qubix block fails the service and leaves GRUB's existing text/graphical menu in place.
 - The first boot into an image that introduces the theme cannot display it: that boot occurs

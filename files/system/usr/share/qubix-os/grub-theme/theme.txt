@@ -22,62 +22,9 @@ terminal-width: "100%"
 terminal-height: "100%"
 terminal-border: "0"
 
-# ── Terminal panel and dividers ───────────────────────────────────────────────
-+ image {
-    left = 6%
-    top = 10%
-    width = 66%
-    height = 78%
-    file = "panel.png"
-}
-
-+ image {
-    left = 6%
-    top = 10%
-    width = 66%
-    height = 2
-    file = "line.png"
-}
-
-+ image {
-    left = 6%
-    top = 88%
-    width = 66%
-    height = 2
-    file = "line.png"
-}
-
-+ image {
-    left = 6%
-    top = 10%
-    width = 2
-    height = 78%
-    file = "line.png"
-}
-
-+ image {
-    left = 72%
-    top = 10%
-    width = 2
-    height = 78%
-    file = "line.png"
-}
-
-+ image {
-    left = 8%
-    top = 21%
-    width = 62%
-    height = 2
-    file = "line.png"
-}
-
-+ image {
-    left = 8%
-    top = 75%
-    width = 62%
-    height = 2
-    file = "line.png"
-}
+# GRUB's canvas prepends components to its paint list, so source order is intentionally
+# foreground-to-background. Keep the opaque panel as the final component or it will cover
+# the live menu, labels, and dividers (DD-057).
 
 # ── Header ────────────────────────────────────────────────────────────────────
 + label {
@@ -176,4 +123,62 @@ terminal-border: "0"
     show_text = false
     fg_color = "#7490A9"
     bg_color = "#2B3945"
+}
+
+# ── Terminal dividers ─────────────────────────────────────────────────────────
++ image {
+    left = 6%
+    top = 10%
+    width = 66%
+    height = 2
+    file = "line.png"
+}
+
++ image {
+    left = 6%
+    top = 88%
+    width = 66%
+    height = 2
+    file = "line.png"
+}
+
++ image {
+    left = 6%
+    top = 10%
+    width = 2
+    height = 78%
+    file = "line.png"
+}
+
++ image {
+    left = 72%
+    top = 10%
+    width = 2
+    height = 78%
+    file = "line.png"
+}
+
++ image {
+    left = 8%
+    top = 21%
+    width = 62%
+    height = 2
+    file = "line.png"
+}
+
++ image {
+    left = 8%
+    top = 75%
+    width = 62%
+    height = 2
+    file = "line.png"
+}
+
+# ── Opaque terminal panel — last in source, first to paint ────────────────────
++ image {
+    left = 6%
+    top = 10%
+    width = 66%
+    height = 78%
+    file = "panel.png"
 }
