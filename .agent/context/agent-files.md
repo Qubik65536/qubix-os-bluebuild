@@ -98,3 +98,6 @@ requested on 2026-08-31; `DOC-013` remains open until an artifact is built and b
 push, pull-request, and manual image builds remain unchanged (DD-055).
 `BLD-005` completed automatic all-variant ISO artifacts after successful default-branch
 image publication, while retaining the manual single-variant path (DD-056).
+`BRD-006` remains in Awaiting confirmation while hardware iterations converge: the menu
+now overrides bootupd's one-second timeout, respects GRUB's reverse canvas order, omits its
+minimum-sized progress widget, and uses protocol-v2 bounded Monaspace Krypton NF PF2 fonts.

@@ -3370,7 +3370,7 @@ retention, and the no-Release policy unchanged.
 
 **Context.** The approved Qubix Boot Console design is a mostly TUI interface: a quiet
 near-black grid, cropped wireframe cube, square terminal frame, Qubix Slate selection row,
-IBM Plex Mono text, keyboard help, and a live timeout. GRUB supports those pieces through
+Monaspace Krypton text, keyboard help, and a live timeout. GRUB supports those pieces through
 its [theme format](https://www.gnu.org/software/grub/manual/grub/html_node/Theme-file-format.html),
 but an Atomic image cannot deliver them like normal desktop branding.
 
@@ -3392,7 +3392,7 @@ and Fedora's generated configuration has the same supported path in
 local filesystems mount and performs three bounded operations:
 
 1. Validate the build-generated SHA-256 manifest, derive a content-addressed revision, and
-   stage the complete theme before renaming it into `/boot/grub2/themes/qubix-v1-<digest>`.
+   stage the complete theme before renaming it into `/boot/grub2/themes/qubix-v2-<digest>`.
 2. Preserve existing `/boot/grub2/custom.cfg` lines outside one exact pair of Qubix marker
    lines, then atomically replace that file with the current managed block. Refuse symlinks
    and malformed marker pairs rather than guessing ownership.
@@ -3403,12 +3403,18 @@ local filesystems mount and performs three bounded operations:
    and the opaque panel last: Fedora GRUB's canvas prepends components before painting,
    which reverses their source order.
 
-Generate the PF2 fonts during the image build from Fedora's already-selected IBM Plex Mono
-package using `grub2-mkfont`; GRUB cannot read OTF. Install `grub2-tools-extra` explicitly
-because that package owns the converter. The theme's `boot_menu` renders whatever BLS,
-OSTree, firmware, or OS discovery supplies, so the representative labels in the approved
-mockup are not baked into the image. The mockup's `UEFI · x86_64` label is omitted because
-a static theme cannot truthfully query that state.
+Generate the PF2 fonts during the image build from the normal-width Monaspace Krypton Nerd
+Font Regular and Bold OTF faces already installed for WezTerm by module 4d. Use
+`grub2-mkfont` with range
+`0x20-0x24f,0x300-0x36f,0x2190-0x21ff,0x2500-0x257f`: Latin text, combining marks,
+arrows, and box drawing cover this boot UI
+without copying thousands of unused Nerd Font private-use icons into every retained theme
+revision. GRUB cannot read OTF, so `grub2-tools-extra` remains explicit because it owns the
+converter. This asset-contract change increments `VERSION` to 2 and uses descriptive
+`qubix-krypton-*.pf2` names. The theme's `boot_menu` renders whatever BLS, OSTree, firmware,
+or OS discovery supplies, so the representative labels in the approved mockup are not
+baked into the image. The mockup's `UEFI · x86_64` label is omitted because a static theme
+cannot truthfully query that state.
 
 The service is an enforced image default. Masking it and running
 `qubix-grub-theme --remove` is the documented opt-out; unmasking and `--install` reapplies
@@ -3425,6 +3431,10 @@ it. Removing the block leaves copied assets inert, which is safer and recoverabl
   a missing-entry or font failure: GRUB painted the first-declared panel last, over every
   later component. The panel is now last in source so it paints first, and the build asserts
   that ordering because a balanced theme file cannot otherwise detect this visual failure.
+- The next hardware render confirmed the live entries but showed GRUB's progress widget
+  escaping the footer. Its implementation enforces a 200×28 minimum regardless of the
+  requested compact geometry, so the redundant bar is removed. The live numeric
+  `AUTOBOOT 7s` label remains the single timeout indicator.
 - A missing/read-only `/boot`, corrupt image manifest, symlinked `custom.cfg`, or malformed
   Qubix block fails the service and leaves GRUB's existing text/graphical menu in place.
 - The first boot into an image that introduces the theme cannot display it: that boot occurs

@@ -1614,10 +1614,23 @@ should look at.
     head, reversing theme-file order: the panel declared first was painted last over every
     foreground component. The theme now declares foreground components first and its
     opaque panel last, with a build assertion protecting that counterintuitive ordering.
+    The following hardware render confirmed the real entries and selection row, but its
+    compact autoboot bar was enlarged and displaced: GRUB hard-codes a 200×28 minimum for
+    that widget, overriding the requested six-percent width and four-pixel height. The
+    redundant bar is removed; the correctly placed `AUTOBOOT 7s` numeric indicator stays.
+    The approved hardware layout then requested Monaspace Krypton. Module 4d already
+    installs its normal-width Nerd Font Regular and Bold OTF faces before the GRUB payload
+    is built. Protocol v2 converts those exact files instead of IBM Plex Mono and retains
+    only Latin text, arrows, and box-drawing glyphs; private-use Nerd Font icons are not
+    needed by the boot selector and would unnecessarily enlarge every retained `/boot`
+    revision.
   - **Acceptance criteria:**
     - GRUB renders the approved near-black Qubix Slate background, wireframe cube,
       terminal-style frame, boot-entry list, selected slate row, navigation help, and
-      an eight-second timeout indicator long enough to use the menu
+      an eight-second numeric timeout indicator long enough to use the menu, without a
+      second progress widget that can escape the footer layout
+    - All visible GRUB text uses build-generated Monaspace Krypton NF Regular/Bold PF2
+      fonts with the documented bounded glyph range
     - The theme styles whatever entries GRUB supplies; it does not hard-code operating
       systems, deployments, kernels, or firmware entries
     - An idempotent image-owned installer atomically synchronises the theme into

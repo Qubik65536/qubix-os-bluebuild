@@ -48,7 +48,7 @@ terms over synonyms.
 | **NVIDIA Open** | NVIDIA's open kernel-module flavour for Turing and newer GPUs. Inherited with Fedora's kernel or rebuilt from Negativo17 `akmod-nvidia` for CachyOS (DD-051). See [`variants.md`](variants.md). |
 | **Overlay** | The `files/system/` tree, copied verbatim into the image root. Repository path = image path. |
 | **Override** | Shipping a file at an upstream path so the upstream file is replaced in the image. The branding mechanism (DD-004). |
-| **PF2** | GRUB's bitmap font format. Module 4j converts IBM Plex Mono OTF faces into three PF2 files for Qubix Boot Console (DD-057). |
+| **PF2** | GRUB's bitmap font format. Module 4j extracts bounded text/TUI glyph ranges from Monaspace Krypton NF OTF faces into three PF2 files for Qubix Boot Console (DD-057). |
 | **Plymouth** | The boot splash system. Reads the watermark this image overrides. |
 | **Quickshell** | The QtQuick-based shell toolkit DankMaterialShell is written against. |
 | **`qubix-default-shell`** | The boot service that gives an account which already exists zsh as its login shell, once per account. It exists because `/etc/passwd` is per machine and Aurora deletes `chsh` from the image (DD-035). See [`shell.md`](shell.md#the-login-shell). |

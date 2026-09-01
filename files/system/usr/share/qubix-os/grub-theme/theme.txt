@@ -9,8 +9,8 @@
 
 # ── Global surface ────────────────────────────────────────────────────────────
 title-text: ""
-title-font: "Qubix Mono Bold 20"
-message-font: "Qubix Mono Regular 16"
+title-font: "Monaspace Krypton NF Bold 20"
+message-font: "Monaspace Krypton NF Regular 16"
 message-color: "#7490A9"
 message-bg-color: "#11171C"
 desktop-image: "background.png"
@@ -33,7 +33,7 @@ terminal-border: "0"
     width = 59%
     height = 5%
     text = "QUBIX OS // BOOT CONSOLE"
-    font = "Qubix Mono Bold 20"
+    font = "Monaspace Krypton NF Bold 20"
     color = "#D9E1E8"
     align = "left"
 }
@@ -44,7 +44,7 @@ terminal-border: "0"
     width = 59%
     height = 4%
     text = "BOOT TARGET"
-    font = "Qubix Mono Regular 16"
+    font = "Monaspace Krypton NF Regular 16"
     color = "#7490A9"
     align = "left"
 }
@@ -55,8 +55,8 @@ terminal-border: "0"
     top = 30%
     width = 62%
     height = 40%
-    item_font = "Qubix Mono Regular 20"
-    selected_item_font = "Qubix Mono Bold 20"
+    item_font = "Monaspace Krypton NF Regular 20"
+    selected_item_font = "Monaspace Krypton NF Bold 20"
     item_color = "#B9C8D4"
     selected_item_color = "#F2F5F7"
     selected_item_pixmap_style = "selected_*.png"
@@ -76,7 +76,7 @@ terminal-border: "0"
     width = 42%
     height = 4%
     text = "[UP/DOWN] Navigate   [ENTER] Boot   [E] Edit   [C] Console"
-    font = "Qubix Mono Regular 16"
+    font = "Monaspace Krypton NF Regular 16"
     color = "#7490A9"
     align = "left"
 }
@@ -87,7 +87,7 @@ terminal-border: "0"
     width = 8%
     height = 4%
     text = "AUTOBOOT"
-    font = "Qubix Mono Bold 20"
+    font = "Monaspace Krypton NF Bold 20"
     color = "#7490A9"
     align = "right"
 }
@@ -98,7 +98,7 @@ terminal-border: "0"
     top = 80%
     width = 3%
     height = 4%
-    font = "Qubix Mono Bold 20"
+    font = "Monaspace Krypton NF Bold 20"
     color = "#F2F5F7"
     align = "right"
 }
@@ -109,20 +109,9 @@ terminal-border: "0"
     width = 2%
     height = 4%
     text = "s"
-    font = "Qubix Mono Regular 16"
+    font = "Monaspace Krypton NF Regular 16"
     color = "#7490A9"
     align = "left"
-}
-
-+ progress_bar {
-    id = "__timeout__"
-    left = 62%
-    top = 85%
-    width = 6%
-    height = 4
-    show_text = false
-    fg_color = "#7490A9"
-    bg_color = "#2B3945"
 }
 
 # ── Terminal dividers ─────────────────────────────────────────────────────────

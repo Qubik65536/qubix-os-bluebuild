@@ -151,7 +151,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `grub2-tools-extra` converts IBM Plex Mono to GRUB's PF2 format in module 4j (DD-057); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `grub2-tools-extra` converts module 4d's Monaspace Krypton NF OTF faces to GRUB's PF2 format in module 4j (DD-057); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
 | `remove.packages` | Removed RPMs. `firefox` goes because a browser belongs in a Flatpak (DD-006) and because the browser here is Ungoogled Chromium (DD-023); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
@@ -187,7 +187,7 @@ The packages WezTerm's own configuration needs (DD-034):
 | `ibm-plex-mono-fonts`, `ibm-plex-sans-fonts` | Entries 3 and 4 of WezTerm's font fallback chain. The two families ahead of them are not packaged by anyone and come from module 4d below |
 | `google-noto-sans-cjk-fonts` | CJK coverage, standing in for IBM Plex Sans SC/TC/JP — published only as ~1.2 GB of release archives, and absent from Fedora's `ibm-plex-fonts`. The **static** package, not `-vf-`, because its `.ttc` files expose `Noto Sans CJK SC` / `TC` / `JP` as plain family names |
 | `unzip` | Needed by module 4d, which unpacks two upstream font archives. Listed rather than assumed, for the same reason `git` is |
-| `grub2-tools-extra` | Owns `grub2-mkfont`, used in module 4j to convert the packaged IBM Plex Mono OTF faces into the three PF2 files GRUB loads (DD-057) |
+| `grub2-tools-extra` | Owns `grub2-mkfont`, used in module 4j to convert the Monaspace Krypton NF OTF faces installed by module 4d into the three bounded-range PF2 files GRUB loads (DD-057) |
 
 The Simplified Chinese input stack (DD-050):
 
@@ -456,12 +456,14 @@ The ninth asserts that the distrobox hook can be reached and is what it claims (
 
 The tenth snippet builds the **Qubix Boot Console payload** (DD-057):
 
-- `grub2-mkfont` converts Fedora's IBM Plex Mono Regular at 16/20 points and Bold at 20
-  points to PF2. The exact embedded font names are asserted because `theme.txt` must name
-  them literally.
+- `grub2-mkfont` converts module 4d's Monaspace Krypton NF Regular at 16/20 points and Bold
+  at 20 points to PF2. It retains Latin text/combining marks, arrows, and box drawing while
+  excluding unused Nerd Font private-use icons. The exact embedded font names are asserted
+  because `theme.txt` must name them literally.
 - It parses `qubix-grub-theme` with `bash -n`, verifies its executable mode and marker
-  pairing, and checks the approved header/help text, eight-second timeout, and required
-  GRUB components.
+  pairing, and checks the approved header/help text, eight-second timeout, single numeric
+  `__timeout__` label, absence of GRUB's minimum-sized progress widget, and required GRUB
+  components.
 - It requires `panel.png` to belong to the final component in `theme.txt`. GRUB paints its
   canvas in reverse source order, so the opaque panel must be declared last to remain
   behind the live menu and labels (DD-057).
@@ -469,8 +471,9 @@ The tenth snippet builds the **Qubix Boot Console payload** (DD-057):
   it. The runtime installer hashes that manifest into the `/boot` directory name, so a
   changed image gets a new complete directory instead of modifying live assets in place.
 
-- **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm` and the packaged
-  fonts; after the `files` module, which ships `/etc/zellij/config.kdl`,
+- **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm`, and
+  `grub2-mkfont`; after module 4d, which installs the pinned Krypton NF faces; after the
+  `files` module, which ships `/etc/zellij/config.kdl`,
   `/etc/xdg/wezterm/`, `/usr/share/qubix-os/shell/qubix.zsh`, `/usr/bin/qubix-config`,
   `/etc/distrobox/distrobox.conf`, `/usr/bin/qubix-distrobox-shell` and every path
   `qubix-config` names. The fifth snippet must follow the fourth. Before the identity

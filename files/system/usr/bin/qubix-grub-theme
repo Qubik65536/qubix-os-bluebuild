@@ -45,8 +45,8 @@ check_source() {
     local required
 
     for required in VERSION MANIFEST.sha256 theme.txt background.png panel.png line.png \
-                    selected_c.png qubix-mono-16.pf2 qubix-mono-20.pf2 \
-                    qubix-mono-bold-20.pf2; do
+                    selected_c.png qubix-krypton-16.pf2 qubix-krypton-20.pf2 \
+                    qubix-krypton-bold-20.pf2; do
         if [[ ! -f "${SOURCE_DIR}/${required}" ]]; then
             say "source asset is missing: ${required}" >&2
             return 1
@@ -161,9 +161,9 @@ write_custom_cfg() {
         "    insmod gfxterm" \
         "    insmod gfxmenu" \
         "    terminal_output gfxterm" \
-        "    loadfont \$prefix/${theme_dir}/qubix-mono-16.pf2" \
-        "    loadfont \$prefix/${theme_dir}/qubix-mono-20.pf2" \
-        "    loadfont \$prefix/${theme_dir}/qubix-mono-bold-20.pf2" \
+        "    loadfont \$prefix/${theme_dir}/qubix-krypton-16.pf2" \
+        "    loadfont \$prefix/${theme_dir}/qubix-krypton-20.pf2" \
+        "    loadfont \$prefix/${theme_dir}/qubix-krypton-bold-20.pf2" \
         "    set theme=\$prefix/${theme_dir}/theme.txt" \
         "    export theme" \
         "fi" \
