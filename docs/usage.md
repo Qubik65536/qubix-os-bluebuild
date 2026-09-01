@@ -154,22 +154,28 @@ Also available: System Settings → **About this System**, which reads
 The [`iso` workflow](../.github/workflows/iso.yml) uses
 [`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer)
 to embed an already-published Qubix image in an x86_64 Kinoite installer (DD-054, DD-056,
-DD-058, DD-059). It does not rebuild or release the OCI image.
+DD-058, DD-059, DD-060). It does not rebuild or release the OCI image.
 
-### Automatic OneDrive uploads
+### Automatic ISO releases
 
 After the `bluebuild` image workflow succeeds on the default branch, the ISO workflow
 automatically builds `latest` media for Standard, CachyOS, and NVIDIA in parallel. A
 failed, cancelled, pull-request, or non-default-branch image run does not build ISO media.
 One ISO failure does not cancel the other two.
 
-After the **iso** run succeeds, sign in to the configured Microsoft 365 work/school
-OneDrive and open `Qubix-OS/ISOs/<variant>/<channel>/`. Weekly builds are under
-`scheduled`; push and manual builds are under `push`. The newest `v-*` directory contains
-an ISO named like `qubix-os-standard-latest-f44-x86_64.iso` and its `-CHECKSUM` file.
-Download both. The workflow permanently keeps three scheduled and five push/ad-hoc
-versions per variant; it does not create a GitHub Actions artifact or GitHub Release.
-Expect a multi-gigabyte download.
+After the **iso** run succeeds, open the repository's
+[GitHub Releases](https://github.com/Qubik65536/qubix-os-bluebuild/releases). Each variant
+has its own release. Its download table puts the anonymous OneDrive ISO link and literal
+SHA-256 on the same row, with the checksum-file link immediately below. Scheduled builds
+are normal releases; builds originating from a push or either manual route are marked as
+prereleases. Expect a multi-gigabyte download.
+
+OneDrive remains the file store: weekly builds live under `scheduled`, while push and
+manual builds live under `push`. The workflow permanently keeps three scheduled and five
+push/ad-hoc versions per variant, deleting the matching GitHub Release/tag when it purges
+a OneDrive version. It also best-effort removes generated GitHub ISO releases more than
+three calendar months old. No multi-gigabyte GitHub Actions artifact or GitHub release
+asset is created.
 
 The repository maintainer must complete the Entra app, GitHub OIDC environment, and
 OneDrive-owner setup once; [`build-and-release.md`](build-and-release.md#microsoft-365-onedrive-setup)
@@ -180,10 +186,10 @@ is the authoritative procedure.
 1. Open **Actions → iso → Run workflow**.
 2. Select `standard`, `cachyos`, or `nvidia` and enter the published image tag. `latest`
    is the normal choice.
-3. When the run succeeds, download the ISO/checksum pair from the newest `v-*` directory
-   under `Qubix-OS/ISOs/<selected variant>/push/` in OneDrive. The workflow derives Fedora's
-   major version from the signed image metadata; there is no separate version input to
-   keep in sync.
+3. When the run succeeds, open **Releases**, select the new prerelease for that variant,
+   compare the displayed literal SHA-256, and use its OneDrive ISO/checksum links. The
+   workflow derives Fedora's major version from signed image metadata; there is no
+   separate version input to keep in sync.
 
 ### Manual build with GitHub CLI
 
@@ -201,8 +207,9 @@ run_id="$(gh run list --workflow=iso.yml --event=workflow_dispatch --limit=1 \
 gh run watch "${run_id}" --exit-status
 ```
 
-Download both files from the newest `Qubix-OS/ISOs/standard/push/v-*` OneDrive directory
-into one local directory, then verify the ISO before writing it to media:
+Open the release URL printed by the run, download both linked files into one local
+directory, compare the checksum shown beside the ISO link, then verify before writing the
+ISO to media:
 
 ```bash
 cd /path/to/downloaded-version

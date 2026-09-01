@@ -103,7 +103,7 @@ Nothing needs more; do not widen these.
 [`.github/workflows/iso.yml`](../.github/workflows/iso.yml) turns **already published**
 images into installation media. It runs automatically after successful default-branch
 image publication and retains a manual single-image/tag path (DD-054, DD-056, DD-058,
-DD-059).
+DD-059, DD-060).
 
 | Aspect | Value |
 |---|---|
@@ -115,8 +115,9 @@ DD-059).
 | Timeout | 180 minutes (installer build plus multi-gigabyte upload) |
 | Output | ISO plus generated SHA-256 checksum |
 | Storage | Microsoft 365 work/school OneDrive; 3 scheduled + 5 push/ad-hoc versions per variant |
-| Publication | `Qubix-OS/ISOs/<variant>/<channel>/v-<version>/`; no GitHub artifact or Release |
+| Publication | ISO/checksum in `Qubix-OS/ISOs/<variant>/<channel>/v-<version>/`; per-variant GitHub Release containing links and provenance |
 | Authentication | GitHub OIDC → Microsoft Entra federated credential; no client secret |
+| GitHub permissions | `contents: write` for releases/tags; `id-token: write` for OneDrive OIDC |
 
 ### ISO inputs
 
@@ -147,6 +148,10 @@ any automatic ISO jobs. The upstream event also selects an independent retention
 | Manually dispatched `bluebuild` | `push` | 5 |
 | Directly dispatched `iso` | `push` | 5 |
 
+Scheduled media is published as a normal GitHub Release. Push media and both manual paths
+are published as prereleases. This affects GitHub presentation only: OneDrive directories
+and count retention still follow the channel table.
+
 The two manual paths are real: `workflow_run` observes a successful image
 `workflow_dispatch`, and `iso.yml` retains its own manual one-variant route. Both share the
 push/ad-hoc pool instead of creating an unbounded third class. An unknown upstream event
@@ -168,6 +173,9 @@ user, including a tenant-native `user@tenant.onmicrosoft.com` account. One-time 
 
 1. Make sure the target user is licensed for OneDrive and has opened OneDrive at least
    once, so its drive is provisioned.
+   The tenant's SharePoint/OneDrive sharing policy must also permit anonymous links. A
+   public GitHub Release cannot use an organization-only link, and Graph deliberately
+   fails publication rather than emit a URL that outside users cannot open.
 2. In Microsoft Entra ID, create a single-tenant app registration for this repository.
 3. Under **API permissions**, add the Microsoft Graph **application** permission
    `Sites.ReadWrite.All`, grant tenant administrator consent, and add no client secret.
@@ -212,6 +220,9 @@ Each `v-*` directory contains exactly the generated ISO and its `-CHECKSUM` file
 use sequential 50 MiB Microsoft Graph fragments: 50 MiB is below Graph's 60 MiB request
 limit and is divisible by its required 320 KiB boundary. Both remote byte counts must
 match before the temporary `.upload-*` directory is renamed to `v-*`.
+After the rename, the action creates durable anonymous, read-only sharing links for both
+files. It does not record Graph's preauthenticated `downloadUrl`, because that URL is
+short-lived and unsuitable for persistent release notes.
 
 After publication, retention is evaluated **within that variant and trigger channel**.
 The action sorts complete `v-*` directories by their OneDrive creation time, keeps three
@@ -228,6 +239,40 @@ below its target.
 All ISO workflow runs share one non-cancelling `iso-onedrive` concurrency group. Runs are
 therefore serialized, while the three variants inside one automatic matrix still upload
 in parallel. This prevents retention races and makes the storage ceiling finite.
+
+### GitHub Release index
+
+The ISO remains in OneDrive; GitHub stores only a small, searchable release record. Every
+successful matrix cell creates one release and one unique tag:
+
+```text
+iso-<variant>-<scheduled|push>-<tag>-f<fedora>-<digest>-run-<run>-<attempt>
+```
+
+The release title names the Qubix variant, Fedora major, source class, and UTC date. Its
+download table places the durable OneDrive ISO link and the literal SHA-256 on the same
+row, followed by the checksum-file link. The rest of the notes record architecture,
+installer type, selected image tag, exact signed OCI digest, source event and commit,
+UTC publication timestamp, workflow run/attempt, byte size, verification commands, and
+retention policy.
+
+Release classification follows the originating image build rather than the event that
+delivered `workflow_run`:
+
+| Source | GitHub Release kind |
+|---|---|
+| Weekly `schedule` | Normal (official) release |
+| Default-branch `push` | Prerelease |
+| Either manual route | Prerelease |
+
+When OneDrive permanently deletes a version beyond its channel's 3/5 count, the following
+release step derives that version's exact generated tag and best-effort deletes both its
+GitHub Release and tag. It also scans only tags in the strict generated ISO tag families
+and best-effort removes releases whose `published_at` is older than three calendar months.
+Cleanup warnings do not invalidate the new release: an API outage
+can temporarily leave stale release metadata, but it cannot make a valid new ISO
+undiscoverable. A later successful run retries the age scan. Release age does not add a
+second OneDrive storage rule; OneDrive remains capped by the stricter per-channel counts.
 
 ### OneDrive capacity planning
 
@@ -248,7 +293,7 @@ at least 250 GB of available quota. The 216 GB figure assumes Graph deletion is 
 a persistent permission/service failure can leave a rollback item needing manual cleanup.
 
 [`usage.md`](usage.md#building-an-offline-iso) covers manual dispatch, downloading the
-newest pair from OneDrive, and checking its checksum.
+newest pair through GitHub Releases, and checking its checksum.
 
 ## Signing
 
@@ -367,6 +412,9 @@ uploader is repository-local and changes with this repository.
    - **OneDrive Graph request returns access denied** → confirm the app has the Graph
      application permission `Sites.ReadWrite.All` with tenant admin consent, and that the
      configured work/school user's OneDrive is provisioned.
+   - **OneDrive anonymous-link creation fails** → allow anonymous read-only sharing in the
+     tenant's SharePoint/OneDrive policy. Organization-only links are intentionally not
+     accepted for public GitHub release notes.
    - **OneDrive upload stalls** → inspect the reported HTTP status and byte offset. The
      action queries the resumable session before retrying; do not reduce chunk alignment
      below Graph's 320 KiB contract or add an Authorization header to fragment PUTs.
@@ -374,5 +422,11 @@ uploader is repository-local and changes with this repository.
      version. If Graph also rejects cleanup, remove that run's `v-*` directory manually;
      if failure came after one older deletion, the history may contain fewer than its
      target. Fix access and re-run the same source class.
+   - **GitHub Release creation fails** → confirm the ISO job still has `contents: write`
+     and that repository rules allow the generated `iso-*` tag. The OneDrive pair is
+     already valid, but this run is failed because it is not discoverable as required.
+   - **GitHub release cleanup warns** → the new release remains valid. Remove stale
+     generated `iso-*` releases/tags manually if necessary, or let a later successful ISO
+     run retry the three-month scan.
 3. Record anything non-obvious: a `plan.md` task if it needs fixing, a `DD-###` record if
    it changes a decision, and a note in the relevant `docs/` page.

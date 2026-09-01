@@ -3455,7 +3455,7 @@ it. Removing the block leaves copied assets inert, which is safer and recoverabl
 
 ## DD-058 — Store three complete ISO versions per variant in Microsoft 365 OneDrive
 
-**Status:** Accepted — supersedes the artifact-storage parts of DD-054 and DD-056; retention amended by DD-059
+**Status:** Accepted — supersedes the artifact-storage parts of DD-054 and DD-056; retention amended by DD-059; no-release clause superseded by DD-060
 
 **Implements:** `BLD-006`
 
@@ -3590,3 +3590,73 @@ per active variant.
 - The workflow still records manual image publications. The retention table, rather than
   an assumption that only schedule and push can reach ISO generation, is the source of
   truth for future trigger changes.
+
+---
+
+## DD-060 — Index each retained OneDrive ISO as a per-variant GitHub Release
+
+**Status:** Accepted — supersedes DD-058's decision not to create a GitHub Release
+
+**Implements:** `BLD-008`
+
+**Context.** DD-058 moved multi-gigabyte installers out of GitHub artifact storage and
+into OneDrive, while DD-059 made retention a per-variant, per-trigger-channel policy. That
+solves transfer and storage, but OneDrive's folder hierarchy is a poor public discovery
+surface. A GitHub Release is searchable and visible from the repository, yet attaching
+the ISO there would recreate the large-object storage problem. A Graph
+`@microsoft.graph.downloadUrl` is also unsuitable: it is preauthenticated but short-lived,
+so a URL copied into persistent notes expires.
+
+The release record must follow the same unit OneDrive retains. A single automatic workflow
+run normally has three variants, but a direct manual run has one; later per-variant purges
+can therefore invalidate only part of a combined run release. One release per variant
+keeps every record mapped to exactly one `v-*` directory and lets cleanup remove a record
+without hiding still-retained media for another variant.
+
+**Decision.** After atomically publishing a OneDrive version, create durable anonymous,
+read-only Graph sharing links for its ISO and checksum. Anonymous sharing must be allowed
+by the Microsoft 365 tenant. Fail the upload action if Graph cannot return anonymous view
+links; an organization-only URL in a public release would be misleading.
+
+Publish one GitHub Release per successful ISO matrix cell. The ISO and checksum remain in
+OneDrive and are never GitHub release assets. Back the release with a unique generated tag
+`iso-<variant>-<channel>-<version>` targeting the source image-definition commit. The title
+names the variant, Fedora major, trigger class, and UTC publication date. Put the ISO link
+and literal locally calculated SHA-256 in the same download-table row, then link the
+checksum file. Record the architecture, Kinoite installer type, selected tag, verified
+full OCI digest, source event/commit, UTC publication timestamp, workflow run/attempt,
+exact size, verification commands, and retention policy.
+
+Treat a weekly `schedule` build as a normal, official release. Treat an upstream `push`, a
+manually dispatched image build, and a directly dispatched ISO as prereleases. Both manual
+paths remain in DD-059's five-version `push` pool.
+
+The ISO job gets `contents: write` for release and tag mutation, in addition to its existing
+OneDrive `id-token: write`. When OneDrive count retention returns the names it permanently
+deleted, derive their exact generated tags and best-effort delete the matching GitHub
+Release first and tag second. Also list only strict generated `iso-*` release families and
+best-effort delete records whose `published_at` is older than three calendar months.
+Release cleanup does not fail a newly created release: API downtime may temporarily leave
+stale metadata, and a later successful run retries the age pass. Three-month age applies
+to GitHub release metadata; DD-059's 3/5 count remains the OneDrive storage bound.
+
+**Consequences.**
+
+- Repository visitors get a stable release page with the download, checksum, and exact
+  provenance together, without duplicating an approximately 8 GB file on GitHub.
+- The literal digest beside the ISO link supports comparison before the downloaded
+  checksum file is used; both values derive from the exact local ISO bytes.
+- The release tag is automation metadata, not a semantic OS version. Qubix remains a
+  rolling image whose installed update target is the selected OCI tag.
+- One automatic ISO run publishes three releases. Count-aligned cleanup means at most 24
+  release records have live OneDrive targets under normal 3/5 retention across three
+  variants, while the age pass can reduce the GitHub list further.
+- Tenant administrators who disable anonymous links must change that policy before public
+  release indexing can succeed. OIDC avoids a persistent credential but cannot override
+  tenant sharing policy.
+- GitHub release creation happens after OneDrive publication. If GitHub rejects creation,
+  the workflow fails but the valid OneDrive pair remains; rerunning publishes a new unique
+  version. Cleanup is intentionally non-fatal and can require manual removal after a
+  persistent API or repository-rule failure.
+- Local validation can render request bodies and mock GitHub responses, but only CI with
+  the configured tenant can prove anonymous link creation and both external cleanup APIs.

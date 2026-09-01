@@ -1,0 +1,103 @@
+# Qubix OS local action: index a OneDrive-hosted installer as a GitHub Release.
+#
+# The ISO remains in OneDrive. This action publishes its durable share URL and provenance,
+# then best-effort removes generated release records whose media was purged or whose
+# publication date is more than three calendar months old.
+name: Publish ISO GitHub Release
+description: Publishes ISO metadata and OneDrive links as a retained GitHub Release
+
+inputs:
+  github-token:
+    description: GitHub token with contents write permission
+    required: true
+  repository:
+    description: GitHub owner/repository receiving the release
+    required: true
+  variant:
+    description: Qubix ISO variant
+    required: true
+  retention-channel:
+    description: scheduled or push retention and release channel
+    required: true
+  source-event:
+    description: Event that initiated the source image build
+    required: true
+  source-sha:
+    description: Commit containing the source image definition
+    required: true
+  image-name:
+    description: GHCR repository name without registry or owner
+    required: true
+  image-tag:
+    description: Mutable image tag selected for the installed update channel
+    required: true
+  image-digest:
+    description: Verified immutable OCI manifest digest embedded in the ISO
+    required: true
+  fedora-version:
+    description: Fedora major version derived from signed image metadata
+    required: true
+  version:
+    description: Unique OneDrive/GitHub release version suffix
+    required: true
+  iso-name:
+    description: ISO filename shown in the release
+    required: true
+  iso-url:
+    description: Durable anonymous read-only OneDrive link for the ISO
+    required: true
+  checksum-name:
+    description: Checksum filename shown in the release
+    required: true
+  checksum-url:
+    description: Durable anonymous read-only OneDrive link for the checksum
+    required: true
+  iso-sha256:
+    description: Literal SHA-256 digest of the ISO
+    required: true
+  iso-size-bytes:
+    description: Exact ISO size in bytes
+    required: true
+  purged-versions:
+    description: JSON array of OneDrive version names removed during this upload
+    required: true
+  keep-versions:
+    description: Count retained for this variant and channel
+    required: true
+
+outputs:
+  release-url:
+    description: Published GitHub Release URL
+    value: ${{ steps.publish.outputs.release-url }}
+  release-tag:
+    description: Unique tag backing the GitHub Release
+    value: ${{ steps.publish.outputs.release-tag }}
+
+runs:
+  using: composite
+  steps:
+    # Keep formatting and destructive API targeting in a reviewed repository script.
+    - name: Publish and retain release index
+      id: publish
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        QUBIX_RELEASE_REPOSITORY: ${{ inputs.repository }}
+        QUBIX_ISO_VARIANT: ${{ inputs.variant }}
+        QUBIX_RETENTION_CHANNEL: ${{ inputs.retention-channel }}
+        QUBIX_SOURCE_EVENT: ${{ inputs.source-event }}
+        QUBIX_SOURCE_SHA: ${{ inputs.source-sha }}
+        QUBIX_IMAGE_NAME: ${{ inputs.image-name }}
+        QUBIX_IMAGE_TAG: ${{ inputs.image-tag }}
+        QUBIX_IMAGE_DIGEST: ${{ inputs.image-digest }}
+        QUBIX_FEDORA_VERSION: ${{ inputs.fedora-version }}
+        QUBIX_ISO_VERSION: ${{ inputs.version }}
+        QUBIX_ISO_NAME: ${{ inputs.iso-name }}
+        QUBIX_ISO_URL: ${{ inputs.iso-url }}
+        QUBIX_CHECKSUM_NAME: ${{ inputs.checksum-name }}
+        QUBIX_CHECKSUM_URL: ${{ inputs.checksum-url }}
+        QUBIX_ISO_SHA256: ${{ inputs.iso-sha256 }}
+        QUBIX_ISO_SIZE_BYTES: ${{ inputs.iso-size-bytes }}
+        QUBIX_PURGED_VERSIONS: ${{ inputs.purged-versions }}
+        QUBIX_KEEP_VERSIONS: ${{ inputs.keep-versions }}
+      run: "${GITHUB_ACTION_PATH}/publish.sh"

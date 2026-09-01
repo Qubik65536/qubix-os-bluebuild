@@ -6,9 +6,9 @@
 
 ## Purpose
 
-Everything about how the images get built, signed, and published, and how ad-hoc installer
-ISOs are retained — plus repository automation. CI is the **only** place images and ISOs
-are built.
+Everything about how the images get built, signed, and published, and how installer ISOs
+are retained in OneDrive and indexed as GitHub Releases — plus repository automation. CI
+is the **only** place images and ISOs are built.
 
 ## Essential details
 
@@ -63,17 +63,26 @@ are built.
   no Microsoft client secret or Azure subscription is used.
 - The repository-local `actions/upload-onedrive` exchanges GitHub OIDC for a Graph token,
   uploads the ISO/checksum pair in aligned resumable chunks, verifies both byte counts,
-  and renames a staging directory into the complete `v-*` set.
+  renames a staging directory into the complete `v-*` set, calculates the literal ISO
+  SHA-256, and creates durable anonymous read-only links for both files.
 - OneDrive layout is `Qubix-OS/ISOs/<variant>/<scheduled|push>/v-<version>/`. After
   publication, Graph permanently deletes complete directories beyond three scheduled or
   five push/manual versions for that variant and channel. Staging directories are
   excluded and cleaned up on action failure.
-- No ISO is uploaded as a GitHub Actions artifact or Release (DD-058).
+- No ISO is uploaded as a GitHub Actions artifact or release asset. The local
+  `actions/publish-iso-release` action instead creates one per-variant GitHub Release whose
+  notes contain the OneDrive links, literal SHA-256, OCI digest, and build provenance
+  (DD-060). Scheduled builds are normal releases; push and manual builds are prereleases.
+- OneDrive count purges return exact version names so their matching generated GitHub
+  Release/tag can be removed. The release action also best-effort removes generated ISO
+  releases more than three calendar months old; cleanup warnings do not fail the new
+  publication.
 - Every trigger uses the non-cancelling `iso-onedrive` concurrency group. Whole workflow
   runs serialize; the three automatic matrix cells still run in parallel. This bounds
   staging to three concurrent ISOs and prevents cross-run retention races (DD-059).
-- Permissions are `contents: read` plus `id-token: write`; DD-054/DD-056 own source and
-  trigger policy, while DD-058 owns OneDrive identity, transfer, and retention.
+- ISO job permissions are `contents: write` for release/tag publication and
+  `id-token: write` for OneDrive. DD-054/DD-056 own source and trigger policy, DD-058/DD-059
+  own OneDrive transfer/count retention, and DD-060 owns release indexing and age cleanup.
 
 ### `dependabot.yml`
 
@@ -115,6 +124,9 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
 - The OneDrive target must be a provisioned Microsoft 365 work/school drive. The Entra app
   needs tenant-admin consent for application permission `Sites.ReadWrite.All`, which is
   tenant-wide even though the action addresses only the configured user.
+- The tenant must permit anonymous SharePoint/OneDrive sharing. Organization-only links
+  are rejected because GitHub Releases are public; short-lived Graph download URLs must
+  never be persisted in release notes.
 - Retention uses `permanentDelete`, not ordinary drive-item deletion. Excess versions do
   not enter the recycle bin and cannot be restored. Item IDs come only from the selected
   variant directory, and retention begins only after both new files verify.
@@ -127,6 +139,9 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
 - With three active variants at 8 GB each, the steady retained payload is 192 GB and the
   post-upload/pre-purge peak is 216 GB. Approximate sizes and metadata justify 250 GB of
   available quota.
+- Release tags use `iso-<variant>-<channel>-<version>`. Cleanup validates that strict family
+  before mutation, deletes releases before tags, and remains best-effort so a GitHub API
+  cleanup outage cannot hide a newly published installer.
 
 ## Update when
 

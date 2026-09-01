@@ -106,6 +106,10 @@ versions per variant; older directories are permanently purged (DD-058).
 manual ISO routes into the bounded push pool, and serializes whole ISO workflow runs so an
 8 GB payload has a documented 192 GB steady/216 GB peak ceiling across three variants
 (DD-059).
+`BLD-008` indexes every retained OneDrive ISO as a per-variant GitHub Release: scheduled
+builds are normal releases, push/manual builds are prereleases, the literal SHA-256 sits
+beside the OneDrive link, count purges remove matching release/tag records, and generated
+releases older than three months are cleaned up best-effort (DD-060).
 `BRD-006` remains in Awaiting confirmation while hardware iterations converge: the menu
 now overrides bootupd's one-second timeout, respects GRUB's reverse canvas order, omits its
 minimum-sized progress widget, and uses protocol-v2 bounded Monaspace Krypton NF PF2 fonts.

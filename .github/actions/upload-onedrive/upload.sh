@@ -20,6 +20,8 @@ drive_id=""
 staging_folder_id=""
 version_is_committed=0
 active_upload_url=""
+verified_item_id=""
+sharing_url=""
 
 # ── Error cleanup ─────────────────────────────────────────────────────────────
 # Cancel an unfinished upload session and permanently remove only the directory created by
@@ -208,6 +210,7 @@ verify_remote_size() {
   remote_size="$(jq -er '.size' "${work_dir}/graph-response")"
   [[ "${remote_size}" == "${expected_size}" ]] \
     || die "uploaded size mismatch for ${filename}: local=${expected_size}, remote=${remote_size}"
+  verified_item_id="$(jq -er '.id' "${work_dir}/graph-response")"
 }
 
 remote_size_matches() {
@@ -352,6 +355,26 @@ upload_file() {
   verify_remote_size "${parent_id}" "${filename}" "${total_size}"
 }
 
+# Create a durable read-only sharing link for a published file. GitHub Releases are public,
+# so an organization-only URL would make their primary download action misleading. A tenant
+# that forbids anonymous sharing fails publication instead of emitting an unusable link.
+create_anonymous_view_link() {
+  local item_id=$1
+  local encoded_item
+  local request_body
+
+  encoded_item="$(urlencode "${item_id}")"
+  request_body='{"type":"view","scope":"anonymous"}'
+  graph_request POST "${GRAPH_ROOT}/drives/${drive_id}/items/${encoded_item}/createLink" "${request_body}" \
+    || die "cannot create anonymous OneDrive download link: $(graph_error_message)"
+  jq -e '.link.type == "view" and .link.scope == "anonymous" and (.link.webUrl | type == "string" and length > 0)' \
+    "${work_dir}/graph-response" >/dev/null \
+    || die "Graph did not return an anonymous read-only sharing link"
+  sharing_url="$(jq -er '.link.webUrl' "${work_dir}/graph-response")"
+  [[ "${sharing_url}" =~ ^https://[^[:space:]]+$ ]] \
+    || die "Graph returned an invalid sharing-link URL"
+}
+
 # List every complete `v-*` directory, following Graph pagination, then permanently delete
 # entries after the newest N. Staging folders are deliberately outside the retention set.
 purge_old_versions() {
@@ -362,6 +385,7 @@ purge_old_versions() {
   local item_id
   local item_name
 
+  : > "${work_dir}/purged-versions"
   : > "${work_dir}/versions"
   next_url="${GRAPH_ROOT}/drives/${drive_id}/items/${variant_id}/children?%24select=id%2Cname%2CcreatedDateTime%2Cfolder&%24top=200"
   while [[ -n "${next_url}" ]]; do
@@ -382,6 +406,7 @@ purge_old_versions() {
     while IFS=$'\t' read -r item_id item_name; do
       graph_request POST "${GRAPH_ROOT}/drives/${drive_id}/items/${item_id}/permanentDelete" \
         || die "cannot permanently purge OneDrive version ${item_name}: $(graph_error_message)"
+      printf '%s\n' "${item_name}" >> "${work_dir}/purged-versions"
       echo "Permanently purged OneDrive version ${QUBIX_ISO_VARIANT}/${QUBIX_RETENTION_CHANNEL}/${item_name}"
     done
 
@@ -393,7 +418,8 @@ for required_name in \
   ONEDRIVE_TENANT_ID ONEDRIVE_CLIENT_ID ONEDRIVE_USER_ID \
   QUBIX_ISO_VARIANT QUBIX_RETENTION_CHANNEL QUBIX_ISO_VERSION \
   QUBIX_ISO_PATH QUBIX_CHECKSUM_PATH \
-  QUBIX_KEEP_VERSIONS ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN; do
+  QUBIX_KEEP_VERSIONS ACTIONS_ID_TOKEN_REQUEST_URL ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+  GITHUB_OUTPUT; do
   require_value "${required_name}"
 done
 
@@ -407,7 +433,16 @@ guid_pattern='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a
 [[ -f "${QUBIX_ISO_PATH}" ]] || die "ISO not found: ${QUBIX_ISO_PATH}"
 [[ -f "${QUBIX_CHECKSUM_PATH}" ]] || die "checksum not found: ${QUBIX_CHECKSUM_PATH}"
 command -v curl >/dev/null && command -v jq >/dev/null && command -v dd >/dev/null \
-  || die "curl, jq, and dd are required"
+  && command -v sha256sum >/dev/null \
+  || die "curl, jq, dd, and sha256sum are required"
+
+# Calculate release metadata from the exact local bytes that will be uploaded. This digest
+# is independent of the checksum file's presentation syntax and can be printed literally.
+iso_sha256="$(sha256sum "${QUBIX_ISO_PATH}" | awk '{print $1}')"
+[[ "${iso_sha256}" =~ ^[0-9a-f]{64}$ ]] || die "cannot calculate the ISO SHA-256"
+grep -qiE "(^|[^0-9a-f])${iso_sha256}([^0-9a-f]|$)" "${QUBIX_CHECKSUM_PATH}" \
+  || die "generated checksum file does not contain the ISO SHA-256"
+iso_size_bytes="$(stat --format='%s' "${QUBIX_ISO_PATH}")"
 
 # ── Exchange GitHub OIDC for Microsoft Graph access ──────────────────────────
 acquire_graph_token
@@ -431,7 +466,9 @@ channel_folder_id="${folder_id}"
 create_staging_folder "${channel_folder_id}" ".upload-${QUBIX_ISO_VERSION}"
 
 upload_file "${staging_folder_id}" "${QUBIX_ISO_PATH}"
+iso_item_id="${verified_item_id}"
 upload_file "${staging_folder_id}" "${QUBIX_CHECKSUM_PATH}"
+checksum_item_id="${verified_item_id}"
 
 # ── Publish atomically and enforce channel retention ─────────────────────────
 complete_name="v-${QUBIX_ISO_VERSION}"
@@ -439,6 +476,23 @@ rename_body="$(jq -cn --arg name "${complete_name}" '{name: $name}')"
 graph_request PATCH "${GRAPH_ROOT}/drives/${drive_id}/items/${staging_folder_id}" "${rename_body}" \
   || die "cannot publish completed OneDrive version ${complete_name}: $(graph_error_message)"
 
+create_anonymous_view_link "${iso_item_id}"
+iso_url="${sharing_url}"
+create_anonymous_view_link "${checksum_item_id}"
+checksum_url="${sharing_url}"
+
 purge_old_versions "${channel_folder_id}" "${QUBIX_KEEP_VERSIONS}"
 version_is_committed=1
+
+# Expose only stable release metadata. The transient Graph token and upload-session URL
+# never leave this process; purged names let the following GitHub action remove dead links.
+purged_versions="$(jq -Rsc 'split("\n") | map(select(length > 0))' "${work_dir}/purged-versions")"
+{
+  printf 'iso-url=%s\n' "${iso_url}"
+  printf 'checksum-url=%s\n' "${checksum_url}"
+  printf 'iso-sha256=%s\n' "${iso_sha256}"
+  printf 'iso-size-bytes=%s\n' "${iso_size_bytes}"
+  printf 'purged-versions=%s\n' "${purged_versions}"
+} >> "${GITHUB_OUTPUT}"
+
 echo "Published OneDrive version ${QUBIX_ISO_VARIANT}/${QUBIX_RETENTION_CHANNEL}/${complete_name}"

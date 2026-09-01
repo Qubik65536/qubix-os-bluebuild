@@ -99,8 +99,12 @@ another published tag. The workflow verifies each image signature, builds the IS
 [`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer),
 and uploads the ISO and checksum to a configured Microsoft 365 work/school OneDrive. Each
 variant keeps three scheduled versions separately from five push/manual versions; older
-versions are permanently purged to reclaim space. It creates neither a GitHub Actions
-artifact nor a GitHub Release. See
+versions are permanently purged to reclaim space. A per-variant
+[GitHub Release](https://github.com/Qubik65536/qubix-os-bluebuild/releases) records the
+OneDrive download links, literal SHA-256, signed image digest, and build provenance.
+Scheduled media is an official release; push/manual media is a prerelease. Generated ISO
+releases older than three months are cleaned up when possible. No large GitHub Actions
+artifact or GitHub release asset is created. See
 [`docs/usage.md`](docs/usage.md#building-an-offline-iso) for dispatch and download.
 
 ## Verification

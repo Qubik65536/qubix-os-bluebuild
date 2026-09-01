@@ -2,9 +2,9 @@
 #
 # This workflow does not build or publish the source OCI image. It turns an existing,
 # signed GHCR image into an x86_64 Kinoite installer and sends the ISO plus checksum to a
-# Microsoft 365 OneDrive. A successful default-branch image workflow builds all active
-# variants; manual dispatch can build one variant/tag. See DD-054, DD-056, DD-058, DD-059,
-# and docs/build-and-release.md.
+# Microsoft 365 OneDrive, then publishes a small GitHub Release index. A successful
+# default-branch image workflow builds all active variants; manual dispatch can build one
+# variant/tag. See DD-054, DD-056, DD-058, DD-059, DD-060, and docs/build-and-release.md.
 name: iso
 
 # ── Triggers and manual inputs ─────────────────────────────────────────────────
@@ -65,6 +65,8 @@ jobs:
       image_tag: ${{ steps.select.outputs.image_tag }}
       retention_channel: ${{ steps.select.outputs.retention_channel }}
       keep_versions: ${{ steps.select.outputs.keep_versions }}
+      source_event: ${{ steps.select.outputs.source_event }}
+      source_sha: ${{ steps.select.outputs.source_sha }}
     steps:
       - name: Select images and tag
         id: select
@@ -73,6 +75,7 @@ jobs:
           REQUESTED_IMAGE: ${{ inputs.image }}
           REQUESTED_TAG: ${{ inputs.image_tag }}
           UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
+          UPSTREAM_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
 
@@ -90,6 +93,8 @@ jobs:
             # Direct manual ISO runs share the bounded push/ad-hoc retention pool.
             retention_channel="push"
             keep_versions="5"
+            source_event="workflow_dispatch"
+            source_sha="${GITHUB_SHA}"
           else
             images='["standard","cachyos","nvidia"]'
             image_tag="latest"
@@ -108,12 +113,21 @@ jobs:
                 exit 1
                 ;;
             esac
+            source_event="${UPSTREAM_EVENT}"
+            source_sha="${UPSTREAM_SHA}"
+          fi
+
+          if [[ ! "${source_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "source commit is not a full Git SHA" >&2
+            exit 1
           fi
 
           echo "images=${images}" >> "${GITHUB_OUTPUT}"
           echo "image_tag=${image_tag}" >> "${GITHUB_OUTPUT}"
           echo "retention_channel=${retention_channel}" >> "${GITHUB_OUTPUT}"
           echo "keep_versions=${keep_versions}" >> "${GITHUB_OUTPUT}"
+          echo "source_event=${source_event}" >> "${GITHUB_OUTPUT}"
+          echo "source_sha=${source_sha}" >> "${GITHUB_OUTPUT}"
 
   # ── Build and retain the installer ──────────────────────────────────────────
   build-iso:
@@ -121,7 +135,8 @@ jobs:
     needs: select-images
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # Release/tag publication needs contents write; OIDC remains limited to OneDrive.
+      contents: write
       id-token: write
     # A named environment gives Entra one stable OIDC subject for automatic and manual runs.
     # Its variables identify the tenant, app registration, and work/school OneDrive owner.
@@ -195,6 +210,7 @@ jobs:
           onedrive_version="${IMAGE_TAG}-f${fedora_version}-${digest_short:0:12}-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           echo "image_src=docker://${pinned_ref}" >> "${GITHUB_OUTPUT}"
+          echo "image_digest=${digest}" >> "${GITHUB_OUTPUT}"
           echo "fedora_version=${fedora_version}" >> "${GITHUB_OUTPUT}"
           echo "iso_basename=${iso_basename}" >> "${GITHUB_OUTPUT}"
           echo "onedrive_version=${onedrive_version}" >> "${GITHUB_OUTPUT}"
@@ -222,6 +238,7 @@ jobs:
       # path. The local action publishes the pair atomically and permanently purges complete
       # versions beyond this trigger channel's limit within this variant.
       - name: Upload ISO to Microsoft 365 OneDrive
+        id: onedrive
         uses: ./.github/actions/upload-onedrive
         with:
           tenant-id: ${{ vars.ONEDRIVE_TENANT_ID }}
@@ -232,4 +249,30 @@ jobs:
           version: ${{ steps.verify.outputs.onedrive_version }}
           iso-path: ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}
           checksum-path: ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}-CHECKSUM
+          keep-versions: ${{ needs.select-images.outputs.keep_versions }}
+
+      # Publish only metadata and durable OneDrive links. Scheduled builds are normal
+      # releases; push and both manual routes are prereleases. Matching dead links and
+      # generated releases older than three months are cleaned up best-effort.
+      - name: Publish ISO GitHub Release
+        uses: ./.github/actions/publish-iso-release
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          variant: ${{ matrix.image }}
+          retention-channel: ${{ needs.select-images.outputs.retention_channel }}
+          source-event: ${{ needs.select-images.outputs.source_event }}
+          source-sha: ${{ needs.select-images.outputs.source_sha }}
+          image-name: ${{ steps.prepare.outputs.image_name }}
+          image-tag: ${{ needs.select-images.outputs.image_tag }}
+          image-digest: ${{ steps.verify.outputs.image_digest }}
+          fedora-version: ${{ steps.verify.outputs.fedora_version }}
+          version: ${{ steps.verify.outputs.onedrive_version }}
+          iso-name: ${{ steps.verify.outputs.iso_basename }}.iso
+          iso-url: ${{ steps.onedrive.outputs.iso-url }}
+          checksum-name: ${{ steps.verify.outputs.iso_basename }}.iso-CHECKSUM
+          checksum-url: ${{ steps.onedrive.outputs.checksum-url }}
+          iso-sha256: ${{ steps.onedrive.outputs.iso-sha256 }}
+          iso-size-bytes: ${{ steps.onedrive.outputs.iso-size-bytes }}
+          purged-versions: ${{ steps.onedrive.outputs.purged-versions }}
           keep-versions: ${{ needs.select-images.outputs.keep_versions }}

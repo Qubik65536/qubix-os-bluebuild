@@ -580,6 +580,33 @@ Nothing stays in **Open** merely because CI has not run yet.
       and `DD-059` plus `.agent/context/` record the trigger and manual-run policy
     - Workflow/action YAML and Bash pass the available static checks
 
+- [x] **BLD-008** — Publish discoverable GitHub releases for OneDrive-hosted ISOs
+  - **Category:** Build / CI
+  - **Depends on:** BLD-006, BLD-007
+  - **Notes:** Requested 2026-09-01. YAML and Bash syntax, executable modes, all four
+    source-event mappings, unsupported-event rejection, action output wiring, scheduled
+    versus prerelease request bodies, literal-checksum placement, count/age cleanup
+    targeting, cleanup lookup failure safety, pinned installer checksum format, and
+    whitespace were checked locally on 2026-09-01. CI with the configured GitHub and
+    Microsoft tenant remains the external integration check.
+  - **Acceptance criteria:**
+    - Every successfully uploaded ISO gets a per-variant GitHub Release with durable
+      OneDrive links for the ISO and checksum, and the literal SHA-256 appears beside the
+      ISO link
+    - Release notes record the variant, Fedora release, architecture, source image digest,
+      source trigger and commit, workflow run, file size, verification command, and the
+      applicable retention policy
+    - Scheduled ISO builds publish normal releases; push and either manual route publish
+      prereleases
+    - GitHub release/tag removal follows versions purged by OneDrive's three-scheduled and
+      five-push limits, and generated ISO releases older than three calendar months are
+      purged on a best-effort basis
+    - Workflow permissions, OneDrive anonymous-link requirements, cleanup limitations,
+      user documentation, design decision, and context cache are current
+    - Workflow/action YAML, shell syntax, release-body rendering, trigger classification,
+      retention mapping, and whitespace checks pass locally; CI remains the external
+      verification for GitHub and Microsoft APIs
+
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content
   - **Depends on:** IMG-005
