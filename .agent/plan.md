@@ -650,6 +650,25 @@ Nothing stays in **Open** merely because CI has not run yet.
     - Bash/YAML, a mocked session request contract, token redaction, task-ID uniqueness,
       and whitespace pass locally; a hosted OneDrive upload remains external verification
 
+- [x] **BLD-011** — Send explicit lengths on bodyless Graph actions
+  - **Category:** Build / CI
+  - **Depends on:** BLD-010
+  - **Notes:** Requested 2026-09-01 after Microsoft Graph accepted authentication and the
+    canonical upload-session route but rejected its bodyless POST with HTTP 411. Graph's
+    API contract says the JSON body is optional; the tenant-facing HTTP layer nevertheless
+    requires the zero-byte payload length to be explicit. Bash/YAML, mocked upload-session,
+    permanent-delete, and JSON POST header contracts, token non-disclosure, task-ID
+    uniqueness, and whitespace passed locally on 2026-09-01. A hosted transfer remains the
+    external Graph verification.
+  - **Acceptance criteria:**
+    - Every bodyless Microsoft Graph POST sends `Content-Length: 0` without inventing a
+      JSON payload
+    - JSON-bearing Graph requests retain their existing content type and body
+    - Upload-session creation and permanent deletion both use the corrected helper
+    - Build documentation and CI context explain the HTTP transport requirement
+    - Bash syntax, a mocked request-header contract, token redaction, task-ID uniqueness,
+      and whitespace pass locally; a hosted OneDrive upload remains external verification
+
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content
   - **Depends on:** IMG-005

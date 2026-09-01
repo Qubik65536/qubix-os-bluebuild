@@ -115,6 +115,8 @@ safe GitHub OIDC claims, captures one structured Entra rejection, and the setup 
 canonical owner case while explaining exact and immutable subject matching.
 `BLD-010` reduces Graph upload-session creation to the canonical drive-ID route with no
 optional body and expands Graph failures to status/code/message/request-ID diagnostics.
+`BLD-011` adds an explicit zero-byte length to bodyless Graph POST actions because the
+OneDrive for Business HTTP front end can require it even when Graph defines no JSON body.
 `BRD-006` remains in Awaiting confirmation while hardware iterations converge: the menu
 now overrides bootupd's one-second timeout, respects GRUB's reverse canvas order, omits its
 minimum-sized progress widget, and uses protocol-v2 bounded Monaspace Krypton NF PF2 fonts.

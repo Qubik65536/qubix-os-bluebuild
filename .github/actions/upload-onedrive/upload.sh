@@ -194,6 +194,10 @@ graph_request() {
     )
     if [[ -n "${body}" ]]; then
       arguments+=(--header 'Content-Type: application/json' --data "${body}")
+    elif [[ "${method}" == POST ]]; then
+      # Some OneDrive for Business front ends require an explicit zero-byte length even
+      # when the Graph action defines its JSON request body as optional.
+      arguments+=(--header 'Content-Length: 0')
     fi
 
     set +e
@@ -355,7 +359,8 @@ upload_file() {
 
   # The path already names a file inside a unique empty staging directory. Use Graph's
   # canonical drive-ID endpoint and omit optional uploadable-item metadata; the documented
-  # default conflict behavior is `fail` and no body is required for a new file.
+  # default conflict behavior is `fail`. graph_request still declares the zero-byte HTTP
+  # payload length explicitly for OneDrive for Business front ends that otherwise send 411.
   graph_request POST "${GRAPH_ROOT}/drives/${drive_id}/items/${encoded_parent}:/${encoded_name}:/createUploadSession" \
     || die "cannot create upload session for ${filename}: $(graph_error_message)"
   active_upload_url="$(jq -er '.uploadUrl' "${work_dir}/graph-response")"

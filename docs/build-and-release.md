@@ -240,10 +240,13 @@ Each `v-*` directory contains exactly the generated ISO and its `-CHECKSUM` file
 create sessions through Graph's canonical
 `/drives/<drive-id>/items/<parent-id>:/<filename>:/createUploadSession` route. The path
 already targets a unique empty staging directory, so the request sends no optional
-uploadable-item body and uses Graph's documented default fail-on-conflict behavior. Data
-then moves in sequential 50 MiB fragments: 50 MiB is below Graph's 60 MiB request limit
-and is divisible by its required 320 KiB boundary. Both remote byte counts must match
-before the temporary `.upload-*` directory is renamed to `v-*`.
+uploadable-item body and uses Graph's documented default fail-on-conflict behavior. The
+HTTP request still declares `Content-Length: 0`: some OneDrive for Business front ends
+reject a bodyless POST without that explicit transport length as `411 Length Required`.
+The same header is applied to the bodyless `permanentDelete` action used by retention.
+Data then moves in sequential 50 MiB fragments: 50 MiB is below Graph's 60 MiB request
+limit and is divisible by its required 320 KiB boundary. Both remote byte counts must
+match before the temporary `.upload-*` directory is renamed to `v-*`.
 After the rename, the action creates durable anonymous, read-only sharing links for both
 files. It does not record Graph's preauthenticated `downloadUrl`, because that URL is
 short-lived and unsuitable for persistent release notes.
@@ -447,8 +450,8 @@ uploader is repository-local and changes with this repository.
      below Graph's 320 KiB contract or add an Authorization header to fragment PUTs.
    - **OneDrive upload-session creation fails** → read the reported Graph HTTP status,
      error code, message, and request ID. The action intentionally uses the canonical
-     drive-ID route with no optional body; preserve that minimum request while diagnosing
-     tenant/service failures.
+     drive-ID route with no optional JSON body and an explicit `Content-Length: 0`; preserve
+     that minimum request while diagnosing tenant/service failures.
    - **OneDrive retention fails** → the action attempts to roll back the newly renamed
      version. If Graph also rejects cleanup, remove that run's `v-*` directory manually;
      if failure came after one older deletion, the history may contain fewer than its
