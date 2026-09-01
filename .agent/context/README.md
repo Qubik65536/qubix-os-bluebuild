@@ -19,7 +19,7 @@ reading the whole repository.
 |---|---|
 | [`root.md`](root.md) | Repository root files: `README.md`, `LICENSE`, `cosign.pub`, `.gitignore` |
 | [`recipe.md`](recipe.md) | `recipes/**` — the recipes and the shared module files they compose |
-| [`ci.md`](ci.md) | `.github/` — workflow, dependabot, CODEOWNERS, Copilot pointer |
+| [`ci.md`](ci.md) | `.github/**` and `flatpak_refs/**` — workflows, installer inputs, automation, ownership |
 | [`files-system.md`](files-system.md) | `files/system/**` — the image root overlay (branding + desktop config) |
 | [`scripts.md`](scripts.md) | `files/scripts/` and `modules/` — unused extension points |
 | [`docs.md`](docs.md) | `docs/**` — the human + agent documentation set |

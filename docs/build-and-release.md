@@ -103,7 +103,7 @@ Nothing needs more; do not widen these.
 [`.github/workflows/iso.yml`](../.github/workflows/iso.yml) turns **already published**
 images into installation media. It runs automatically after successful default-branch
 image publication and retains a manual single-image/tag path (DD-054, DD-056, DD-058,
-DD-059, DD-060).
+DD-059, DD-060, DD-061).
 
 | Aspect | Value |
 |---|---|
@@ -112,6 +112,8 @@ DD-059, DD-060).
 | Automatic matrix | `standard`, `cachyos`, `nvidia` from `latest`; `fail-fast: false` |
 | Installer action | `JasonN3/build-container-installer` v1.5.0, pinned to commit `bed71f8…` |
 | Installer variant | Kinoite |
+| Embedded applications | 25 apps, the Breeze theme runtime, and resolved dependencies from `flatpak_refs/iso-refs.txt` |
+| Dependency scanner | `umoci` v0.6.0, pinned by SHA-256 ahead of the installer action |
 | Timeout | 180 minutes (installer build plus multi-gigabyte upload) |
 | Output | ISO plus generated SHA-256 checksum |
 | Storage | Microsoft 365 work/school OneDrive; 3 scheduled + 5 push/ad-hoc versions per variant |
@@ -125,6 +127,66 @@ DD-059, DD-060).
 |---|---|---|---|
 | `image` | `standard`, `cachyos`, `nvidia` | `standard` | Active images only; the parked combined image is absent. |
 | `image_tag` | Any valid published OCI tag | `latest` | Validated before it reaches the upstream action. |
+
+### Embedded desktop Flatpaks
+
+`build-container-installer` embeds no Flatpaks unless it receives
+`flatpak_remote_refs` or `flatpak_remote_refs_dir`. The published OCI image contains
+Aurora's Brewfiles and Qubix's first-boot Flatpak configuration, but neither is implicitly
+an installer input. Omitting the action input therefore produced a valid OS installation
+whose KDE layout referenced the missing Bazaar desktop file and whose Qubix applications
+depended entirely on a later online timer (DD-061).
+
+[`flatpak_refs/iso-refs.txt`](../flatpak_refs/iso-refs.txt) is the installer source of
+truth. Its groups are:
+
+| Source policy | Refs | Count |
+|---|---|---:|
+| [Aurora desktop defaults](https://github.com/get-aurora-dev/common/blob/main/system_files/shared/usr/share/ublue-os/homebrew/system-flatpaks.Brewfile) | 20 apps including Bazaar, Warehouse, Flatseal, KDE/GNOME utilities and Thunderbird; one Breeze theme runtime | 21 |
+| [Aurora DX defaults](https://github.com/get-aurora-dev/common/blob/main/system_files/shared/usr/share/ublue-os/homebrew/system-dx-flatpaks.Brewfile) | Podman Desktop, Embellish, Dev Toolbox | 3 |
+| Qubix additions | Ungoogled Chromium, Loupe | 2 |
+| **Total** | | **26** |
+
+Firefox is deliberately absent even though Aurora's upstream desktop Brewfile includes
+it: DD-023 makes Ungoogled Chromium the only browser on a fresh Qubix installation. Zed is
+also absent because IDE choice is personal; it remains available from the inherited
+`ublue-os` Homebrew tap as documented in [`usage.md`](usage.md#homebrew-and-the-ublue-os-tap).
+
+Before invoking the installer action, the workflow removes comments and blank lines,
+validates every complete `app|runtime/<id>/x86_64/<branch>` ref, and fails unless all 26
+refs are unique, Firefox is absent, and Bazaar, Ungoogled Chromium, Loupe, and the Breeze
+theme runtime are present. The generated directory is passed as
+`flatpak_remote_refs_dir`. The pinned action resolves runtime dependencies, creates an
+offline Flathub repository, and exposes it to Anaconda, which installs those refs into the
+new system. A rebase does not consume installer media, so the recipe's first-boot
+Chromium/Loupe seeding remains necessary for that path.
+
+Dependency resolution first unpacks the signed Qubix OCI image and runs Flatpak inside
+that userspace. The action installs Ubuntu 24.04's `umoci` 0.4.7 for this step, but that
+release predates zstd-compressed OCI layers and rejects current BlueBuild images. An
+initial workaround downloaded the official
+[`umoci` v0.6.0](https://github.com/opencontainers/umoci/releases/tag/v0.6.0)
+Linux/amd64 binary, verified its hard-coded SHA-256, and prepended its temporary directory
+through `GITHUB_PATH` before the action ran. That first workaround was insufficient: the
+action invokes the unpack through `sudo make`, and sudo's secure path discarded the runner
+override and selected `/usr/bin/umoci` 0.4.7 again.
+
+The workflow now installs the verified binary at `/usr/local/bin/umoci`, which precedes
+`/usr/bin` in both the runner and sudo secure paths. A separate step fails unless normal
+and privileged command lookup both resolve that exact path and report version 0.6.0. The
+action may install its distro package afterward, but it cannot replace the verified
+`/usr/local/bin` copy.
+
+Do not work around this by setting `enable_flatpak_dependencies: false`. The older Fedora
+Lorax template installs dependencies into a temporary Flatpak repository but copies only
+the explicitly requested refs into the ISO repository. The action's enabled scanner is
+what expands the manifest to every required runtime and extension before embedding it.
+
+This manifest is intentionally repository-owned rather than downloaded from Aurora during
+CI: a Qubix commit determines its installer contents reproducibly and an upstream app-list
+change cannot silently add Firefox or another application. When Aurora changes either
+upstream system or DX Flatpak Brewfile linked above, review and mirror the wanted change
+here explicitly.
 
 ### Automatic trigger guard
 
@@ -429,6 +491,17 @@ uploader is repository-local and changes with this repository.
    - **ISO version-label failure** → the selected image no longer carries BlueBuild's
      recognisable `org.opencontainers.image.version`; update the parser only after checking
      the replacement label is part of the verified manifest.
+   - **ISO Flatpak manifest failure** → fix the malformed/duplicate ref, unexpected count,
+     missing required ref, or Firefox entry in `flatpak_refs/iso-refs.txt`; do not
+     weaken the fail-closed assertions.
+   - **ISO Flatpak dependency/repository failure** → a listed Flathub ref or one of its
+     runtimes is unavailable for `x86_64/stable`, or Flathub is unavailable. Confirm the
+     application ID and retry a transient outage before changing the manifest.
+   - **`umoci` rejects a zstd layer** → confirm the `Install zstd-capable umoci` step ran,
+     its checksum passed, and `Verify umoci override` resolved `/usr/local/bin/umoci` for
+     both user and sudo lookups. Do not return to a `GITHUB_PATH`-only override: the action
+     unpacks under sudo. Do not disable Flatpak dependency discovery; update the pinned
+     binary and checksum deliberately if the upstream release asset changes.
    - **ISO Lorax/repository failure** → Fedora may have retired or moved the selected old
      tag's installer repositories. The Fedora version is derived from the image, not typed.
    - **OneDrive action reports a required value is missing** → create/configure the GitHub

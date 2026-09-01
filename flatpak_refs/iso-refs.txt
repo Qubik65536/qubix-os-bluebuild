@@ -1,0 +1,39 @@
+# Qubix OS installer Flatpak manifest.
+#
+# Consumer: .github/workflows/iso.yml removes comments and blank lines, validates each
+# complete ref, and passes the result to build-container-installer. Complete refs matter:
+# the Breeze GTK theme is a runtime on branch 3.22, while the other entries are stable
+# applications. This is an ISO input, not an image layer; see DD-061.
+#
+# Aurora desktop defaults, mirrored from the inherited system-flatpaks.Brewfile.
+app/com.github.tchx84.Flatseal/x86_64/stable
+app/io.github.DenysMb.Kontainer/x86_64/stable
+app/io.github.flattool.Warehouse/x86_64/stable
+app/io.github.kolunmi.Bazaar/x86_64/stable
+app/io.missioncenter.MissionCenter/x86_64/stable
+app/org.deskflow.deskflow/x86_64/stable
+app/org.fedoraproject.MediaWriter/x86_64/stable
+app/org.fkoehler.KTailctl/x86_64/stable
+app/org.gnome.DejaDup/x86_64/stable
+app/org.gnome.Firmware/x86_64/stable
+runtime/org.gtk.Gtk3theme.Breeze/x86_64/3.22
+app/org.kde.gwenview/x86_64/stable
+app/org.kde.haruna/x86_64/stable
+app/org.kde.kcalc/x86_64/stable
+app/org.kde.kclock/x86_64/stable
+app/org.kde.kontact/x86_64/stable
+app/org.kde.kweather/x86_64/stable
+app/org.kde.okular/x86_64/stable
+app/org.kde.qrca/x86_64/stable
+app/org.kde.skanpage/x86_64/stable
+app/org.mozilla.thunderbird/x86_64/stable
+
+# Aurora DX defaults, mirrored from the inherited system-dx-flatpaks.Brewfile.
+app/io.podman_desktop.PodmanDesktop/x86_64/stable
+app/io.github.getnf.embellish/x86_64/stable
+app/me.iepure.devtoolbox/x86_64/stable
+
+# Qubix additions. Firefox is intentionally absent: Ungoogled Chromium is the only
+# browser installed by a fresh ISO under DD-023.
+app/io.github.ungoogled_software.ungoogled_chromium/x86_64/stable
+app/org.gnome.Loupe/x86_64/stable

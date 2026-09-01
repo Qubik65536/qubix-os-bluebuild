@@ -4,7 +4,9 @@
 # signed GHCR image into an x86_64 Kinoite installer and sends the ISO plus checksum to a
 # Microsoft 365 OneDrive, then publishes a small GitHub Release index. A successful
 # default-branch image workflow builds all active variants; manual dispatch can build one
-# variant/tag. See DD-054, DD-056, DD-058, DD-059, DD-060, and docs/build-and-release.md.
+# variant/tag. The media also carries the desktop Flatpaks declared in flatpak_refs/ so
+# Anaconda installs them without depending on a first-boot network pass. See DD-054,
+# DD-056, DD-058, DD-059, DD-060, DD-061, and docs/build-and-release.md.
 name: iso
 
 # ── Triggers and manual inputs ─────────────────────────────────────────────────
@@ -178,6 +180,54 @@ jobs:
         with:
           persist-credentials: false
 
+      # Turn the readable, commented application manifest into the exact ref syntax the
+      # installer action consumes. Keep this derivation fail-closed: malformed refs,
+      # duplicates, a missing desktop/browser/store, or Firefox all stop the ISO build.
+      - name: Prepare ISO Flatpak references
+        env:
+          EXPECTED_REF_COUNT: "26"
+        run: |
+          set -euo pipefail
+
+          manifest="flatpak_refs/iso-refs.txt"
+          output_dir="build/flatpak-refs"
+          output_file="${output_dir}/apps"
+          mkdir -p "${output_dir}"
+
+          LC_ALL=C awk '
+            /^[[:space:]]*(#|$)/ { next }
+            !/^(app|runtime)\/[A-Za-z0-9][A-Za-z0-9._-]+\/x86_64\/[A-Za-z0-9][A-Za-z0-9._-]+$/ {
+              printf "invalid Flatpak ref at line %d: %s\n", NR, $0 > "/dev/stderr"
+              invalid = 1
+              next
+            }
+            { print }
+            END { exit invalid }
+          ' "${manifest}" > "${output_file}"
+
+          ref_count="$(wc -l < "${output_file}" | tr -d '[:space:]')"
+          if [[ "${ref_count}" != "${EXPECTED_REF_COUNT}" ]]; then
+            echo "expected ${EXPECTED_REF_COUNT} ISO Flatpak refs, found ${ref_count}" >&2
+            exit 1
+          fi
+          if duplicate="$(LC_ALL=C sort "${output_file}" | uniq -d)" && [[ -n "${duplicate}" ]]; then
+            echo "duplicate ISO Flatpak ref: ${duplicate}" >&2
+            exit 1
+          fi
+          if grep -qF '/org.mozilla.firefox/' "${output_file}"; then
+            echo "Firefox must remain absent from Qubix installer media" >&2
+            exit 1
+          fi
+          for required in \
+            app/io.github.kolunmi.Bazaar/x86_64/stable \
+            app/io.github.ungoogled_software.ungoogled_chromium/x86_64/stable \
+            app/org.gnome.Loupe/x86_64/stable \
+            runtime/org.gtk.Gtk3theme.Breeze/x86_64/3.22; do
+            grep -qxF "${required}" "${output_file}"
+          done
+
+          echo "Prepared ${ref_count} Flatpak refs for the installer"
+
       # Authenticate the selected registry tag, capture the signed manifest digest, and
       # give the ISO builder that immutable digest. This closes the tag-change window
       # between verification and the builder's own image copy. Fedora's major version is
@@ -217,19 +267,67 @@ jobs:
           echo "Verified ${IMAGE_REF} at ${digest}"
           echo "Using Fedora ${fedora_version} from org.opencontainers.image.version=${image_version}"
 
+      # The pinned installer action asks Ubuntu 24.04 for umoci, which currently yields
+      # v0.4.7. That release predates zstd OCI layers and cannot unpack current BlueBuild
+      # images while discovering Flatpak runtime dependencies. The unpack runs under sudo,
+      # so GITHUB_PATH cannot override sudo's secure path. Install the checksum-pinned
+      # v0.6.0 binary in /usr/local/bin, ahead of /usr/bin for both lookups. Disabling
+      # dependency discovery would omit runtime refs.
+      - name: Install zstd-capable umoci
+        env:
+          UMOCI_AMD64_SHA256: b51c267ec394499e42c6fde47f240b7b7dba57ea49df0b5acd304378b82a3b71
+          UMOCI_VERSION: v0.6.0
+        run: |
+          set -euo pipefail
+
+          download_dir="${RUNNER_TEMP}/qubix-iso-tools"
+          download_path="${download_dir}/umoci"
+          mkdir -p "${download_dir}"
+
+          curl --fail --location --retry 3 --show-error --silent \
+            "https://github.com/opencontainers/umoci/releases/download/${UMOCI_VERSION}/umoci.linux.amd64" \
+            --output "${download_path}"
+          printf '%s  %s\n' "${UMOCI_AMD64_SHA256}" "${download_path}" | sha256sum --check
+          sudo install --mode=0755 "${download_path}" /usr/local/bin/umoci
+          /usr/local/bin/umoci --version
+
+      - name: Verify umoci override
+        run: |
+          set -euo pipefail
+
+          expected_umoci="/usr/local/bin/umoci"
+          user_umoci="$(command -v umoci)"
+          privileged_umoci="$(sudo sh -c 'command -v umoci')"
+          if [[ "${user_umoci}" != "${expected_umoci}" ]]; then
+            echo "expected ${expected_umoci} on user PATH, found ${user_umoci}" >&2
+            exit 1
+          fi
+          if [[ "${privileged_umoci}" != "${expected_umoci}" ]]; then
+            echo "expected ${expected_umoci} on sudo PATH, found ${privileged_umoci}" >&2
+            exit 1
+          fi
+          umoci --version | grep -qF 'umoci version 0.6.0'
+          sudo sh -c 'umoci --version' | grep -qF 'umoci version 0.6.0'
+
       # v1.5.0 is pinned by commit so installer machinery cannot change underneath a run.
       # `image_signed` makes future updates enforce the verification policy embedded in
       # Qubix; `image_src` makes the ISO payload itself come from the digest checked above.
+      # The generated ref directory makes the action resolve runtimes and build an offline
+      # Flathub repository that Anaconda transfers into the installed system. DD-061.
       - name: Build ISO
         id: build
         uses: JasonN3/build-container-installer@bed71f841c250650a70f1ed8315ba92da1591ba6 # v1.5.0
         with:
           arch: x86_64
+          enable_flatpak_dependencies: "true"
           image_name: ${{ steps.prepare.outputs.image_name }}
           image_repo: ghcr.io/qubik65536
           image_signed: true
           image_src: ${{ steps.verify.outputs.image_src }}
           image_tag: ${{ needs.select-images.outputs.image_tag }}
+          flatpak_remote_name: flathub
+          flatpak_remote_refs_dir: build/flatpak-refs
+          flatpak_remote_url: https://dl.flathub.org/repo/flathub.flatpakrepo
           iso_name: build/${{ steps.verify.outputs.iso_basename }}.iso
           variant: Kinoite
           version: ${{ steps.verify.outputs.fedora_version }}

@@ -3660,3 +3660,82 @@ to GitHub release metadata; DD-059's 3/5 count remains the OneDrive storage boun
   persistent API or repository-rule failure.
 - Local validation can render request bodies and mock GitHub responses, but only CI with
   the configured tenant can prove anonymous link creation and both external cleanup APIs.
+
+---
+
+## DD-061 — Embed the desktop Flatpak set in installer media
+
+**Status:** Accepted
+
+**Implements:** `BLD-012`
+
+**Context.** Reported 2026-09-01: a machine installed from the Qubix ISO contained layered
+RPMs such as WezTerm and Starship, but Bazaar and Ungoogled Chromium were absent. KDE still
+pinned Bazaar's desktop ID, so Plasma rendered an unknown-application launcher. Zed was
+also absent, but current Aurora treats it as an optional Homebrew cask rather than a
+default system application. The attempted `ujust update` also failed, but that command
+updates already registered applications; it cannot reconstruct a Flatpak repository that
+was omitted when the installer media was built.
+
+The OCI image and installer are separate delivery surfaces. Qubix's `default-flatpaks`
+module places a timer and a Chromium/Loupe configuration in the image for first-boot
+seeding. Aurora also carries `system-flatpaks.Brewfile` and
+`system-dx-flatpaks.Brewfile`. The pinned `build-container-installer` action discovers
+none of those automatically: it creates an offline Flatpak repository only when the
+workflow supplies `flatpak_remote_refs` or `flatpak_remote_refs_dir`. Qubix supplied
+neither, so its installer contained the OS payload but no desktop Flatpak payload.
+
+The first workflow with a manifest failed before contacting Flathub. The action's
+dependency scanner uses Ubuntu 24.04's `umoci` 0.4.7 to unpack the source image, while
+current BlueBuild images contain zstd-compressed OCI layers. Zstd unpacking arrived in
+[`umoci` 0.5.0](https://github.com/opencontainers/umoci/releases/tag/v0.5.0), so the distro
+version rejects those layers. Turning the scanner off is not equivalent: Fedora's fallback
+Lorax template copies only its explicit ref list into the ISO repository, omitting
+automatically installed runtime and extension refs.
+
+**Decision.** Maintain complete ISO refs in the commented, repository-owned
+`flatpak_refs/iso-refs.txt`. Mirror Aurora's standard desktop and DX Flatpak defaults,
+then add Qubix's Ungoogled Chromium and Loupe. Deliberately omit Aurora's Firefox entry so
+DD-023 remains true. Keep Zed and the rest of Universal Blue's IDE casks optional through
+the inherited `ublue-os/tap`; document the direct Homebrew and curated-Brewfile routes.
+
+In `iso.yml`, strip comments and blank lines, validate each complete app/runtime ref, and
+fail on a count other than 26, duplicates, Firefox, or the absence of Bazaar, Ungoogled
+Chromium, Loupe, or the Breeze theme runtime. Pass the generated directory to the
+pinned installer action. Let that action resolve the matching runtimes and build the
+offline Flathub repository that Anaconda transfers to the installed system.
+
+Keep dependency resolution enabled. Before invoking the action, download the official
+`umoci` v0.6.0 Linux/amd64 release asset into `RUNNER_TEMP`, verify the repository-pinned
+SHA-256, and install it into `/usr/local/bin`. A `GITHUB_PATH`-only override is inadequate
+because the action invokes the image unpack through `sudo make`, which replaces that path
+with sudo's secure path. Fail unless the following step resolves `/usr/local/bin/umoci`
+and version 0.6.0 in both normal and privileged shells. This preserves the pinned action's
+complete-repository path without trusting a moving binary; the hosted runner is ephemeral.
+
+Retain the recipe's `default-flatpaks` module. A rebase consumes only the OCI image and
+cannot see an ISO repository, so Chromium/Loupe first-boot seeding remains the recovery
+and rebase path. The fuller Aurora desktop set is an installer policy, not a new image
+layer.
+
+**Consequences.**
+
+- Bazaar, Ungoogled Chromium, Loupe, the inherited Aurora desktop apps, and the Aurora DX
+  Flatpaks are available at the first login after an ISO installation without network.
+- KDE's inherited Bazaar favourite resolves to an installed desktop file instead of an
+  unknown application. Zed remains absent until the user chooses it through Homebrew.
+- The ISO grows by the applications and resolved runtimes. The existing multi-gigabyte
+  OneDrive path and 180-minute job timeout absorb that cost, but capacity estimates must
+  be revisited if measured media grows materially beyond the documented approximation.
+- The workflow owns a second pinned tool artifact until Ubuntu or the installer action
+  supplies a zstd-capable `umoci`. Its version and SHA-256 must change together. The
+  action's dependency switch stays explicitly true so a future default cannot silently
+  remove runtimes from the media. Installing under `/usr/local/bin` deliberately crosses
+  the action's sudo boundary; a runner-temporary PATH entry does not.
+- The list is reproducible at the Qubix commit rather than following an upstream Brewfile
+  at build time. That prevents a silent browser-policy change but requires an explicit
+  review when Aurora changes either default Flatpak Brewfile.
+- Local checks can validate workflow YAML, ref generation, count, uniqueness, required
+  refs, and Firefox's absence. Only a newly built and installed ISO can prove Anaconda
+  transfers the repository and both Bazaar and Chromium launch; `BLD-012` waits for that
+  confirmation.

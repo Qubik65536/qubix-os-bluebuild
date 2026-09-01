@@ -12,8 +12,9 @@ Public-facing entry point, licence, signing trust anchor, and ignore rules.
   standard/CachyOS/NVIDIA variants, the parked NVIDIA+CachyOS recipe, the two-step install,
   weekly Sunday 00:00 UTC rebuild cadence, automatic and manual ISO routes to Microsoft
   365 OneDrive with three scheduled plus five push/manual versions retained per variant,
-  per-variant GitHub Release links/checksums with official scheduled versus prerelease
-  push/manual classification, cosign verification, and links into `docs/` and `AGENTS.md`.
+  installer-embedded Aurora/Qubix desktop Flatpaks without Firefox (DD-061), per-variant
+  GitHub Release links/checksums with official scheduled versus prerelease push/manual
+  classification, cosign verification, and links into `docs/` and `AGENTS.md`.
   Keep it short; detail belongs in `docs/`.
 - **`LICENSE`** — Apache License 2.0, inherited from the BlueBuild template.
 - **`cosign.pub`** — the public half of the image signing keypair (DD-008). Users verify

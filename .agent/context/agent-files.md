@@ -117,6 +117,12 @@ canonical owner case while explaining exact and immutable subject matching.
 optional body and expands Graph failures to status/code/message/request-ID diagnostics.
 `BLD-011` adds an explicit zero-byte length to bodyless Graph POST actions because the
 OneDrive for Business HTTP front end can require it even when Graph defines no JSON body.
+`BLD-012` makes installer media carry a validated 25-app-plus-theme offline Flathub set
+rather than assuming the installer reads Flatpak intent from the OCI image. It preserves
+Qubix's no-Firefox browser policy and keeps Zed optional through `ublue-os/tap`. Its first
+CI run exposed Ubuntu `umoci` 0.4.7's lack of zstd-layer support; BLD-012 is open while
+the checksum-pinned `/usr/local/bin` v0.6.0 override for the action's sudo unpack awaits
+an ISO rerun (DD-061).
 `BRD-006` remains in Awaiting confirmation while hardware iterations converge: the menu
 now overrides bootupd's one-second timeout, respects GRUB's reverse canvas order, omits its
 minimum-sized progress widget, and uses protocol-v2 bounded Monaspace Krypton NF PF2 fonts.

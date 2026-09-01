@@ -74,12 +74,24 @@ cosign verify --key cosign.pub ghcr.io/qubik65536/qubix-os-bluebuild
 `cosign.pub` is committed at the repository root. Download it from this repository over
 HTTPS rather than from any other source.
 
-## First boot
+## Applications after installation or rebase
 
-Flatpaks are **seeded**, not baked in — a systemd unit installs them on first boot, so
-first boot needs network access. Expect
-`io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` to appear shortly
-after login, with a desktop notification when the pass finishes (`notify: true`).
+An **ISO installation** receives the complete desktop Flatpak set from an offline Flathub
+repository embedded in the installer (DD-061). Anaconda installs the applications and
+their runtimes, so Bazaar, Ungoogled Chromium, Loupe, Aurora's standard desktop apps, and
+the Aurora DX Flatpaks are available at the first login without waiting for a network
+service. The exact source list is
+[`flatpak_refs/iso-refs.txt`](../flatpak_refs/iso-refs.txt).
+
+A **rebase** receives only the OCI image, not the installer's Flatpak repository. The
+BlueBuild `default-flatpaks` timer therefore remains as its fallback: it fetches Ungoogled
+Chromium and Loupe from Flathub shortly after the first boot and needs working network
+access. A desktop notification reports when that pass finishes (`notify: true`).
+
+`ujust update` updates the OS and applications already registered on the machine. It does
+not replay a missing installer manifest or reconstruct an offline repository omitted when
+an older ISO was built, so it cannot repair this particular media defect. A newly generated
+ISO is the fix for new installations.
 
 **Ungoogled Chromium is the default browser** (DD-023), and it is the only one installed —
 Firefox is shipped in neither form. Being a Flatpak, it updates on Flathub's schedule
@@ -91,6 +103,51 @@ else, install it and pick it in *System Settings → Default Applications* (Plas
 `xdg-settings set default-web-browser <id>.desktop` — either writes
 `~/.config/mimeapps.list`, which is searched **before** the image's copy, so your choice
 wins and survives updates.
+
+### Homebrew and the `ublue-os` tap
+
+Aurora DX supplies Homebrew and the curated Brewfiles under
+`/usr/share/ublue-os/homebrew/`. Qubix inherits both; it does not copy their GUI tools into
+the immutable OS image or the installer. The [`ublue-os/tap`](https://github.com/ublue-os/homebrew-tap)
+is Universal Blue's staging area for Linux casks that are a poor fit for Flatpak, including
+IDEs and hardware utilities. Those applications update through Homebrew, independently of
+the OS image and system Flatpaks.
+
+Install one application directly—for example, Zed—with:
+
+```bash
+brew tap ublue-os/tap
+brew install --cask zed-linux
+```
+
+The fully qualified second command is equivalent:
+
+```bash
+brew install --cask ublue-os/tap/zed-linux
+```
+
+Useful casks in the inherited
+[`ide.Brewfile`](https://github.com/get-aurora-dev/common/blob/main/system_files/shared/usr/share/ublue-os/homebrew/ide.Brewfile)
+are:
+
+| Cask | Application |
+|---|---|
+| `visual-studio-code-linux` | Visual Studio Code |
+| `visual-studio-code-linux@insiders` | Visual Studio Code Insiders |
+| `vscodium-linux` | VSCodium |
+| `antigravity-linux` | Google Antigravity |
+| `jetbrains-toolbox-linux` | JetBrains Toolbox |
+| `zed-linux` | Zed |
+
+Run `ujust bbrew` for Aurora's interactive curated-Brewfile picker. Selecting `ide`
+installs the **whole** IDE bundle, including its `nvim`, `micro`, `helix`, and
+`devcontainer` formulae; use `brew install --cask <name>` when you want only one GUI
+application. Normal maintenance commands are:
+
+```bash
+brew upgrade
+brew uninstall --cask zed-linux
+```
 
 **The terminal environment is already there** — the prompt, the aliases and the zsh
 plugins are files in the image, not anything seeded into your home directory. **Your login
@@ -154,7 +211,10 @@ Also available: System Settings → **About this System**, which reads
 The [`iso` workflow](../.github/workflows/iso.yml) uses
 [`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer)
 to embed an already-published Qubix image in an x86_64 Kinoite installer (DD-054, DD-056,
-DD-058, DD-059, DD-060). It does not rebuild or release the OCI image.
+DD-058, DD-059, DD-060, DD-061). It also resolves the application refs in
+[`flatpak_refs/iso-refs.txt`](../flatpak_refs/iso-refs.txt), embeds their Flathub objects
+and runtime dependencies, and lets Anaconda install them without first-boot network
+access. It does not rebuild or release the OCI image.
 
 ### Automatic ISO releases
 

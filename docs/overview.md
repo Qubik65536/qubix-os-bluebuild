@@ -58,7 +58,7 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Simplified Chinese input | Fcitx 5 with English (US) and Pinyin defaults; `Super+Space` in Plasma, `Ctrl+Space` in Niri; native startup integration for both | `recipe.yml` (`dnf`), `files/system/etc/xdg/fcitx5/`, `files/system/etc/xdg/kwinrc`, `files/system/etc/niri/config.kdl` |
 | Second session | Niri added alongside — nothing KDE removed. System config shipped | `recipe.yml` (`dnf`), `files/system/etc/niri/config.kdl` |
 | Niri shell | DankMaterialShell, started by systemd under Niri only | `files/system/usr/lib/systemd/user/niri.service.d/` |
-| Flatpaks | Flathub configured; `io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` installed system-wide | `recipe.yml` (`default-flatpaks`) |
+| Flatpaks | Flathub configured; rebases seed Ungoogled Chromium and Loupe on first boot, while installer ISOs embed Aurora's standard/DX desktop set plus those two apps and explicitly omit Firefox (DD-061) | `recipe.yml` (`default-flatpaks`), `flatpak_refs/iso-refs.txt`, `.github/workflows/iso.yml` |
 | Trust | Cosign signing policy installed so signed rebases verify | `recipe.yml` (`signing`) |
 | Kernel *(active CachyOS variant; parked combined recipe)* | Fedora's kernel replaced with `kernel-cachyos`; initramfs regenerated | `recipe*-cachyos.yml`, `common-kernel-cachyos.yml` |
 | NVIDIA | The active NVIDIA image inherits Aurora's matched NVIDIA Open userspace and Fedora-kernel driver; the parked combined recipe contains an inactive `akmod-nvidia` rebuild path | `recipe-nvidia*.yml`, `common-nvidia-cachyos.yml` |

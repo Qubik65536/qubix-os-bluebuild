@@ -1926,6 +1926,34 @@ on 2026-08-04.*
 
 ## Open
 
+### Build and release
+
+- [ ] **BLD-012** — Embed the desktop Flatpaks in installer ISOs
+  - **Category:** Build / CI
+  - **Depends on:** BLD-005
+  - **Notes:** Reported 2026-09-01 after an ISO installation contained the layered RPMs
+    but not Bazaar or Qubix's browser. The first implementation supplied a validated
+    25-application-plus-theme manifest, but its automatic dependency scan failed in CI:
+    Ubuntu 24.04 provides `umoci` 0.4.7, which cannot unpack the source image's zstd OCI
+    layers. Prepending v0.6.0 with `GITHUB_PATH` did not fix the next run because the pinned
+    action performs the unpack under `sudo`, whose secure path selected `/usr/bin/umoci`.
+    `ujust update` cannot reconstruct an installer repository that was never embedded. Zed
+    remains optional in Homebrew and Firefox remains absent under DD-023.
+  - **Acceptance criteria:**
+    - A repository-owned manifest lists Aurora's default desktop Flatpak refs plus
+      Ungoogled Chromium and Loupe, with Firefox explicitly absent
+    - Every ISO build passes that manifest to the pinned installer action so Anaconda can
+      install the applications from the ISO without first-boot network access
+    - The action's privileged dependency scan resolves checksum-pinned `umoci` 0.6.0 from
+      `/usr/local/bin`, not Ubuntu's incompatible `/usr/bin/umoci` 0.4.7
+    - User and build documentation explains the ISO/rebase distinction, the scanner
+      compatibility constraint, and the inherited `ublue-os` Homebrew tap
+    - Workflow YAML, manifest syntax, Flathub refs, documentation, and context-cache
+      descriptions pass local validation
+    - The ISO workflow completes, then Bazaar and Ungoogled Chromium launch immediately
+      after installation without waiting for first-boot Flatpak seeding *(open — requires
+      a newly built ISO and installed-system check)*
+
 ### Image variants
 
 - [ ] **IMG-037** — Publish NVIDIA and NVIDIA+CachyOS variants

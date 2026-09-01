@@ -98,7 +98,9 @@ active `latest` images into x86_64 installers. A manual run can rebuild one vari
 another published tag. The workflow verifies each image signature, builds the ISO with
 [`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer),
 and uploads the ISO and checksum to a configured Microsoft 365 work/school OneDrive. Each
-variant keeps three scheduled versions separately from five push/manual versions; older
+installer embeds the declared Aurora/Qubix desktop Flatpaks and their runtimes, with
+Ungoogled Chromium in place of Firefox, so Bazaar and the browser are ready at first login.
+Each variant keeps three scheduled versions separately from five push/manual versions; older
 versions are permanently purged to reclaim space. A per-variant
 [GitHub Release](https://github.com/Qubik65536/qubix-os-bluebuild/releases) records the
 OneDrive download links, literal SHA-256, signed image digest, and build provenance.

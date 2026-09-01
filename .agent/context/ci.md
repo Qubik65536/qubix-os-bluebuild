@@ -1,6 +1,6 @@
 # Context: `.github/`
 
-**Covers:** `.github/workflows/build.yml`, `.github/workflows/iso.yml`,
+**Covers:** `.github/workflows/build.yml`, `.github/workflows/iso.yml`, `flatpak_refs/**`,
 `.github/actions/upload-onedrive/**`, `.github/dependabot.yml`, `.github/CODEOWNERS`,
 `.github/copilot-instructions.md`
 
@@ -56,6 +56,20 @@ is the **only** place images and ISOs are built.
 - Checks out `cosign.pub`, verifies the selected tag, extracts its signed manifest digest,
   and passes that digest as `image_src` to `JasonN3/build-container-installer` v1.5.0.
   All external actions are pinned to immutable commits with release comments.
+- `flatpak_refs/iso-refs.txt` is the commented source manifest for installer Flatpaks:
+  20 Aurora desktop apps plus the Breeze theme runtime, 3 Aurora DX apps, and Qubix's
+  Chromium/Loupe additions. The workflow strips comments, validates all 26 complete refs,
+  rejects duplicates/Firefox/missing required refs, and passes the generated directory to
+  the installer. The action resolves remaining runtimes and builds the offline Flathub
+  repository Anaconda installs (DD-061). Its dependency scanner remains explicitly enabled.
+- Ubuntu 24.04's `umoci` 0.4.7 cannot unpack BlueBuild's zstd OCI layers. Immediately
+  before the installer action, the workflow downloads official `umoci` v0.6.0 for amd64,
+  verifies SHA-256 `b51c267e…a3b71`, and installs it at `/usr/local/bin/umoci`. The next
+  step asserts that both user and sudo lookup resolve that exact path and version. A
+  `GITHUB_PATH`-only override does not work because the action unpacks through `sudo make`.
+  Do not remove this pin or disable dependency scanning: the fallback Lorax template
+  copies explicit refs but not automatically installed runtime/extension refs.
+  Zed stays optional through `ublue-os/tap`.
 - `image_signed: true` makes the installed system follow the selected tag through Qubix's
   signature policy. It is distinct from the explicit pre-build cosign verification.
 - Targets the GitHub `onedrive` environment and grants `id-token: write`. Environment
@@ -129,6 +143,14 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
 - `image_signed` does not authenticate the builder's registry copy. The separate cosign
   step and digest-valued `image_src` do; do not remove either or replace the digest with
   the mutable tag.
+- The installer action does **not** infer Flatpaks from the OCI image, its BlueBuild
+  configuration, or Aurora's Brewfiles. Removing `flatpak_remote_refs_dir` recreates an
+  ISO with missing Bazaar/browser apps. When Aurora changes its standard or DX Brewfile,
+  review and mirror the wanted refs in `flatpak_refs/iso-refs.txt`; never copy Firefox.
+- The action's `enable_flatpak_dependencies` must remain true, and the checksum-pinned
+  `/usr/local/bin/umoci` must precede `/usr/bin` for both normal and sudo lookup. Ubuntu's
+  old package fails on zstd; disabling the scan can produce an ISO repository without
+  required runtimes.
 - Adding an active variant also requires adding its choice and mapping in `iso.yml`.
 - The OneDrive target must be a provisioned Microsoft 365 work/school drive. The Entra app
   needs tenant-admin consent for application permission `Sites.ReadWrite.All`, which is
@@ -158,5 +180,6 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
 
 ## Update when
 
-You change triggers, permissions, action versions, image/ISO selection, OneDrive identity
-or retention, the matrix, or signing. Then also update `docs/build-and-release.md`.
+You change triggers, permissions, action versions, image/ISO selection, the installer
+Flatpak manifest, OneDrive identity or retention, the matrix, or signing. Then also update
+`docs/build-and-release.md`.
