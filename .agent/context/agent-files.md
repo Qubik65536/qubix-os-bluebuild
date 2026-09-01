@@ -113,6 +113,8 @@ releases older than three months are cleaned up best-effort (DD-060).
 `BLD-009` makes Entra federation failures diagnosable without tokens: the uploader logs
 safe GitHub OIDC claims, captures one structured Entra rejection, and the setup guide uses
 canonical owner case while explaining exact and immutable subject matching.
+`BLD-010` reduces Graph upload-session creation to the canonical drive-ID route with no
+optional body and expands Graph failures to status/code/message/request-ID diagnostics.
 `BRD-006` remains in Awaiting confirmation while hardware iterations converge: the menu
 now overrides bootupd's one-second timeout, respects GRUB's reverse canvas order, omits its
 minimum-sized progress widget, and uses protocol-v2 bounded Monaspace Krypton NF PF2 fonts.

@@ -629,6 +629,27 @@ Nothing stays in **Open** merely because CI has not run yet.
       task/design IDs, and whitespace pass locally; a configured CI run remains the
       external federation verification
 
+- [x] **BLD-010** — Use Graph's minimal canonical upload-session request
+  - **Category:** Build / CI
+  - **Depends on:** BLD-006, BLD-009
+  - **Notes:** Requested 2026-09-01 after federation succeeded but Graph rejected the
+    first upload session as malformed. Bash/YAML and a mocked uploader run through OIDC,
+    Entra exchange, drive discovery, existing folder traversal, and staging creation
+    verified the canonical drive/parent/filename URL, absence of an optional request body,
+    structured Graph status/code/request-ID rendering, cleanup targeting, token redaction,
+    task-ID uniqueness, and whitespace locally on 2026-09-01. A hosted transfer remains
+    the external Graph verification.
+  - **Acceptance criteria:**
+    - Large-file session creation uses the documented
+      `/drives/<drive-id>/items/<parent-id>:/<filename>:/createUploadSession` endpoint
+    - The session request omits optional uploadable-item metadata, relying on the default
+      fail-on-conflict behavior inside a unique empty staging directory
+    - Graph failures report HTTP status, error code, message, and request ID without
+      exposing authorization data
+    - Build documentation and CI context describe the minimal request and diagnostic
+    - Bash/YAML, a mocked session request contract, token redaction, task-ID uniqueness,
+      and whitespace pass locally; a hosted OneDrive upload remains external verification
+
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content
   - **Depends on:** IMG-005

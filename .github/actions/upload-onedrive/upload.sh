@@ -162,8 +162,14 @@ acquire_graph_token() {
 }
 
 graph_error_message() {
-  jq -r '.error.message // .error_description // "Microsoft Graph request failed"' \
-    "${work_dir}/graph-response" 2>/dev/null || echo "Microsoft Graph request failed"
+  jq -r --arg status "${GRAPH_STATUS:-unknown}" '
+    if .error then
+      "HTTP \($status); \(.error.code // "unknown_error"): \(.error.message // "Microsoft Graph request failed"); request-id=\(.error.innerError["request-id"] // .error.innerError.requestId // "unavailable")"
+    else
+      "HTTP \($status); \(.error_description // "Microsoft Graph request failed")"
+    end
+  ' "${work_dir}/graph-response" 2>/dev/null \
+    || echo "HTTP ${GRAPH_STATUS:-unknown}; Microsoft Graph request failed"
 }
 
 # Send an authenticated Graph request and retain its response body for the caller. Expected
@@ -330,7 +336,6 @@ upload_file() {
   local filename
   local encoded_parent
   local encoded_name
-  local request_body
   local total_size
   local offset=0
   local remaining
@@ -348,8 +353,10 @@ upload_file() {
   total_size="$(stat --format='%s' "${local_path}")"
   (( total_size > 0 )) || die "refusing to upload empty file ${local_path}"
 
-  request_body="$(jq -cn --arg name "${filename}" '{item: {name: $name, "@microsoft.graph.conflictBehavior": "fail"}}')"
-  graph_request POST "${drive_base}/items/${encoded_parent}:/${encoded_name}:/createUploadSession" "${request_body}" \
+  # The path already names a file inside a unique empty staging directory. Use Graph's
+  # canonical drive-ID endpoint and omit optional uploadable-item metadata; the documented
+  # default conflict behavior is `fail` and no body is required for a new file.
+  graph_request POST "${GRAPH_ROOT}/drives/${drive_id}/items/${encoded_parent}:/${encoded_name}:/createUploadSession" \
     || die "cannot create upload session for ${filename}: $(graph_error_message)"
   active_upload_url="$(jq -er '.uploadUrl' "${work_dir}/graph-response")"
   echo "Uploading ${filename} ($((total_size / 1024 / 1024)) MiB) to OneDrive"

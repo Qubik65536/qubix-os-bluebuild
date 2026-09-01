@@ -65,6 +65,9 @@ is the **only** place images and ISOs are built.
   uploads the ISO/checksum pair in aligned resumable chunks, verifies both byte counts,
   renames a staging directory into the complete `v-*` set, calculates the literal ISO
   SHA-256, and creates durable anonymous read-only links for both files.
+- Upload sessions use the canonical drive-ID/parent-ID/filename Graph route with no
+  optional request body. The unique staging folder makes Graph's default fail-on-conflict
+  behavior sufficient. Graph errors include status, code, message, and request ID.
 - Before exchange, the uploader decodes only the non-secret JWT payload and logs `iss`,
   `sub`, `aud`, repository/environment, and immutable owner/repository IDs. Entra rejection
   reports one safe HTTP/error-code/description diagnostic; neither assertion nor Graph
