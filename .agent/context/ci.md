@@ -1,7 +1,8 @@
 # Context: `.github/`
 
 **Covers:** `.github/workflows/build.yml`, `.github/workflows/iso.yml`,
-`.github/dependabot.yml`, `.github/CODEOWNERS`, `.github/copilot-instructions.md`
+`.github/actions/upload-onedrive/**`, `.github/dependabot.yml`, `.github/CODEOWNERS`,
+`.github/copilot-instructions.md`
 
 ## Purpose
 
@@ -40,8 +41,11 @@ are built.
   completed `bluebuild` run filtered to `main`, and still supports manual dispatch.
 - `select-images` guards automatic events on upstream `success`, a non-PR event, and the
   repository default branch. It emits all three active images at `latest` automatically,
-  or the one manually selected image/tag.
-- `build-iso` is an `ubuntu-latest` matrix with a 120-minute timeout and `fail-fast: false`.
+  or the one manually selected image/tag. It also emits the retention channel/count:
+  upstream `schedule` → `scheduled`/3; upstream `push` or either manual route → `push`/5;
+  any unknown upstream event fails closed.
+- `build-iso` is an `ubuntu-latest` matrix with a 180-minute timeout and `fail-fast: false`;
+  the limit covers both Lorax and the multi-gigabyte OneDrive transfer.
   Automatic runs build Standard, CachyOS, and NVIDIA independently; manual runs have one
   cell.
 - Inputs: active `image` choice (`standard`, `cachyos`, `nvidia`) and `image_tag` (default
@@ -54,18 +58,29 @@ are built.
   All external actions are pinned to immutable commits with release comments.
 - `image_signed: true` makes the installed system follow the selected tag through Qubix's
   signature policy. It is distinct from the explicit pre-build cosign verification.
-- Uploads the ISO and its generated checksum together with compression level 0, errors if
-  either output is absent, retains them seven days, and has no release/publication step.
-- Automatic concurrency is one `all-latest` run, so newer publication supersedes an older
-  in-progress ISO set. Manual concurrency remains per image/tag tuple.
-- Permission is only `contents: read`; source images are public and artifact upload needs
-  no additional token scope. DD-054 and DD-056 own the rationale and trigger policy.
+- Targets the GitHub `onedrive` environment and grants `id-token: write`. Environment
+  variables provide `ONEDRIVE_TENANT_ID`, `ONEDRIVE_CLIENT_ID`, and `ONEDRIVE_USER_ID`;
+  no Microsoft client secret or Azure subscription is used.
+- The repository-local `actions/upload-onedrive` exchanges GitHub OIDC for a Graph token,
+  uploads the ISO/checksum pair in aligned resumable chunks, verifies both byte counts,
+  and renames a staging directory into the complete `v-*` set.
+- OneDrive layout is `Qubix-OS/ISOs/<variant>/<scheduled|push>/v-<version>/`. After
+  publication, Graph permanently deletes complete directories beyond three scheduled or
+  five push/manual versions for that variant and channel. Staging directories are
+  excluded and cleaned up on action failure.
+- No ISO is uploaded as a GitHub Actions artifact or Release (DD-058).
+- Every trigger uses the non-cancelling `iso-onedrive` concurrency group. Whole workflow
+  runs serialize; the three automatic matrix cells still run in parallel. This bounds
+  staging to three concurrent ISOs and prevents cross-run retention races (DD-059).
+- Permissions are `contents: read` plus `id-token: write`; DD-054/DD-056 own source and
+  trigger policy, while DD-058 owns OneDrive identity, transfer, and retention.
 
 ### `dependabot.yml`
 
-Daily updates for the `github-actions` ecosystem: BlueBuild plus the checkout, cosign,
-container-installer, and artifact actions. Read changelogs before merging; action SHAs in
-`iso.yml` must remain immutable and keep their release comments.
+Daily updates for the `github-actions` ecosystem: BlueBuild plus the checkout, cosign, and
+container-installer actions. Read changelogs before merging; external action SHAs in
+`iso.yml` must remain immutable and keep their release comments. The OneDrive action is
+local and is reviewed with this repository.
 
 ### `CODEOWNERS`
 
@@ -97,11 +112,23 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
   step and digest-valued `image_src` do; do not remove either or replace the digest with
   the mutable tag.
 - Adding an active variant also requires adding its choice and mapping in `iso.yml`.
-- ISO artifacts expire after seven days and are not GitHub Releases.
-- Each successful default-branch image workflow now creates three multi-gigabyte artifacts;
-  retention and Actions storage consumption are deliberate consequences of DD-056.
+- The OneDrive target must be a provisioned Microsoft 365 work/school drive. The Entra app
+  needs tenant-admin consent for application permission `Sites.ReadWrite.All`, which is
+  tenant-wide even though the action addresses only the configured user.
+- Retention uses `permanentDelete`, not ordinary drive-item deletion. Excess versions do
+  not enter the recycle bin and cannot be restored. Item IDs come only from the selected
+  variant directory, and retention begins only after both new files verify.
+- A new `v-*` remains rollback-owned until retention succeeds. Upload or retention failure
+  attempts to permanently remove that invocation's directory; persistent Graph failure
+  can require manual cleanup, and a partial purge can leave fewer versions.
+- Manually dispatched image builds also trigger `workflow_run`, and `iso.yml` has its own
+  dispatch. Both intentionally share the five-version `push` pool; do not add a third
+  retention class implicitly.
+- With three active variants at 8 GB each, the steady retained payload is 192 GB and the
+  post-upload/pre-purge peak is 216 GB. Approximate sizes and metadata justify 250 GB of
+  available quota.
 
 ## Update when
 
-You change triggers, permissions, action versions, image/ISO selection, artifact retention,
-the matrix, or signing. Then also update `docs/build-and-release.md`.
+You change triggers, permissions, action versions, image/ISO selection, OneDrive identity
+or retention, the matrix, or signing. Then also update `docs/build-and-release.md`.

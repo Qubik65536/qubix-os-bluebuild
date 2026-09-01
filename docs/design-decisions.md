@@ -3229,7 +3229,7 @@ whole files rather than merged across precedence levels.
 
 ## DD-054 — Generate installer ISOs manually and retain them only as Actions artifacts
 
-**Status:** Accepted — amended by DD-056
+**Status:** Accepted — trigger policy amended by DD-056; artifact storage superseded by DD-058
 
 **Implements:** `BLD-003`
 
@@ -3315,7 +3315,7 @@ interprets in UTC and runs on Sunday at 00:00. Keep the push, pull-request, and
 
 ## DD-056 — Generate ISO artifacts after successful default-branch image publication
 
-**Status:** Accepted — amends DD-054
+**Status:** Accepted — amends DD-054; artifact storage superseded by DD-058
 
 **Implements:** `BLD-005`
 
@@ -3450,3 +3450,143 @@ it. Removing the block leaves copied assets inert, which is safer and recoverabl
 - Local checks can validate PNGs, shell syntax, markers, fonts, manifest integrity, and
   required theme components. Only a built image on real firmware can confirm rendering and
   every boot target; `BRD-006` waits in **Awaiting confirmation** for that check.
+
+---
+
+## DD-058 — Store three complete ISO versions per variant in Microsoft 365 OneDrive
+
+**Status:** Accepted — supersedes the artifact-storage parts of DD-054 and DD-056; retention amended by DD-059
+
+**Implements:** `BLD-006`
+
+**Context.** DD-054 and DD-056 retained each generated installer as an uncompressed,
+seven-day GitHub Actions artifact. The generated ISO is too large for that path to be a
+reliable delivery mechanism, and automatic publication multiplies it across three active
+variants. Microsoft 365 already provides a work/school OneDrive storage target, but a
+useful replacement has to handle multi-gigabyte transfers, avoid a permanent password or
+refresh token, and reclaim space rather than merely move old media into a recycle bin.
+
+Microsoft Graph's
+[`createUploadSession`](https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession?view=graph-rest-1.0)
+supports resumable sequential fragments below 60 MiB, with every non-final fragment
+aligned to 320 KiB. For application authentication, that endpoint currently requires the
+tenant-wide `Sites.ReadWrite.All` application permission. Graph's ordinary drive-item
+delete only sends content to the recycle bin;
+[`permanentDelete`](https://learn.microsoft.com/en-us/graph/api/driveitem-permanentdelete?view=graph-rest-1.0)
+reclaims it immediately and cannot be undone.
+
+**Decision.** Replace the ISO workflow's GitHub artifact step with a repository-local
+composite action under `.github/actions/upload-onedrive/`. The build job uploads the ISO
+and generated checksum directly from the runner into the configured Microsoft 365
+work/school user's OneDrive. Do not retain a second ISO copy as an Actions artifact and do
+not create a GitHub Release. Give each matrix cell 180 minutes for the installer build and
+the additional multi-gigabyte transfer.
+
+Authenticate without a Microsoft client secret. The `build-iso` job targets the GitHub
+environment `onedrive` and has `id-token: write`. The local action requests a run-scoped
+GitHub OIDC token whose audience is `api://AzureADTokenExchange`, exchanges it for a
+Microsoft Graph app token, and reads the tenant ID, client ID, and target user ID/UPN from
+environment variables. The Entra app has a federated credential bound to this repository's
+`onedrive` environment and the Graph application permission `Sites.ReadWrite.All` with
+administrator consent. Use a dedicated app registration because that permission is
+tenant-wide; no Azure subscription or app client secret is involved.
+
+Store versions below `Qubix-OS/ISOs/<variant>/`. A run first creates a unique
+`.upload-<version>` staging directory, uploads both files in 50 MiB fragments (160 ×
+320 KiB), follows Graph's reported next byte after an ambiguous request, and verifies both
+remote byte counts. Only then rename the staging directory to `v-<version>`, making a
+complete ISO/checksum pair visible to retention and users. The version name includes the
+selected tag, Fedora major, signed image digest prefix, GitHub run ID, and attempt.
+
+After publishing a pair, list every complete `v-*` directory within that variant, order by
+OneDrive creation time, retain the newest three, and permanently delete all older version
+directories. Never count `.upload-*` staging directories as versions. On failure, cancel
+the active upload session and permanently remove only the staging directory created by
+that invocation. Retention is per variant, so Standard, CachyOS, and NVIDIA each keep up to
+three complete versions.
+
+**Consequences.**
+
+- The oversized ISO no longer passes through GitHub artifact storage. The workflow run
+  keeps logs and status; the media itself is downloaded from OneDrive.
+- The target account must be a provisioned Microsoft 365 work/school OneDrive. A personal
+  Microsoft account is outside this authentication and permission design.
+- Repository setup now includes an Entra app registration, tenant admin consent, one
+  federated credential, the GitHub `onedrive` environment, and three environment variables.
+  Missing or mismatched setup fails the upload and therefore the matrix cell.
+- The Entra app can write across the tenant's SharePoint/OneDrive estate. OIDC removes a
+  reusable credential but does not narrow that API permission; administrators must treat
+  the dedicated app registration as privileged automation.
+- A complete version is an atomic directory from the retention policy's perspective. An
+  interrupted upload is never renamed into the `v-*` set, and a checksum is never retained
+  without its ISO as a complete version.
+- Purged versions do not enter the recycle bin and cannot be recovered. That
+  irreversibility is intentional to enforce the storage cap; the exact deletion target is
+  an opaque Graph item ID obtained from the selected variant directory.
+- Retention runs only after a new pair succeeds. If the retention call itself fails, the
+  new pair remains valid and a later successful run converges the variant back to three.
+- Local checks can parse the workflow/action YAML and exercise shell/static contracts, but
+  only a configured GitHub/Entra/OneDrive run can prove the external token exchange,
+  transfer, and tenant retention behavior.
+
+---
+
+## DD-059 — Retain scheduled and push/manual ISO histories independently
+
+**Status:** Accepted — amends DD-058
+
+**Implements:** `BLD-007`
+
+**Context.** DD-058 retained the newest three complete versions per variant in one pool.
+Scheduled weekly media and media generated after a repository push serve different needs:
+the scheduled history should remain small, while push media needs five versions and must
+not evict the scheduled set.
+
+The trigger chain has more paths than those two names imply. A successful manually
+dispatched `bluebuild` run emits a `workflow_run` event whose source event is
+`workflow_dispatch`, and `iso.yml` itself retains a direct manual single-variant dispatch.
+Leaving those paths unclassified would either make retention ambiguous or introduce an
+unbounded third pool. Concurrent workflow runs would also make a hard storage maximum
+impossible: each run stages its full ISO before post-upload retention.
+
+**Decision.** Add a retention channel to ISO selection and to the local OneDrive action.
+Map an upstream `schedule` event to channel `scheduled` with a limit of three versions per
+variant. Map an upstream `push`, a manually dispatched upstream image build, and a directly
+dispatched ISO to channel `push` with a limit of five. Reject any other upstream source
+event. Manual media is therefore ad hoc push-history media and can evict an older push
+version; it never evicts scheduled history.
+
+Store complete versions below
+`Qubix-OS/ISOs/<variant>/<scheduled|push>/v-<version>/`. Create the staging directory inside
+that channel and list/purge only that channel's `v-*` children. Keep DD-058's upload,
+verification, staging rename, and permanent-delete semantics, except that a renamed new
+version remains rollback-owned until its retention pass succeeds. If retention fails,
+attempt to permanently delete the new version. A persistent Graph permission/service
+failure can still require manual cleanup; the calculated ceiling assumes deletion works.
+
+Put every ISO workflow run in one non-cancelling `iso-onedrive` concurrency group. Whole
+runs are serialized, while the three variant jobs inside an accepted automatic run remain
+parallel. This prevents retention races and bounds temporary staging to at most one ISO
+per active variant.
+
+**Consequences.**
+
+- Each variant retains up to eight complete ISOs: three scheduled plus five push/manual.
+  Standard, CachyOS, and NVIDIA histories are independent, as are their two channels.
+- At exactly 8 GB per ISO, retained storage is `(3 + 5) × 8 GB = 64 GB` per variant and
+  `3 × 64 GB = 192 GB` for all active variants, excluding negligible checksums.
+- Because retention follows upload, an automatic three-variant run can temporarily add
+  `3 × 8 GB`; peak payload storage is therefore 216 GB. At 8 GiB per file, the equivalent
+  is 216 GiB, about 232 GB decimal. Provisioning 250 GB leaves practical size and metadata
+  margin.
+- A manual ISO run has one matrix cell and cannot overlap another ISO workflow run, so it
+  cannot exceed the automatic matrix's three-file peak.
+- A purge failure can remove an old version before the new version is rolled back, leaving
+  fewer than the target count. If rollback is rejected by the same Graph failure, manual
+  removal is required; normal successful operation remains bounded.
+- A running ISO workflow is no longer cancelled by a newer ISO event. GitHub queues the
+  newer work under the shared concurrency group, avoiding partial uploads and cross-run
+  purge races at the cost of waiting for the active installer build and upload.
+- The workflow still records manual image publications. The retention table, rather than
+  an assumption that only schedule and push can reach ISO generation, is the source of
+  truth for future trigger changes.

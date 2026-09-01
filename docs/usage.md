@@ -153,35 +153,43 @@ Also available: System Settings → **About this System**, which reads
 
 The [`iso` workflow](../.github/workflows/iso.yml) uses
 [`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer)
-to embed an already-published Qubix image in an x86_64 Kinoite installer (DD-054, DD-056).
-It does not rebuild or release the OCI image.
+to embed an already-published Qubix image in an x86_64 Kinoite installer (DD-054, DD-056,
+DD-058, DD-059). It does not rebuild or release the OCI image.
 
-### Automatic artifacts
+### Automatic OneDrive uploads
 
 After the `bluebuild` image workflow succeeds on the default branch, the ISO workflow
 automatically builds `latest` media for Standard, CachyOS, and NVIDIA in parallel. A
 failed, cancelled, pull-request, or non-default-branch image run does not build ISO media.
 One ISO failure does not cancel the other two.
 
-Open the completed **iso** run and download the desired file from **Artifacts**. Each
-artifact is named like `qubix-os-standard-latest-f44-x86_64` and contains the ISO plus its
-`-CHECKSUM` file. It expires after seven days and is not attached to a GitHub Release.
-Expect a multi-gigabyte download; the exact size is shown on the completed run.
+After the **iso** run succeeds, sign in to the configured Microsoft 365 work/school
+OneDrive and open `Qubix-OS/ISOs/<variant>/<channel>/`. Weekly builds are under
+`scheduled`; push and manual builds are under `push`. The newest `v-*` directory contains
+an ISO named like `qubix-os-standard-latest-f44-x86_64.iso` and its `-CHECKSUM` file.
+Download both. The workflow permanently keeps three scheduled and five push/ad-hoc
+versions per variant; it does not create a GitHub Actions artifact or GitHub Release.
+Expect a multi-gigabyte download.
+
+The repository maintainer must complete the Entra app, GitHub OIDC environment, and
+OneDrive-owner setup once; [`build-and-release.md`](build-and-release.md#microsoft-365-onedrive-setup)
+is the authoritative procedure.
 
 ### Manual build in the GitHub interface
 
 1. Open **Actions → iso → Run workflow**.
 2. Select `standard`, `cachyos`, or `nvidia` and enter the published image tag. `latest`
    is the normal choice.
-3. When the run succeeds, open it and download the artifact from **Artifacts**. The
-   workflow derives Fedora's major version from the signed image metadata; there is no
-   separate version input to keep in sync.
+3. When the run succeeds, download the ISO/checksum pair from the newest `v-*` directory
+   under `Qubix-OS/ISOs/<selected variant>/push/` in OneDrive. The workflow derives Fedora's
+   major version from the signed image metadata; there is no separate version input to
+   keep in sync.
 
 ### Manual build with GitHub CLI
 
-Prerequisites are an authenticated [GitHub CLI](https://cli.github.com/) and permission to
-dispatch this repository's workflows. This exact sequence builds the current standard
-Fedora 44 image and downloads its artifact:
+Prerequisites are an authenticated [GitHub CLI](https://cli.github.com/), permission to
+dispatch this repository's workflows, and access to the configured Microsoft 365
+OneDrive. This sequence builds the current standard image and waits for its upload:
 
 ```bash
 gh workflow run iso.yml --ref main \
@@ -191,15 +199,13 @@ gh workflow run iso.yml --ref main \
 run_id="$(gh run list --workflow=iso.yml --event=workflow_dispatch --limit=1 \
   --json databaseId --jq '.[0].databaseId')"
 gh run watch "${run_id}" --exit-status
-gh run download "${run_id}" \
-  --name qubix-os-standard-latest-f44-x86_64 \
-  --dir qubix-os-standard-latest-f44-x86_64
 ```
 
-Verify the downloaded ISO before writing it to media:
+Download both files from the newest `Qubix-OS/ISOs/standard/push/v-*` OneDrive directory
+into one local directory, then verify the ISO before writing it to media:
 
 ```bash
-cd qubix-os-standard-latest-f44-x86_64
+cd /path/to/downloaded-version
 sha256sum -c qubix-os-standard-latest-f44-x86_64.iso-CHECKSUM
 ```
 
@@ -209,8 +215,9 @@ The workflow verifies the selected tag with `cosign.pub`, pins the verified dige
 ISO payload, derives Fedora's major version from that digest's
 `org.opencontainers.image.version` label, and configures the installed system to enforce
 Qubix's signed-image policy for later updates. A missing/unrecognisable version label,
-missing tag, invalid signature, installer failure, or missing output fails the run before
-an artifact is retained.
+missing tag, invalid signature, installer failure, missing output, incomplete OneDrive
+transfer, or remote size mismatch fails the run before a complete `v-*` version is
+published.
 
 ## Uninstalling
 

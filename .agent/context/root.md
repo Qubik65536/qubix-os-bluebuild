@@ -10,7 +10,8 @@ Public-facing entry point, licence, signing trust anchor, and ignore rules.
 
 - **`README.md`** — the public front page: what Qubix OS is, its three active
   standard/CachyOS/NVIDIA variants, the parked NVIDIA+CachyOS recipe, the two-step install,
-  weekly Sunday 00:00 UTC rebuild cadence, automatic and manual artifact-only ISO routes,
+  weekly Sunday 00:00 UTC rebuild cadence, automatic and manual ISO routes to Microsoft
+  365 OneDrive with three scheduled plus five push/manual versions retained per variant,
   cosign verification, and links into `docs/` and `AGENTS.md`. Keep it short; detail
   belongs in `docs/`.
 - **`LICENSE`** — Apache License 2.0, inherited from the BlueBuild template.

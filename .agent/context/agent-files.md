@@ -92,12 +92,20 @@ re-enabling publication; the retained recipe still fails closed.
 `IMG-038` selects the already-installed GTK backend for Niri's file chooser because the
 upstream GNOME selection needs Nautilus, which the image does not install. It waits in
 Awaiting confirmation for Zed and Flatpak Chromium dialog checks on a built image (DD-053).
-`BLD-003` completed the manual, signed-source, digest-pinned, artifact-only ISO workflow
-requested on 2026-08-31; `DOC-013` remains open until an artifact is built and booted.
+`BLD-003` completed the manual, signed-source, digest-pinned ISO workflow requested on
+2026-08-31; `DOC-013` remains open until a OneDrive-hosted ISO is built and booted.
 `BLD-004` changes only the unattended image timer to Sunday at 00:00 UTC each week;
 push, pull-request, and manual image builds remain unchanged (DD-055).
-`BLD-005` completed automatic all-variant ISO artifacts after successful default-branch
-image publication, while retaining the manual single-variant path (DD-056).
+`BLD-005` completed automatic all-variant ISO generation after successful default-branch
+image publication, while retaining the manual single-variant path (DD-056); BLD-006 later
+replaced its artifact storage.
+`BLD-006` replaces the oversized Actions-artifact handoff with a GitHub OIDC-authenticated
+Microsoft 365 OneDrive upload. Complete ISO/checksum pairs are retained as the newest three
+versions per variant; older directories are permanently purged (DD-058).
+`BLD-007` separates scheduled history (three) from push/manual history (five), maps both
+manual ISO routes into the bounded push pool, and serializes whole ISO workflow runs so an
+8 GB payload has a documented 192 GB steady/216 GB peak ceiling across three variants
+(DD-059).
 `BRD-006` remains in Awaiting confirmation while hardware iterations converge: the menu
 now overrides bootupd's one-second timeout, respects GRUB's reverse canvas order, omits its
 minimum-sized progress widget, and uses protocol-v2 bounded Monaspace Krypton NF PF2 fonts.

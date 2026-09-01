@@ -97,9 +97,11 @@ automatically starts the [`iso` workflow](.github/workflows/iso.yml), which turn
 active `latest` images into x86_64 installers. A manual run can rebuild one variant or use
 another published tag. The workflow verifies each image signature, builds the ISO with
 [`JasonN3/build-container-installer`](https://github.com/JasonN3/build-container-installer),
-and uploads the ISO and checksum as a GitHub Actions artifact for seven days. It does not
-create a GitHub Release. See [`docs/usage.md`](docs/usage.md#building-an-offline-iso) for
-the inputs and download commands.
+and uploads the ISO and checksum to a configured Microsoft 365 work/school OneDrive. Each
+variant keeps three scheduled versions separately from five push/manual versions; older
+versions are permanently purged to reclaim space. It creates neither a GitHub Actions
+artifact nor a GitHub Release. See
+[`docs/usage.md`](docs/usage.md#building-an-offline-iso) for dispatch and download.
 
 ## Verification
 

@@ -102,7 +102,8 @@ Nothing needs more; do not widen these.
 
 [`.github/workflows/iso.yml`](../.github/workflows/iso.yml) turns **already published**
 images into installation media. It runs automatically after successful default-branch
-image publication and retains a manual single-image/tag path (DD-054, DD-056).
+image publication and retains a manual single-image/tag path (DD-054, DD-056, DD-058,
+DD-059).
 
 | Aspect | Value |
 |---|---|
@@ -111,10 +112,11 @@ image publication and retains a manual single-image/tag path (DD-054, DD-056).
 | Automatic matrix | `standard`, `cachyos`, `nvidia` from `latest`; `fail-fast: false` |
 | Installer action | `JasonN3/build-container-installer` v1.5.0, pinned to commit `bed71f8…` |
 | Installer variant | Kinoite |
-| Timeout | 120 minutes |
+| Timeout | 180 minutes (installer build plus multi-gigabyte upload) |
 | Output | ISO plus generated SHA-256 checksum |
-| Storage | GitHub Actions artifact, seven days, compression disabled |
-| Publication | No GitHub Release and no registry upload |
+| Storage | Microsoft 365 work/school OneDrive; 3 scheduled + 5 push/ad-hoc versions per variant |
+| Publication | `Qubix-OS/ISOs/<variant>/<channel>/v-<version>/`; no GitHub artifact or Release |
+| Authentication | GitHub OIDC → Microsoft Entra federated credential; no client secret |
 
 ### ISO inputs
 
@@ -136,7 +138,19 @@ An accepted automatic run emits all three active image names and `latest` into t
 matrix. A manual run emits only the selected image and tag. `fail-fast: false` prevents
 one Lorax failure from cancelling media for the other variants. Because the image workflow
 itself must succeed first, a failed image variant prevents that upstream run from starting
-any automatic ISO jobs.
+any automatic ISO jobs. The upstream event also selects an independent retention channel:
+
+| Image-build origin | OneDrive channel | Versions per variant |
+|---|---|---:|
+| Weekly `schedule` | `scheduled` | 3 |
+| Default-branch `push` | `push` | 5 |
+| Manually dispatched `bluebuild` | `push` | 5 |
+| Directly dispatched `iso` | `push` | 5 |
+
+The two manual paths are real: `workflow_run` observes a successful image
+`workflow_dispatch`, and `iso.yml` retains its own manual one-variant route. Both share the
+push/ad-hoc pool instead of creating an unbounded third class. An unknown upstream event
+fails selection rather than choosing retention implicitly.
 
 The preparation step maps the friendly variant to its exact GHCR image. The workflow then
 checks that tag against [`cosign.pub`](../cosign.pub), extracts the signed manifest digest,
@@ -147,9 +161,94 @@ target, where `image_signed: true` enables Qubix's embedded signature policy. Th
 contains the manifest that CI authenticated while later updates continue to follow the
 selected channel and require valid signatures.
 
-After a successful ISO run, download the named artifact from the run summary or use
-`gh run download`; [`usage.md`](usage.md#building-an-offline-iso) has the complete command
-sequence and checksum check.
+### Microsoft 365 OneDrive setup
+
+The upload targets a **work or school** OneDrive owned by the configured Microsoft 365
+user, including a tenant-native `user@tenant.onmicrosoft.com` account. One-time setup:
+
+1. Make sure the target user is licensed for OneDrive and has opened OneDrive at least
+   once, so its drive is provisioned.
+2. In Microsoft Entra ID, create a single-tenant app registration for this repository.
+3. Under **API permissions**, add the Microsoft Graph **application** permission
+   `Sites.ReadWrite.All`, grant tenant administrator consent, and add no client secret.
+   Microsoft currently requires that application permission for
+   [`createUploadSession`](https://learn.microsoft.com/en-us/graph/api/driveitem-createuploadsession?view=graph-rest-1.0).
+   It can write every SharePoint site and OneDrive in the tenant, so use a dedicated app
+   registration and review its consent like any other tenant-wide automation identity.
+4. Add a federated credential to the app registration: scenario **GitHub Actions deploying
+   Azure resources**, organisation `qubik65536`, repository `qubix-os-bluebuild`, entity
+   type **Environment**, environment `onedrive`. Its audience remains
+   `api://AzureADTokenExchange`.
+5. In GitHub, create the `onedrive` Actions environment and set these environment
+   variables (not secrets):
+
+   | Variable | Value |
+   |---|---|
+   | `ONEDRIVE_TENANT_ID` | Entra **Directory (tenant) ID** GUID |
+   | `ONEDRIVE_CLIENT_ID` | App registration **Application (client) ID** GUID |
+   | `ONEDRIVE_USER_ID` | Target user's object ID or full user principal name, such as `iso@tenant.onmicrosoft.com` |
+
+No Azure subscription is required. The `build-iso` job names that environment, requests
+`id-token: write`, and exchanges the run-scoped GitHub token directly for a Microsoft
+Graph token. An environment approval rule can put a human gate before all three automatic
+uploads, but it also means every automatic ISO run waits for that approval.
+
+### OneDrive layout and retention
+
+Each matrix cell uploads directly from its runner; the multi-gigabyte ISO never passes
+through GitHub artifact storage. The local action under
+`.github/actions/upload-onedrive/` creates this layout:
+
+```text
+Qubix-OS/ISOs/
+├── standard/
+│   ├── scheduled/v-latest-f44-<digest>-run-<run>-<attempt>/
+│   └── push/v-latest-f44-<digest>-run-<run>-<attempt>/
+├── cachyos/{scheduled,push}/v-<version>/
+└── nvidia/{scheduled,push}/v-<version>/
+```
+
+Each `v-*` directory contains exactly the generated ISO and its `-CHECKSUM` file. Uploads
+use sequential 50 MiB Microsoft Graph fragments: 50 MiB is below Graph's 60 MiB request
+limit and is divisible by its required 320 KiB boundary. Both remote byte counts must
+match before the temporary `.upload-*` directory is renamed to `v-*`.
+
+After publication, retention is evaluated **within that variant and trigger channel**.
+The action sorts complete `v-*` directories by their OneDrive creation time, keeps three
+under `scheduled` or five under `push`, and calls Graph's
+[`permanentDelete`](https://learn.microsoft.com/en-us/graph/api/driveitem-permanentdelete?view=graph-rest-1.0)
+for every older directory. Permanent deletion is deliberate: moving multi-gigabyte media
+into the recycle bin would not reclaim the intended storage, and purged versions cannot be
+restored. Staging directories are never counted as versions; the action removes its own
+staging directory if an upload fails. A renamed new version remains rollback-owned until
+retention succeeds. If listing or purging fails, cleanup attempts to permanently remove
+that new version; an earlier old-version deletion may already have reduced the history
+below its target.
+
+All ISO workflow runs share one non-cancelling `iso-onedrive` concurrency group. Runs are
+therefore serialized, while the three variants inside one automatic matrix still upload
+in parallel. This prevents retention races and makes the storage ceiling finite.
+
+### OneDrive capacity planning
+
+For an 8 GB ISO, ignoring the tiny checksum files:
+
+| Scope | Calculation | Retained storage |
+|---|---:|---:|
+| One variant | `(3 scheduled + 5 push) × 8 GB` | 64 GB |
+| Three active variants | `3 × 64 GB` | 192 GB |
+
+Retention runs after the new pair uploads, so one automatic matrix can temporarily add
+one ISO per variant before the oldest directories are purged: `192 GB + (3 × 8 GB) =
+216 GB` peak. A manual run uploads only one variant and cannot overlap another ISO workflow
+run, so it does not exceed that automatic-run peak. If “8 GB” actually means 8 GiB, the
+corresponding figures are 192 GiB (about 206 GB) retained and 216 GiB (about 232 GB) peak.
+Because the measured ISO size is approximate and OneDrive has metadata overhead, provision
+at least 250 GB of available quota. The 216 GB figure assumes Graph deletion is available;
+a persistent permission/service failure can leave a rollback item needing manual cleanup.
+
+[`usage.md`](usage.md#building-an-offline-iso) covers manual dispatch, downloading the
+newest pair from OneDrive, and checking its checksum.
 
 ## Signing
 
@@ -192,9 +291,10 @@ image's `latest` channel is the current stable Fedora (DD-018).
 ## Dependency updates
 
 [`.github/dependabot.yml`](../.github/dependabot.yml) checks GitHub Actions daily and
-opens PRs for the BlueBuild, checkout, cosign, container-installer, and artifact actions.
-Review upstream changelogs before merging. ISO workflow actions use immutable commit SHAs
-with release comments so Dependabot can retain the pinning style.
+opens PRs for the BlueBuild, checkout, cosign, and container-installer actions. Review
+upstream changelogs before merging. External ISO workflow actions use immutable commit
+SHAs with release comments so Dependabot can retain the pinning style; the OneDrive
+uploader is repository-local and changes with this repository.
 
 ## When a build fails
 
@@ -259,7 +359,20 @@ with release comments so Dependabot can retain the pinning style.
      the replacement label is part of the verified manifest.
    - **ISO Lorax/repository failure** → Fedora may have retired or moved the selected old
      tag's installer repositories. The Fedora version is derived from the image, not typed.
-   - **ISO upload says no files were found** → the installer action failed to emit the ISO
-     or checksum at its advertised outputs. Keep `if-no-files-found: error` intact.
+   - **OneDrive action reports a required value is missing** → create/configure the GitHub
+     `onedrive` environment and its three variables exactly as documented above.
+   - **OneDrive OIDC exchange fails** → the Entra federated credential's organisation,
+     repository, environment (`onedrive`), or audience does not match the GitHub token.
+     Do not replace federation with a stored client secret.
+   - **OneDrive Graph request returns access denied** → confirm the app has the Graph
+     application permission `Sites.ReadWrite.All` with tenant admin consent, and that the
+     configured work/school user's OneDrive is provisioned.
+   - **OneDrive upload stalls** → inspect the reported HTTP status and byte offset. The
+     action queries the resumable session before retrying; do not reduce chunk alignment
+     below Graph's 320 KiB contract or add an Authorization header to fragment PUTs.
+   - **OneDrive retention fails** → the action attempts to roll back the newly renamed
+     version. If Graph also rejects cleanup, remove that run's `v-*` directory manually;
+     if failure came after one older deletion, the history may contain fewer than its
+     target. Fix access and re-run the same source class.
 3. Record anything non-obvious: a `plan.md` task if it needs fixing, a `DD-###` record if
    it changes a decision, and a note in the relevant `docs/` page.

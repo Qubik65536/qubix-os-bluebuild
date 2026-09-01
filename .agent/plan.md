@@ -534,6 +534,52 @@ Nothing stays in **Open** merely because CI has not run yet.
       describe the trigger relationship and artifact-storage consequence
     - Workflow YAML, expressions, and shell blocks pass local validation
 
+- [x] **BLD-006** — Upload installer ISOs to Microsoft 365 OneDrive
+  - **Category:** Build / CI
+  - **Depends on:** BLD-005
+  - **Notes:** Requested 2026-09-01 because the generated ISOs are too large for the
+    repository's GitHub Actions artifact path. OneDrive becomes the media store; this is
+    not a second copy after artifact upload. Workflow/action YAML, Bash syntax, executable
+    mode, the 50 MiB/320 KiB chunk invariant, required-input failure, stale artifact
+    references, and whitespace were checked locally on 2026-09-01. A configured hosted run
+    remains the external integration check.
+  - **Acceptance criteria:**
+    - The ISO job uploads each ISO and its checksum directly to a configured Microsoft 365
+      work/school OneDrive without first storing the ISO as a GitHub Actions artifact
+    - Authentication uses a GitHub OIDC federated credential and keeps no Microsoft client
+      secret in the repository or Actions configuration
+    - Large files use resumable Microsoft Graph upload sessions with valid sequential chunk
+      boundaries and fail closed on an incomplete transfer
+    - Each variant has version directories containing one ISO/checksum pair, and retention
+      permanently removes all but the three newest complete versions only after the new pair
+      succeeds
+    - Workflow configuration, Entra/OneDrive setup, retention semantics, failure triage,
+      `DD-058`, and `.agent/context/` are documented
+    - The workflow parses as YAML and the local action/script pass available static checks
+
+- [x] **BLD-007** — Split ISO retention by originating build trigger
+  - **Category:** Build / CI
+  - **Depends on:** BLD-006
+  - **Notes:** Requested 2026-09-01. Scheduled image builds and push image builds do not
+    evict one another. The existing chain also accepts successful manually dispatched
+    `bluebuild` runs, and `iso.yml` itself has a manual dispatch route; both count against
+    the push/ad-hoc pool so no third unbounded retention class is introduced. YAML/Bash,
+    all four supported selector paths, unknown-event rejection, action input wiring,
+    global concurrency, channel validation, chunk alignment, whitespace, and the storage
+    arithmetic were checked locally on 2026-09-01.
+  - **Acceptance criteria:**
+    - ISO selection maps an upstream `schedule` event to retention channel `scheduled`
+      with three versions, and an upstream `push` event to channel `push` with five
+    - Both manual ISO routes use the five-version `push` channel and unknown upstream event
+      types fail closed
+    - OneDrive stores and purges complete versions independently below
+      `<variant>/scheduled/` and `<variant>/push/`
+    - ISO workflow runs are globally serialized so concurrent staging uploads cannot make
+      the documented maximum storage requirement unbounded
+    - Documentation states the steady-state and peak storage calculation for 8 GB ISOs,
+      and `DD-059` plus `.agent/context/` record the trigger and manual-run policy
+    - Workflow/action YAML and Bash pass the available static checks
+
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content
   - **Depends on:** IMG-005
@@ -1883,11 +1929,12 @@ on 2026-08-04.*
 - [ ] **DOC-013** — Document the ISO generation procedure concretely
   - **Category:** Documentation
   - **Depends on:** DOC-008
-  - **Notes:** BLD-003 and BLD-005 replaced the upstream-only link with the automatic and
-    manual workflow paths, GitHub CLI, artifact-download, and checksum procedure. The
-    prerequisites and multi-gigabyte expectation are documented. This task remains open
-    until the workflow produces an artifact, its measured size is recorded, and that ISO
-    is booted.
+  - **Notes:** BLD-003 and BLD-005 replaced the upstream-only link with automatic and
+    manual workflow paths; BLD-006 moved delivery from an oversized Actions artifact to
+    OneDrive. GitHub CLI dispatch/watch, OneDrive download, and checksum procedures plus
+    the multi-gigabyte expectation are documented. This task remains open until the
+    workflow produces a OneDrive version, its measured size is recorded, and that ISO is
+    booted.
   - **Acceptance criteria:**
     - `docs/usage.md` contains the exact command sequence used for this image
     - Prerequisites and approximate output size are stated

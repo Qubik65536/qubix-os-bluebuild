@@ -1,10 +1,10 @@
 # Qubix OS — build installation media from published images.
 #
 # This workflow does not build or publish the source OCI image. It turns an existing,
-# signed GHCR image into an x86_64 Kinoite installer and keeps the ISO plus checksum only
-# as a short-lived Actions artifact. A successful default-branch image workflow builds all
-# active variants; manual dispatch can build one variant/tag. See DD-054, DD-056, and
-# docs/build-and-release.md.
+# signed GHCR image into an x86_64 Kinoite installer and sends the ISO plus checksum to a
+# Microsoft 365 OneDrive. A successful default-branch image workflow builds all active
+# variants; manual dispatch can build one variant/tag. See DD-054, DD-056, DD-058, DD-059,
+# and docs/build-and-release.md.
 name: iso
 
 # ── Triggers and manual inputs ─────────────────────────────────────────────────
@@ -38,12 +38,11 @@ on:
         default: latest
 
 # ── Concurrency and permissions ───────────────────────────────────────────────
-# Re-running the same request replaces an in-progress attempt. Reading the repository is
-# the only token permission needed: the source images are public and artifacts require no
-# additional permission grant.
+# Serialize whole ISO runs so retention never races another run or accumulates unbounded
+# staging uploads. The three variants inside one automatic matrix still run in parallel.
 concurrency:
-  group: iso-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && inputs.image || 'all' }}-${{ inputs.image_tag || 'latest' }}
-  cancel-in-progress: true
+  group: iso-onedrive
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -52,7 +51,7 @@ jobs:
   # ── Select automatic or manual media ────────────────────────────────────────
   # Automatic runs fan out across every active image at `latest`. Manual runs preserve
   # their one-image/tag request. A failed or irrelevant upstream completion skips here,
-  # before any image pull or artifact storage is consumed.
+  # before any image pull or OneDrive storage is consumed.
   select-images:
     name: Select ISO images
     if: >-
@@ -64,6 +63,8 @@ jobs:
     outputs:
       images: ${{ steps.select.outputs.images }}
       image_tag: ${{ steps.select.outputs.image_tag }}
+      retention_channel: ${{ steps.select.outputs.retention_channel }}
+      keep_versions: ${{ steps.select.outputs.keep_versions }}
     steps:
       - name: Select images and tag
         id: select
@@ -71,6 +72,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REQUESTED_IMAGE: ${{ inputs.image }}
           REQUESTED_TAG: ${{ inputs.image_tag }}
+          UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
         run: |
           set -euo pipefail
 
@@ -85,20 +87,46 @@ jobs:
             fi
             images="[\"${REQUESTED_IMAGE}\"]"
             image_tag="${REQUESTED_TAG}"
+            # Direct manual ISO runs share the bounded push/ad-hoc retention pool.
+            retention_channel="push"
+            keep_versions="5"
           else
             images='["standard","cachyos","nvidia"]'
             image_tag="latest"
+            case "${UPSTREAM_EVENT}" in
+              schedule)
+                retention_channel="scheduled"
+                keep_versions="3"
+                ;;
+              push|workflow_dispatch)
+                # A manually dispatched bluebuild also reaches workflow_run.
+                retention_channel="push"
+                keep_versions="5"
+                ;;
+              *)
+                echo "unsupported upstream event for ISO retention: ${UPSTREAM_EVENT}" >&2
+                exit 1
+                ;;
+            esac
           fi
 
           echo "images=${images}" >> "${GITHUB_OUTPUT}"
           echo "image_tag=${image_tag}" >> "${GITHUB_OUTPUT}"
+          echo "retention_channel=${retention_channel}" >> "${GITHUB_OUTPUT}"
+          echo "keep_versions=${keep_versions}" >> "${GITHUB_OUTPUT}"
 
   # ── Build and retain the installer ──────────────────────────────────────────
   build-iso:
     name: Build ${{ matrix.image }} ISO
     needs: select-images
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    # A named environment gives Entra one stable OIDC subject for automatic and manual runs.
+    # Its variables identify the tenant, app registration, and work/school OneDrive owner.
+    environment: onedrive
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -162,11 +190,14 @@ jobs:
             exit 1
           fi
           fedora_version="${BASH_REMATCH[2]}"
-          artifact_name="qubix-os-${IMAGE_VARIANT}-${IMAGE_TAG}-f${fedora_version}-x86_64"
+          iso_basename="qubix-os-${IMAGE_VARIANT}-${IMAGE_TAG}-f${fedora_version}-x86_64"
+          digest_short="${digest#sha256:}"
+          onedrive_version="${IMAGE_TAG}-f${fedora_version}-${digest_short:0:12}-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           echo "image_src=docker://${pinned_ref}" >> "${GITHUB_OUTPUT}"
           echo "fedora_version=${fedora_version}" >> "${GITHUB_OUTPUT}"
-          echo "artifact_name=${artifact_name}" >> "${GITHUB_OUTPUT}"
+          echo "iso_basename=${iso_basename}" >> "${GITHUB_OUTPUT}"
+          echo "onedrive_version=${onedrive_version}" >> "${GITHUB_OUTPUT}"
           echo "Verified ${IMAGE_REF} at ${digest}"
           echo "Using Fedora ${fedora_version} from org.opencontainers.image.version=${image_version}"
 
@@ -183,20 +214,22 @@ jobs:
           image_signed: true
           image_src: ${{ steps.verify.outputs.image_src }}
           image_tag: ${{ needs.select-images.outputs.image_tag }}
-          iso_name: build/${{ steps.verify.outputs.artifact_name }}.iso
+          iso_name: build/${{ steps.verify.outputs.iso_basename }}.iso
           variant: Kinoite
           version: ${{ steps.verify.outputs.fedora_version }}
 
-      # ISOs are already compressed, so recompressing wastes runner time for negligible
-      # savings. A seven-day lifetime keeps ad-hoc media available without making Actions
-      # storage a release channel. The generated checksum travels with the ISO.
-      - name: Upload ISO artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      # Upload directly from the builder because the ISO exceeds the useful Actions-artifact
+      # path. The local action publishes the pair atomically and permanently purges complete
+      # versions beyond this trigger channel's limit within this variant.
+      - name: Upload ISO to Microsoft 365 OneDrive
+        uses: ./.github/actions/upload-onedrive
         with:
-          name: ${{ steps.verify.outputs.artifact_name }}
-          path: |
-            ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}
-            ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}-CHECKSUM
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
+          tenant-id: ${{ vars.ONEDRIVE_TENANT_ID }}
+          client-id: ${{ vars.ONEDRIVE_CLIENT_ID }}
+          user-id: ${{ vars.ONEDRIVE_USER_ID }}
+          variant: ${{ matrix.image }}
+          retention-channel: ${{ needs.select-images.outputs.retention_channel }}
+          version: ${{ steps.verify.outputs.onedrive_version }}
+          iso-path: ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}
+          checksum-path: ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}-CHECKSUM
+          keep-versions: ${{ needs.select-images.outputs.keep_versions }}

@@ -1,0 +1,54 @@
+# Qubix OS local action: publish one installer ISO/checksum pair to Microsoft 365.
+#
+# The caller grants `id-token: write`; this action exchanges that short-lived GitHub OIDC
+# token for Microsoft Graph access and never handles a persistent Microsoft client secret.
+name: Upload ISO to Microsoft 365 OneDrive
+description: Uploads a large ISO and checksum, then applies per-channel retention
+
+inputs:
+  tenant-id:
+    description: Microsoft Entra tenant (directory) ID
+    required: true
+  client-id:
+    description: Microsoft Entra application (client) ID
+    required: true
+  user-id:
+    description: OneDrive owner's object ID or user principal name
+    required: true
+  variant:
+    description: Qubix image variant used as the retention boundary
+    required: true
+  retention-channel:
+    description: Trigger-class directory and independent retention boundary
+    required: true
+  version:
+    description: Unique, human-readable version-directory suffix
+    required: true
+  iso-path:
+    description: Absolute or workspace-relative path to the generated ISO
+    required: true
+  checksum-path:
+    description: Absolute or workspace-relative path to the generated checksum
+    required: true
+  keep-versions:
+    description: Number of complete versions to retain for this variant
+    required: false
+    default: "3"
+
+runs:
+  using: composite
+  steps:
+    # Keep the Graph protocol in a reviewed repository script instead of a remote action.
+    - name: Upload and apply OneDrive retention
+      shell: bash
+      env:
+        ONEDRIVE_TENANT_ID: ${{ inputs.tenant-id }}
+        ONEDRIVE_CLIENT_ID: ${{ inputs.client-id }}
+        ONEDRIVE_USER_ID: ${{ inputs.user-id }}
+        QUBIX_ISO_VARIANT: ${{ inputs.variant }}
+        QUBIX_RETENTION_CHANNEL: ${{ inputs.retention-channel }}
+        QUBIX_ISO_VERSION: ${{ inputs.version }}
+        QUBIX_ISO_PATH: ${{ inputs.iso-path }}
+        QUBIX_CHECKSUM_PATH: ${{ inputs.checksum-path }}
+        QUBIX_KEEP_VERSIONS: ${{ inputs.keep-versions }}
+      run: "${GITHUB_ACTION_PATH}/upload.sh"
