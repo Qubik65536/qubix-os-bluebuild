@@ -313,11 +313,14 @@ jobs:
       # `image_signed` makes future updates enforce the verification policy embedded in
       # Qubix; `image_src` makes the ISO payload itself come from the digest checked above.
       # The generated ref directory makes the action resolve runtimes and build an offline
-      # Flathub repository that Anaconda transfers into the installed system. DD-061.
+      # Flathub repository that Anaconda transfers into the installed system. The Lorax
+      # template changes only Anaconda's visual Product field; image_name stays the exact
+      # technical OCI/update identity, including `bluebuild`. DD-061, DD-064.
       - name: Build ISO
         id: build
         uses: JasonN3/build-container-installer@bed71f841c250650a70f1ed8315ba92da1591ba6 # v1.5.0
         with:
+          additional_templates: /github/workspace/.github/lorax/qubix-product.tmpl
           arch: x86_64
           enable_flatpak_dependencies: "true"
           image_name: ${{ steps.prepare.outputs.image_name }}

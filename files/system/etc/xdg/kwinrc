@@ -1,5 +1,11 @@
-# KWin system defaults for Qubix OS (DD-050).
-# ~/.config/kwinrc has higher priority and can select another input method or none.
+# KWin system defaults for Qubix OS (DD-050, DD-063).
+# ~/.config/kwinrc has higher priority and can select another decoration, input method,
+# or none.
+
+[org.kde.kdecoration2]
+# Match the Breeze application style selected in /etc/xdg/kdeglobals on a fresh account.
+library=org.kde.breeze
+theme=Breeze
 
 [Wayland]
 # Launch Fcitx through KWin's input-method socket so native Wayland clients can use it.

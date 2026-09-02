@@ -11,7 +11,7 @@ terms over synonyms.
 | **Aurora DX** | Aurora plus a developer toolchain (container tooling, IDEs, virtualisation). This project's base image. |
 | **Base image** | The image named in `base-image:` — what the recipe builds `FROM`. |
 | **bat** | `cat` with syntax highlighting. Aliased over `cat` in interactive shells (DD-026). |
-| **BlueBuild** | The build system used here. Transpiles a recipe in `recipes/` into a `Containerfile` and builds it. <https://blue-build.org> |
+| **BlueBuild** | The build system used here. Transpiles a recipe in `recipes/` into a `Containerfile` and builds it. Kept in diagnostic and deployment identity, but omitted from prominent visual product names (DD-064). <https://blue-build.org> |
 | **bootupd** | Fedora Atomic's bootloader updater. Its static GRUB configuration and Fedora's generated configuration both expose the `custom.cfg` hook used by Qubix Boot Console (DD-057). |
 | **BORE** | Burst-Oriented Response Enhancer — the CPU scheduler the CachyOS kernel uses by default. |
 | **Branding asset** | A file under `files/system/` that replaces an upstream logo, banner, or watermark. See [`branding.md`](branding.md). |
@@ -39,6 +39,7 @@ terms over synonyms.
 | **lazygit** | A terminal UI over git. Wrapped as `lg`, so quitting after switching repositories leaves the shell in the new one. Its config is the only one here that *merges* with the user's, through `LG_CONFIG_FILE` (DD-032). See [`shell.md`](shell.md). |
 | **LazyVim** | A Neovim configuration distribution. Not shipped: `~/.config/nvim` is the user's, cloned from upstream's starter by hand, so `:Lazy update` updates the plugins and `git pull` the config (DD-030). See [`shell.md`](shell.md). |
 | **Look-and-feel package** | A KDE Plasma theme bundle under `/usr/share/plasma/look-and-feel/`. Aurora's contains the startup splash this image overrides. |
+| **Lorax build stamp** | `/.buildstamp` inside installer media. Anaconda reads its `Product` field for prominent installer branding; Qubix changes that field without renaming the technical OCI payload (DD-064). |
 | **matugen** | Generates a Material colour scheme from the wallpaper. DankMaterialShell uses it to theme itself and niri. |
 | **MIME association** | The mapping from a MIME type or URL scheme to the desktop entry that opens it. Set system-wide in `/etc/xdg/mimeapps.list`; the user's `~/.config/mimeapps.list` is searched first and wins. How the default browser is declared (DD-023). |
 | **Module** | A build step (`files`, `dnf`, `default-flatpaks`, `containerfile`, `systemd`, `initramfs`, `signing`). Modules run in the order the recipe composes them. |

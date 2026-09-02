@@ -94,7 +94,7 @@ image layer. Order is load-bearing. For `recipe.yml`:
 | 1 | `files` | `common-base.yml` | Copies `files/system/*` to `/` (branding + desktop configuration) | Content must exist before anything reads it; nothing later depends on being first, but putting content first keeps later layers small. |
 | 2 | `dnf` | `common-base.yml` | Adds COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; installs `micro`, `starship`, `wezterm` and the fonts its config names, `grub2-tools-extra` for GRUB's PF2 converter, `niri`, `dms` and its fonts, and the terminal environment (`zsh` and its plugins, `atuin`, `bat`, `yazi`, `neovim` and what LazyVim calls); removes `firefox`, `firefox-langpacks` | Package changes are the heaviest layer; grouping them keeps rebuilds cache-friendly. |
 | 3 | `default-flatpaks` | `common-base.yml` | Configures Flathub (system + user), queues `io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM, so the Flatpak browser is the only browser (DD-023). |
-| 4 | `containerfile` | `common-base.yml` | Installs and validates the terminal environment, builds/asserts the bounded-range GRUB PF2 payload, then validates Homebrew desktop/icon helper and unit wiring | Needs packages from `dnf` and overlaid configuration/scripts from `files`; the final launcher assertion turns a renamed unit or lost executable bit into a build failure (DD-057, DD-062). |
+| 4 | `containerfile` | `common-base.yml` | Installs and validates the terminal environment, builds/asserts the bounded-range GRUB PF2 payload, validates Homebrew desktop/icon wiring, then validates the fresh-account KDE appearance cascade | Needs packages from `dnf` and overlaid configuration/scripts from `files`; late assertions turn missing assets, renamed units, or lost executable bits into build failures (DD-057, DD-062, DD-063). |
 | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service`, `qubix-grub-theme.service`, and the per-user `qubix-app-launcher-refresh.path` | All units come from `files`: one changes existing accounts once (DD-035), one synchronises image-owned GRUB assets into machine-local `/boot` (DD-057), and the user path refreshes desktop application indexes after Homebrew installs (DD-062). |
 | 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
 | 7 | `initramfs` | `recipe.yml` | Regenerates the stock kernel's initramfs with the overlaid Plymouth files | Must run after `files`; late so it captures every early-boot change. Aurora's inherited initramfs otherwise retains Aurora's watermark (DD-049). |
@@ -137,7 +137,8 @@ Consequences worth remembering:
   merged on updates; `/usr` is read-only and fully replaced. Ship configuration in `/usr`
   whenever the consumer supports it, so updates always win. `files/system/etc/` is used
   only where the consumer's search path offers no `/usr` entry that can be written without
-  overwriting an upstream file — currently `etc/xdg/kdeglobals` (DD-012, DD-023),
+  overwriting an upstream file — currently the KDE fallback fragments
+  `etc/xdg/{kdeglobals,plasmarc,kwinrc}` (DD-012, DD-023, DD-050, DD-063),
   `etc/xdg/mimeapps.list` (DD-023), `etc/niri/config.kdl` (DD-014) and
   `etc/profile.d/qubix-shell-env.sh` (DD-026; `/etc/profile.d` has no `/usr` equivalent).
 - **Not only branding any more.** The overlay also carries the desktop-session
@@ -157,7 +158,7 @@ The `containerfile` snippet is the one piece of imperative logic in the build:
 ```sh
 IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"')
 sed -i 's/^ID=.*/ID=qubix_os_bluebuild/'                       /usr/lib/os-release
-sed -i 's/^NAME=.*/NAME="QubixOS-BlueBuild"/'                  /usr/lib/os-release
+sed -i 's/^NAME=.*/NAME="Qubix OS"/'                           /usr/lib/os-release
 sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
 ```
 
@@ -165,8 +166,11 @@ sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IM
   **before** the rewrite so the Fedora/Aurora version stays visible in `PRETTY_NAME`.
 - `ID` uses underscores because `os-release` `ID` is expected to be a lowercase,
   shell-safe token; it is consumed by tooling, not by humans.
-- The whole snippet is a single `RUN` (chained with `&&`) so it is one layer and fails
-  atomically.
+- `NAME` is the clean visual product label. `PRETTY_NAME` stays deliberately detailed so
+  boot entries, diagnostics, and bug reports retain BlueBuild and upstream-version
+  provenance (DD-064).
+- The whole snippet is a single `RUN` under `set -eu`; semicolon-separated mutations and
+  exact assertions therefore form one layer and fail atomically.
 
 ## What a user's machine does
 

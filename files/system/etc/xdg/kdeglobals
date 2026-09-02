@@ -1,15 +1,18 @@
 # Read by: KDE Frameworks (KConfig), for every user in a Plasma session.
 #
-# This is a CASCADE FRAGMENT, not a replacement for Plasma's defaults. KConfig merges
-# every `kdeglobals` found across $XDG_CONFIG_DIRS key by key, and Fedora sets
-#   XDG_CONFIG_DIRS=/etc/xdg:/usr/share/kde-settings/kde-profile/default/xdg
-# (see kde-settings' /etc/xdg/plasma-workspace/env/env.sh), so this file wins over the
-# kde-settings profile for the keys named here, and changes nothing else. Fonts, icon
-# theme, colour scheme and look-and-feel keep coming from kde-settings.
+# This is a CASCADE FRAGMENT, not a per-user preference file. KConfig merges every
+# `kdeglobals` found across $XDG_CONFIG_DIRS key by key, and ~/.config/kdeglobals remains
+# higher priority. The appearance keys below are deliberately complete: a fresh ISO user
+# has no Aurora-authored home-directory settings to fill them in, especially under Niri.
+# Existing users and later choices made in System Settings continue to override them.
 #
-# See docs/design-decisions.md DD-012 and DD-023.
+# See docs/design-decisions.md DD-012, DD-023, and DD-063.
 
 [General]
+# A coherent dark fallback for KDE applications in both sessions. The matching widget,
+# look-and-feel, icon, Plasma, and KWin defaults are named below and in plasmarc/kwinrc.
+ColorScheme=BreezeDark
+
 # Default terminal emulator for "Open Terminal Here", Dolphin, KRunner, and anything
 # else going through KTerminalLauncherJob.
 #
@@ -29,3 +32,12 @@ TerminalApplication=wezterm
 # line instead. The real association lives in /etc/xdg/mimeapps.list; this key exists so
 # KDE agrees with it rather than quietly using its own answer. DD-023.
 BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop
+
+[KDE]
+# KDE's Qt platform integration reads these in Plasma and in Niri. Breeze is inherited
+# from Aurora DX and asserted at image build time before these defaults can publish.
+LookAndFeelPackage=org.kde.breezedark.desktop
+widgetStyle=Breeze
+
+[Icons]
+Theme=breeze-dark

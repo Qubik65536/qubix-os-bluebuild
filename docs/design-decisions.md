@@ -2296,7 +2296,7 @@ order:
 | # | Field tried | This image's value | Match? |
 |---|---|---|---|
 | 1 | `ID` | `qubix_os_bluebuild` (DD-003) | no |
-| 2 | `NAME` | `QubixOS-BlueBuild` (DD-003) | no |
+| 2 | `NAME` | `Qubix OS` (DD-064) | no |
 | 3 | each word of `ID_LIKE` | `fedora`, from the base image | **yes** |
 | 4 | kernel name | `Linux` | — |
 | 5 | fallback | `unknown` | — |
@@ -3830,3 +3830,125 @@ and service cache share the new environment.
 - A named icon with no detected cask-owned loose/bundle source gets no managed copy. The
   stabiliser is intentionally conservative rather than guessing icons by application
   name across the whole filesystem.
+
+---
+
+## DD-063 — Ship a complete Breeze Dark fallback and select KDE's Qt integration in both sessions
+
+**Status:** Accepted
+
+**Implements:** `BRD-007`
+
+**Context.** Reported 2026-09-02: after installing Qubix from its ISO, KDE applications
+including System Settings and Dolphin stayed light and rendered controls with a fallback
+style even when Breeze or Aurora was selected. A machine rebased from Aurora did not show
+the same failure.
+
+That delivery distinction is a home-directory distinction. A rebased Aurora account can
+already carry `~/.config/kdeglobals`, `plasmarc`, and `kwinrc`; an account created by
+Anaconda starts without them. Qubix's `/etc/xdg/kdeglobals` previously named only a
+terminal and browser and delegated colors, widget style, icons, and look-and-feel to
+Fedora's lower-priority distro profile. Under Niri there is also no Plasma startup path to
+select the KDE Qt platform plugin implicitly. A populated Aurora home therefore hid an
+incomplete system fallback that a new ISO account exposed.
+
+Fedora packages the required platform plugin as
+[`plasma-integration`](https://packages.fedoraproject.org/pkgs/plasma-integration/plasma-integration/),
+including `KDEPlasmaPlatformTheme6.so`. Breeze, its dark color scheme, icons, global
+look-and-feel, Plasma style, and KWin decoration already come from the Aurora DX base. The
+problem is selection, not missing third-party theme software.
+
+**Decision.** Make the default explicit and internally consistent:
+
+| Consumer | File/key | Default |
+|---|---|---|
+| KDE applications | `/etc/xdg/kdeglobals [General] ColorScheme` | `BreezeDark` |
+| Qt widgets | `/etc/xdg/kdeglobals [KDE] widgetStyle` | `Breeze` |
+| Global look-and-feel | `/etc/xdg/kdeglobals [KDE] LookAndFeelPackage` | `org.kde.breezedark.desktop` |
+| Icons | `/etc/xdg/kdeglobals [Icons] Theme` | `breeze-dark` |
+| Plasma Shell | `/etc/xdg/plasmarc [Theme] name` | `breeze-dark` |
+| KWin | `/etc/xdg/kwinrc [org.kde.kdecoration2] library/theme` | `org.kde.breeze` / `Breeze` |
+| Qt platform integration | `environment.d` and `profile.d` | `QT_QPA_PLATFORMTHEME=kde` |
+
+Set the platform integration in both process families DD-038 identified: `environment.d`
+for user-manager-started graphical processes and `profile.d` for shells and their
+descendants. The shell assignment is guarded so an existing user/session export wins.
+
+Add a build assertion with an empty temporary home. It must find every named Breeze asset
+and the Fedora KDE platform plugin, resolve the four `kdeglobals` keys through
+`kreadconfig6`, then add a temporary user `kdeglobals` and prove Breeze Light/Fusion win.
+This tests both the fresh-account result and the override contract before publication.
+
+**Consequences.**
+
+- A fresh ISO account and a fresh account on a rebased machine start from the same dark,
+  decorated KDE application appearance in Plasma and Niri.
+- A user selecting Aurora, Breeze Light, or another installed theme writes higher-priority
+  files below `~/.config`; the image does not seed or repeatedly rewrite preferences.
+- Existing rebased users retain their choices. The defaults affect only keys absent from
+  their user files.
+- A logout is required after first receiving `QT_QPA_PLATFORMTHEME`; a running Qt process
+  cannot replace its platform plugin.
+- Qubix now owns a small, explicit appearance fragment instead of assuming the full Fedora
+  distro-profile path is present in every compositor's environment. Upstream asset removal
+  becomes a deliberate build failure.
+- Only a rebuilt ISO and new-account hardware check can confirm System Settings and
+  Dolphin render correctly end to end; `BRD-007` waits for that confirmation.
+
+---
+
+## DD-064 — Split the visual product name from technical BlueBuild provenance
+
+**Status:** Accepted
+
+**Implements:** `BRD-008`
+
+**Amends:** [DD-003](#dd-003--rewrite-os-release-with-a-containerfile-snippet-not-a-static-file)
+*(the in-place mechanism and detailed `PRETTY_NAME` stay; the unversioned `NAME` value is
+now the visual product label)*
+
+**Context.** Requested 2026-09-02: prominent distro branding such as the installer welcome
+screen should say Qubix OS without exposing the build-system name. Technical/detail
+surfaces such as GRUB deployment labels must retain BlueBuild provenance.
+
+There are two independent sources. The installed image gets `ID`, `NAME`, and
+`PRETTY_NAME` from DD-003. The pinned installer action invokes Lorax with the technical OCI
+`image_name` as its product argument in its
+[`Makefile`](https://github.com/JasonN3/build-container-installer/blob/bed71f841c250650a70f1ed8315ba92da1591ba6/Makefile#L119-L120).
+Lorax writes that product into `/.buildstamp`; Anaconda renders its `Product=` value. The
+write occurs before runtime post-install templates run, as shown by pinned Lorax's
+[`BuildStamp`](https://github.com/weldr/lorax/blob/ffba3078beab843c5d663f6443dca28d8e820948/src/pylorax/buildstamp.py)
+and runner ordering. Renaming the action's `image_name` is unsafe: the same input names
+the embedded OCI payload and the installed registry update target.
+
+The `os-release` contract distinguishes an unversioned presentation `NAME` from the more
+descriptive `PRETTY_NAME`; see systemd's
+[`os-release` specification](https://www.freedesktop.org/software/systemd/man/latest/os-release.html).
+That is the split this requirement needs.
+
+**Decision.** Set installed `NAME="Qubix OS"`. Keep `ID=qubix_os_bluebuild`, every OCI
+repository/rebase name, and every variant's BlueBuild-bearing `PRETTY_NAME` unchanged.
+Keep KDE About's `Name=Qubix OS` and its detailed `Variant=BlueBuild Image, …` split.
+
+For ISO media, pass the technical image name to the installer action unchanged. Supply a
+repository-owned Lorax runtime template that replaces only `Product=` in `/.buildstamp`
+with `Qubix OS` after Lorax creates it, then runs an exact grep so the ISO build fails if
+the result is not present. Other Lorax/OCI values remain technical. The workflow points at
+the template through the pinned action's `additional_templates` input.
+
+Assert the installed split in the image build: exact clean `NAME`, exact technical `ID`,
+and exact BlueBuild-bearing `PRETTY_NAME` for every variant. This prevents a later cleanup
+from accidentally renaming the update target or erasing deployment detail.
+
+**Consequences.**
+
+- Anaconda's prominent product/welcome label and ordinary installed product-name consumers
+  show `Qubix OS`.
+- GRUB/OSTree deployment detail, `cat /etc/os-release`, fastfetch diagnostics, variant
+  identification, and OCI/rebase commands retain BlueBuild and version provenance.
+- KDE About remains intentionally split: `Name` is visual branding, while `Variant` is a
+  detail field and may say BlueBuild.
+- The Lorax template depends on the pinned action still creating `/.buildstamp` before
+  additional runtime-template commands. Its exact grep fails CI if that contract changes.
+- Only a newly built ISO can confirm the welcome surface and a booted installation can
+  confirm the GRUB detail together; `BRD-008` waits for that confirmation.

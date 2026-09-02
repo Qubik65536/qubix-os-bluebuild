@@ -194,7 +194,7 @@ modules:
       - scope: user # Also add Flathub user repo, but no user packages
 
   # 4. Build steps no BlueBuild module covers: things that are not an RPM and not a file
-  #    that can simply be copied. Ten snippets, each its own layer.
+  #    that can simply be copied. Twelve snippets, each its own layer.
   #
   #    4a. zsh-completions: completion functions for tools zsh does not cover itself.
   #    A raw build step because there is nothing to install FROM: Fedora does not package
@@ -685,6 +685,55 @@ modules:
             grep -qxF 'ExecStart=/usr/bin/qubix-refresh-app-launchers' "$service_unit"; \
             grep -qF 'qubix-stabilize-homebrew-icons' "$helper"; \
             grep -qF 'systemctl --user try-restart dms.service' "$helper"
+
+      #    4l. Validate the complete KDE appearance fallback for fresh accounts.
+      #
+      #        A rebase from Aurora can carry a populated ~/.config/kdeglobals, masking a
+      #        missing system default. An ISO-created account has no such file. Resolve the
+      #        shipped cascade with an empty HOME, assert every Breeze Dark component it
+      #        names, then add a user file and prove that the user still wins. Selecting
+      #        KDE's Qt platform integration in both environment entry points makes the
+      #        same cascade apply to KDE applications launched under Niri. DD-063.
+      #
+      #        Ordering: after `files` and `dnf`; the former ships the fragments and the
+      #        latter/base image supplies every asserted Breeze and integration asset.
+      - |
+        RUN set -eu; \
+            command -v kreadconfig6 >/dev/null; \
+            test -f /usr/share/color-schemes/BreezeDark.colors; \
+            test -d /usr/share/icons/breeze-dark; \
+            test -d /usr/share/plasma/look-and-feel/org.kde.breezedark.desktop; \
+            test -f /usr/lib64/qt6/plugins/platformthemes/KDEPlasmaPlatformTheme6.so; \
+            tmp="$(mktemp -d)"; \
+            HOME="$tmp" XDG_CONFIG_DIRS=/etc/xdg \
+                kreadconfig6 --file kdeglobals --group General --key ColorScheme \
+                | grep -qxF BreezeDark; \
+            HOME="$tmp" XDG_CONFIG_DIRS=/etc/xdg \
+                kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage \
+                | grep -qxF org.kde.breezedark.desktop; \
+            HOME="$tmp" XDG_CONFIG_DIRS=/etc/xdg \
+                kreadconfig6 --file kdeglobals --group KDE --key widgetStyle \
+                | grep -qxF Breeze; \
+            HOME="$tmp" XDG_CONFIG_DIRS=/etc/xdg \
+                kreadconfig6 --file kdeglobals --group Icons --key Theme \
+                | grep -qxF breeze-dark; \
+            grep -qxF 'name=breeze-dark' /etc/xdg/plasmarc; \
+            grep -qxF 'library=org.kde.breeze' /etc/xdg/kwinrc; \
+            grep -qxF 'theme=Breeze' /etc/xdg/kwinrc; \
+            grep -qxF 'QT_QPA_PLATFORMTHEME=kde' \
+                /usr/lib/environment.d/50-qubix-terminal.conf; \
+            grep -qE '^[[:space:]]*QT_QPA_PLATFORMTHEME=kde$' \
+                /etc/profile.d/qubix-shell-env.sh; \
+            install -d -m 0700 "$tmp/.config"; \
+            printf '%s\n' '[General]' 'ColorScheme=BreezeLight' '[KDE]' \
+                'widgetStyle=Fusion' > "$tmp/.config/kdeglobals"; \
+            HOME="$tmp" XDG_CONFIG_DIRS=/etc/xdg \
+                kreadconfig6 --file kdeglobals --group General --key ColorScheme \
+                | grep -qxF BreezeLight; \
+            HOME="$tmp" XDG_CONFIG_DIRS=/etc/xdg \
+                kreadconfig6 --file kdeglobals --group KDE --key widgetStyle \
+                | grep -qxF Fusion; \
+            rm -rf "$tmp"
 
   # 5. Enable the system services this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already

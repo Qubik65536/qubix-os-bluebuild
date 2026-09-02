@@ -1,0 +1,6 @@
+# Read by: Plasma Shell, as the system fallback for every user (DD-063).
+# A user's ~/.config/plasmarc remains higher priority and can select any Plasma style.
+
+[Theme]
+# Keep the desktop surface consistent with Breeze Dark applications and icons.
+name=breeze-dark

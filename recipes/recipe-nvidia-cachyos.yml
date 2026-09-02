@@ -44,7 +44,8 @@ modules:
     snippets:
       - |
         RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release \
+            && grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: ${IMAGE_VERSION})\"" /usr/lib/os-release
 
   # Generate the replacement kernel's initramfs only after its NVIDIA modules exist.
   - type: initramfs

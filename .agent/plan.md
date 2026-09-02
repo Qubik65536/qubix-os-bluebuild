@@ -1647,6 +1647,54 @@ Implemented, documented, and shipped; waiting only on a check that needs a built
 real hardware. A task here is **not** work anybody should pick up — it is work somebody
 should look at.
 
+### Desktop and installer branding
+
+- [ ] **BRD-007** — Make KDE theming complete on fresh ISO installations
+  - **Category:** Branding
+  - **Depends on:** —
+  - **Notes:** Reported 2026-09-02 after a fresh ISO installation left KDE applications
+    such as System Settings and Dolphin in light mode with incorrectly decorated controls,
+    while a machine rebased from Aurora appeared correctly themed. The image now provides
+    a complete Breeze Dark KConfig fallback, Breeze Plasma/KWin defaults, and KDE's Qt
+    platform integration for both graphical and shell-launched applications. Its image
+    assertion checks the installed assets, resolves the defaults from an empty home, and
+    proves a user file still wins. Recipe/workflow YAML, shell syntax, exact-value, and
+    whitespace checks pass; only a rebuilt ISO and installed-system check remain.
+  - **Acceptance criteria:**
+    - A fresh account receives an internally consistent KDE widget style, colour scheme,
+      icon theme, and Plasma look-and-feel without pre-existing per-user configuration
+    - System Settings and Dolphin render the selected dark appearance and correctly
+      decorated controls after both ISO installation and rebase
+    - A user's later appearance choice continues to override the image defaults
+    - Build-time/local assertions catch missing theme packages, assets, or required keys
+    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` explain the ISO/rebase
+      difference and the durable system-default mechanism
+    - The result is confirmed in KDE applications on a newly installed ISO system
+      *(open — requires a newly built ISO and installed-system check)*
+
+- [ ] **BRD-008** — Remove BlueBuild from visual distro branding
+  - **Category:** Branding
+  - **Depends on:** —
+  - **Notes:** Requested 2026-09-02. Prominent identity now uses `Qubix OS`: the image's
+    `os-release` `NAME` is clean, and a repository-owned Lorax post-template rewrites only
+    the installer's build-stamp `Product`. Technical GHCR/rebase names, `ID`, detailed
+    `PRETTY_NAME`, OCI/update routing, and generated deployment/GRUB details retain
+    BlueBuild provenance. Exact build assertions cover both halves of the split. Recipe
+    and workflow YAML, exact-value, and whitespace checks pass; installer/GRUB visual
+    confirmation needs a rebuilt ISO.
+  - **Acceptance criteria:**
+    - Prominent visual distro-name fields consumed by the installer and desktop identify
+      the product as `Qubix OS` without `BlueBuild`
+    - Technical identity remains stable: OCI/rebase names, `ID`, and detailed boot or
+      deployment labels retain their existing BlueBuild provenance
+    - Local assertions distinguish the visual product name from the detailed identity and
+      prevent either from regressing
+    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` document which identity
+      field each consumer uses and why the split is intentional
+    - A newly built ISO shows no `BlueBuild` in prominent installer welcome branding while
+      GRUB still exposes it in deployment details *(open — requires a newly built ISO and
+      installed-system check)*
+
 ### Desktop sessions
 
 - [ ] **IMG-039** — Discover Homebrew GUI applications in desktop launchers

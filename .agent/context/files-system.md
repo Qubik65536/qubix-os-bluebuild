@@ -12,15 +12,16 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 
 | Path | Consumer | Effect |
 |---|---|---|
-| `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | `TerminalApplication=wezterm` (DD-012); `BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop` (DD-023) |
+| `etc/xdg/kdeglobals` | KDE Frameworks (KConfig cascade) | Complete Breeze Dark fallback for colours, widgets, look-and-feel, and icons (DD-063); `TerminalApplication=wezterm` (DD-012); `BrowserApplication=io.github.ungoogled_software.ungoogled_chromium.desktop` (DD-023). Personal KConfig wins key by key |
+| `etc/xdg/plasmarc` | Plasma | Selects `breeze-dark` as the system desktop theme for a fresh account; `~/.config/plasmarc` wins (DD-063) |
 | `etc/xdg/mimeapps.list` | `xdg-open`, GIO, KIO | Web MIME types → Ungoogled Chromium, i.e. the default browser (DD-023) |
 | `etc/xdg/fcitx5/profile` | Fcitx 5 XDG config cascade | System fallback group with `keyboard-us` and `pinyin`; `~/.config/fcitx5/profile` wins and is never rewritten (DD-050) |
 | `etc/xdg/fcitx5/config` | Fcitx 5 XDG config cascade | Native triggers are `Super+space` for Plasma and `Control+space` for Niri; Niri consumes only Super for DMS, while `~/.config/fcitx5/config` wins (DD-050) |
-| `etc/xdg/kwinrc` | KWin / KDE's Virtual Keyboard KCM | Selects Fedora's host Fcitx desktop entry as Plasma's Wayland input method; `~/.config/kwinrc` wins (DD-050) |
+| `etc/xdg/kwinrc` | KWin / KDE's Virtual Keyboard KCM | Selects Breeze window decoration (DD-063) and Fedora's host Fcitx desktop entry as Plasma's Wayland input method (DD-050); `~/.config/kwinrc` wins |
 | `etc/xdg-desktop-portal/niri-portals.conf` | `xdg-desktop-portal`, under Niri only | Retains GNOME for Niri's general portal backend but maps `FileChooser` to GTK, because GNOME 47+ needs uninstalled Nautilus for that interface; Plasma reads its own profile (DD-053) |
 | `etc/profile.d/zz-qubix-fcitx-wayland.sh` | graphical sessions and interactive shells | Sorts after Fedora's `fcitx5.sh` and unsets its global `GTK_IM_MODULE` only on Wayland; preserves `XMODIFIERS` and Qt compatibility (DD-050) |
 | `etc/gtk-{3,4}.0/settings.ini` | GTK 3 and GTK 4 | Selects the packaged Fcitx module as the X11/XWayland fallback without forcing native Wayland clients away from compositor text-input; personal settings win (DD-050) |
-| `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012); appends `/etc/xdg` to `XDG_CONFIG_DIRS` for WezTerm and prepends `/home/linuxbrew/.linuxbrew/share` to `XDG_DATA_DIRS` for Homebrew application discovery. Both preserve inherited paths and reach only what the user manager starts; `etc/profile.d/qubix-shell-env.sh` carries the shell half (DD-038, DD-062) |
+| `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012), `QT_QPA_PLATFORMTHEME=kde` so Qt/KDE apps consume KDE settings in Plasma and Niri (DD-063), `/etc/xdg` in `XDG_CONFIG_DIRS`, and Homebrew's shared prefix in `XDG_DATA_DIRS`. Search paths preserve inherited values; `etc/profile.d/qubix-shell-env.sh` carries the shell half (DD-038, DD-062) |
 | `etc/xdg/wezterm/wezterm.lua` | WezTerm | System-wide config: font stack, `Oxocarbon Dark`, no title bar, 0.75 opacity. Found via `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it wholesale (DD-034) |
 | `etc/xdg/wezterm/colors/*.toml` | WezTerm | Two custom schemes. Found because `colors/` sits in a config dir, so they stay available to a user's *own* `wezterm.lua` (DD-034) |
 | `usr/share/licenses/monaspace-krypton-nf/LICENSE` | nobody — legal | The OFL text for a font the recipe installs from upstream. **Vendored because Monaspace's archive ships none** (DD-034) |
@@ -49,7 +50,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 
 | Path | Consumer | Effect |
 |---|---|---|
-| `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `XDG_CONFIG_DIRS` (DD-038), Homebrew's `XDG_DATA_DIRS` entry (DD-062), `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and — at the end — bash's interactive setup (DD-026, DD-030, DD-032). Search-path entries are added once without dropping inherited directories; tool-specific values are re-resolved in every shell (DD-037) |
+| `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | Shell fallback for `QT_QPA_PLATFORMTHEME=kde` when unset (DD-063), `XDG_CONFIG_DIRS` (DD-038), Homebrew's `XDG_DATA_DIRS` entry (DD-062), `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and — at the end — bash's interactive setup (DD-026, DD-030, DD-032). Search-path entries are added once without dropping inherited directories; tool-specific values are re-resolved in every shell (DD-037) |
 | `etc/profile.d/zz-qubix-fastfetch.sh` | interactive bash and zsh | Undoes Aurora's `alias fastfetch='ublue-fastfetch'`, without which `/etc/fastfetch/config.jsonc` — and the user's own — is never read. **Named `zz-` because `/etc/profile.d` is sourced alphabetically** and `qubix-shell-env.sh` sorts before `ublue-*` (DD-040) |
 | `etc/default/useradd` | `useradd(8)` | `SHELL=/usr/bin/zsh`. **Replaces** shadow-utils' copy; only one line differs |
 | `usr/bin/qubix-default-shell` | `qubix-default-shell.service` | Sets zsh as the login shell for existing accounts, once each, stamped in `/var/lib/qubix-os/default-shell/` (DD-035). Mode `100755` |

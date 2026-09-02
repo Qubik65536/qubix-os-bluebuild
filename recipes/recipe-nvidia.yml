@@ -37,7 +37,8 @@ modules:
     snippets:
       - |
         RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release \
+            && grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, Version: ${IMAGE_VERSION})\"" /usr/lib/os-release
 
   # Rebuild after the Plymouth overlay while retaining the matching NVIDIA module.
   - type: initramfs

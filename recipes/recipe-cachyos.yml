@@ -53,7 +53,8 @@ modules:
     snippets:
       - |
         RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, CachyOS Kernel, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, CachyOS Kernel, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release \
+            && grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, CachyOS Kernel, Version: ${IMAGE_VERSION})\"" /usr/lib/os-release
 
   # Regenerate the initramfs for the kernel installed by the swap above.
   # Mandatory here: installing a kernel RPM in a container build does NOT produce

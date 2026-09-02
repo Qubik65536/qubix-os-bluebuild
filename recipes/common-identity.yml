@@ -20,7 +20,9 @@ modules:
   #     the upstream Aurora/Fedora build stays visible in PRETTY_NAME.
   #   - Patterns are anchored (^ID=) so they cannot match VERSION_ID= and friends.
   #   - The last sed uses | as its delimiter because the replacement contains /.
-  #   - Single chained RUN: one layer, fails atomically.
+  #   - NAME is the clean visual product name. ID and PRETTY_NAME deliberately retain
+  #     technical BlueBuild provenance for tooling and detailed deployment labels.
+  #   - Single RUN with assertions: one layer, fails atomically. DD-064.
   #
   # A variant that wants its own PRETTY_NAME rewrites the field again AFTER this module
   # rather than parameterising it — see the non-standard recipes/recipe-*.yml files.
@@ -29,7 +31,12 @@ modules:
   - type: containerfile
     snippets:
       - |
-        RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-            && sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release \
-            && sed -i 's/^NAME=.*/NAME="QubixOS-BlueBuild"/' /usr/lib/os-release \
-            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+        RUN set -eu; \
+            IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"'); \
+            sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release; \
+            sed -i 's/^NAME=.*/NAME="Qubix OS"/' /usr/lib/os-release; \
+            sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release; \
+            grep -qxF 'ID=qubix_os_bluebuild' /usr/lib/os-release; \
+            grep -qxF 'NAME="Qubix OS"' /usr/lib/os-release; \
+            grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"" \
+                /usr/lib/os-release

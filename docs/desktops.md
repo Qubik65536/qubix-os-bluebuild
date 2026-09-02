@@ -23,6 +23,35 @@ SDDM lists whatever it finds in `/usr/share/wayland-sessions/`. Niri's own RPM i
 `niri.desktop` there, so no configuration in this repository is involved in making the
 entry appear. The choice is remembered per user for the next login.
 
+## KDE application appearance in both sessions
+
+Fresh ISO accounts use one complete Breeze Dark fallback across the KDE stack. This is
+deliberately more explicit than inheriting whichever parts happen to be visible through
+Aurora's distro profile:
+
+| Layer | System fallback | File |
+|---|---|---|
+| Qt application colours | `BreezeDark` | `/etc/xdg/kdeglobals` |
+| Qt widget decoration | `Breeze` | `/etc/xdg/kdeglobals` |
+| Global look-and-feel | `org.kde.breezedark.desktop` | `/etc/xdg/kdeglobals` |
+| Icons | `breeze-dark` | `/etc/xdg/kdeglobals` |
+| Plasma surface style | `breeze-dark` | `/etc/xdg/plasmarc` |
+| KWin window decoration | `org.kde.breeze` / `Breeze` | `/etc/xdg/kwinrc` |
+| Qt platform integration | `kde` | `/usr/lib/environment.d/50-qubix-terminal.conf` and `/etc/profile.d/qubix-shell-env.sh` |
+
+This fixes a difference that a rebase can hide. An Aurora account usually already has
+theme choices in `~/.config/kdeglobals`, `plasmarc`, and `kwinrc`; an account created by
+the installer does not. Under Niri there is also no Plasma startup path to select KDE's Qt
+platform integration implicitly. Without complete system fallbacks, Dolphin and System
+Settings can therefore stay light or use fallback controls even though the desktop theme
+selector says Breeze or Aurora (DD-063).
+
+These are defaults, not enforced preferences. KDE's cascade searches the user's
+`~/.config` first, so applying Breeze Light, Aurora, or another installed theme in System
+Settings writes higher-priority user keys and wins. Existing rebased accounts keep their
+choices. Log out and back in once after receiving the new platform-theme environment;
+applications already running cannot change the Qt platform plugin in place.
+
 ## What Niri is
 
 Niri is a **scrollable-tiling** compositor. Instead of subdividing the screen, windows

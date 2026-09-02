@@ -1,0 +1,11 @@
+<%page args="root" />
+<%doc>
+Qubix OS visual product-name override for Lorax/Anaconda (DD-064).
+
+The installer action must keep receiving the technical OCI image name so its offline
+payload path and installed update target remain valid. Lorax writes that same value into
+/.buildstamp as Product=, which Anaconda renders prominently. Replace only that visual
+field after Lorax creates the build stamp, then fail the ISO build unless it is exact.
+</%doc>
+replace "^Product=.*$" "Product=Qubix OS" /.buildstamp
+runcmd /usr/bin/grep -qxF "Product=Qubix OS" ${root}/.buildstamp

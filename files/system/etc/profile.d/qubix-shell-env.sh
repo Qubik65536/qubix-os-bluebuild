@@ -39,6 +39,16 @@ case ":${XDG_CONFIG_DIRS:-}:" in
         ;;
 esac
 
+# ── Qt/KDE appearance outside Plasma ─────────────────────────────────────────
+# Match the systemd user-manager environment for Qt applications launched from SSH,
+# text consoles, `su -`, or terminals. Keep an explicit user/session choice intact.
+# KDE's platform integration then reads the system theme fallback from /etc/xdg; a user's
+# ~/.config files remain higher priority. DD-063.
+if [ -z "${QT_QPA_PLATFORMTHEME:-}" ]; then
+    QT_QPA_PLATFORMTHEME=kde
+    export QT_QPA_PLATFORMTHEME
+fi
+
 # ── Homebrew application data search path ────────────────────────────────────
 # Homebrew's Linux prefix can contain desktop files and icons, but `brew shellenv`
 # deliberately does not add its share directory to XDG_DATA_DIRS. The graphical

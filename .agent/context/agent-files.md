@@ -126,3 +126,8 @@ an ISO rerun (DD-061).
 `BRD-006` remains in Awaiting confirmation while hardware iterations converge: the menu
 now overrides bootupd's one-second timeout, respects GRUB's reverse canvas order, omits its
 minimum-sized progress widget, and uses protocol-v2 bounded Monaspace Krypton NF PF2 fonts.
+`BRD-007` and `BRD-008` are in Awaiting confirmation. The first supplies and build-checks
+complete Breeze Dark/KDE integration for an empty home; the second makes `Qubix OS` the
+visual `os-release`/Lorax product while retaining BlueBuild in technical identity and
+boot/deployment details. Both need a newly built and installed ISO for their final visual
+criteria.

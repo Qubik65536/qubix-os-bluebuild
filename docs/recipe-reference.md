@@ -82,14 +82,15 @@ substitution.
 
   | Path in image | Purpose |
   |---|---|
-  | `/etc/xdg/kdeglobals` | KDE cascade fragment: default terminal (DD-012), default browser (DD-023) |
+  | `/etc/xdg/kdeglobals` | KDE cascade fragment: complete Breeze Dark application fallback (DD-063), default terminal (DD-012), default browser (DD-023); user config wins |
+  | `/etc/xdg/plasmarc` | Plasma's `breeze-dark` surface-style fallback; user config wins (DD-063) |
   | `/etc/xdg/mimeapps.list` | MIME association fragment: the web types → Ungoogled Chromium (DD-023) |
   | `/etc/xdg/fcitx5/profile` | Fcitx fallback profile: English (US) plus Pinyin; `~/.config/fcitx5/profile` shadows it (DD-050) |
   | `/etc/xdg/fcitx5/config` | Fcitx fallback: native `Super+Space` and `Ctrl+Space` triggers; Niri consumes Super for DMS and leaves Control to Fcitx; `~/.config/fcitx5/config` shadows it (DD-050) |
-  | `/etc/xdg/kwinrc` | KWin fallback: launch Fcitx as Plasma's Wayland input-method client; `~/.config/kwinrc` shadows it (DD-050) |
+  | `/etc/xdg/kwinrc` | KWin fallbacks: Breeze window decoration (DD-063) and Fcitx as Plasma's Wayland input-method client (DD-050); `~/.config/kwinrc` shadows it |
   | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Runs after Fedora's Fcitx profile and unsets `GTK_IM_MODULE` on Wayland, avoiding a duplicate native GTK input path (DD-050) |
   | `/etc/gtk-{3,4}.0/settings.ini` | Keeps the packaged Fcitx GTK module as the GTK 3/4 X11/XWayland fallback after the global variable is unset (DD-050) |
-  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012), `/etc/xdg` **appended** to `XDG_CONFIG_DIRS` so the file below is reachable (DD-034, DD-038), and Homebrew's `share` prefix prepended to `XDG_DATA_DIRS` so graphical launchers see its applications (DD-062). Reaches only what the systemd user manager starts; `/etc/profile.d/qubix-shell-env.sh` carries both search-path guarantees for every shell |
+  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` (DD-012), KDE's Qt platform integration in both sessions (DD-063), `/etc/xdg` appended to `XDG_CONFIG_DIRS` (DD-034, DD-038), and Homebrew's shared data prefix (DD-062). Reaches what the systemd user manager starts; `/etc/profile.d/qubix-shell-env.sh` carries the shell half |
   | `/etc/xdg/wezterm/wezterm.lua` | WezTerm's system-wide config. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it (DD-034) |
   | `/etc/xdg/wezterm/colors/*.toml` | The colour schemes it selects. Available to a user's own `wezterm.lua` too (DD-034) |
   | `/usr/share/licenses/monaspace-krypton-nf/LICENSE` | The OFL text for a font installed in module 4d. Vendored because Monaspace's archive carries none (DD-034) |
@@ -103,7 +104,7 @@ substitution.
   | `/usr/share/qubix-os/grub-theme/` | Immutable Qubix Boot Console source: layout, background, UI primitives, build-generated PF2 fonts, and integrity manifest (DD-057) |
   | `/usr/bin/qubix-grub-theme` | Copies that validated source into machine-local `/boot/grub2/themes/` and maintains only its marked `custom.cfg` block; never regenerates GRUB entries (DD-057) |
   | `/usr/lib/systemd/system/qubix-grub-theme.service` | Runs the GRUB installer after local filesystems mount. Enabled by module 5 in every variant (DD-057) |
-  | `/etc/profile.d/qubix-shell-env.sh` | The shell half of the `XDG_CONFIG_DIRS` and Homebrew `XDG_DATA_DIRS` guarantees, plus `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's interactive setup (DD-026, DD-030, DD-038, DD-062) |
+  | `/etc/profile.d/qubix-shell-env.sh` | The shell half of the KDE Qt platform theme, `XDG_CONFIG_DIRS`, and Homebrew `XDG_DATA_DIRS` guarantees, plus `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's setup (DD-026, DD-030, DD-038, DD-062, DD-063) |
   | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on. **Replaces** shadow-utils' copy (DD-030) |
   | `/usr/bin/qubix-default-shell` | Moves accounts that already exist to zsh, once each (DD-035) |
   | `/usr/bin/qubix-config` | Copies any shipped configuration into `~/.config` on request. **Nothing runs it** (DD-039) |
@@ -244,10 +245,11 @@ No `repo` is specified, so Flathub is used by default.
 
 ### 4. `containerfile` — build steps no module covers
 
-*Defined in `common-base.yml`. Ten snippets: zsh completions, the login-shell assertions,
-zellij, WezTerm's two upstream fonts, the WezTerm configuration assertion, the zsh wiring
-appended to `/etc/zshrc`, the `qubix-config` assertion, the `fastfetch` alias assertion, and
-the distrobox hook assertion, followed by GRUB theme font generation and validation.*
+*Defined in `common-base.yml`. Twelve snippets: zsh completions, the login-shell
+assertions, zellij, WezTerm's two upstream fonts, the WezTerm configuration assertion, the
+zsh wiring appended to `/etc/zshrc`, the `qubix-config`, fastfetch, and distrobox
+assertions, GRUB theme generation/validation, Homebrew launcher validation, and the
+fresh-account KDE appearance assertion.*
 
 ```yaml
 - type: containerfile
@@ -535,10 +537,15 @@ per-session state:
 - type: containerfile
   snippets:
     - |
-      RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-          && sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release \
-          && sed -i 's/^NAME=.*/NAME="QubixOS-BlueBuild"/' /usr/lib/os-release \
-          && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+      RUN set -eu; \
+          IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"'); \
+          sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release; \
+          sed -i 's/^NAME=.*/NAME="Qubix OS"/' /usr/lib/os-release; \
+          sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release; \
+          grep -qxF 'ID=qubix_os_bluebuild' /usr/lib/os-release; \
+          grep -qxF 'NAME="Qubix OS"' /usr/lib/os-release; \
+          grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"" \
+              /usr/lib/os-release
 ```
 
 The escape hatch: raw `Containerfile` directives injected at this point in the build. Used
@@ -549,16 +556,18 @@ Resulting fields:
 | Field | Before (Aurora DX) | After |
 |---|---|---|
 | `ID` | `fedora` | `qubix_os_bluebuild` |
-| `NAME` | `Fedora Linux` | `QubixOS-BlueBuild` |
+| `NAME` | `Fedora Linux` | `Qubix OS` |
 | `PRETTY_NAME` | *(Aurora's)* | `Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)` |
 
 Everything else in `os-release` is left untouched on purpose.
 
 Implementation notes:
-- Single `RUN`, chained with `&&` — one layer, fails atomically.
+- Single `RUN` with exact post-rewrite assertions — one layer, fails atomically.
 - Patterns are anchored with `^` so `ID=` cannot match `VERSION_ID=`.
 - `IMAGE_VERSION` is captured **before** the rewrites.
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
+- `NAME` is the visual product label; technical `ID` and `PRETTY_NAME` retain BlueBuild
+  provenance for tooling and detailed deployment names (DD-064).
 - **Ordering:** must run after any module that can regenerate `os-release`.
 
 ### 7. `initramfs` — embed the finished early-boot content
