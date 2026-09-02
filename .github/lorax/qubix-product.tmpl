@@ -1,11 +1,33 @@
 <%page args="root" />
 <%doc>
-Qubix OS visual product-name override for Lorax/Anaconda (DD-064).
+Qubix OS visual product-name override for Anaconda (DD-065).
 
 The installer action must keep receiving the technical OCI image name so its offline
-payload path and installed update target remain valid. Lorax writes that same value into
-/.buildstamp as Product=, which Anaconda renders prominently. Replace only that visual
-field after Lorax creates the build stamp, then fail the ISO build unless it is exact.
+payload path and installed update target remain valid. Additional Lorax templates run
+before Lorax writes /.buildstamp, so leave that technical stamp alone. Anaconda supports
+loading a second product fragment from PRODBUILDPATH after /.buildstamp; its later Product
+key changes the UI name while every omitted technical/version field stays inherited.
 </%doc>
-replace "^Product=.*$" "Product=Qubix OS" /.buildstamp
-runcmd /usr/bin/grep -qxF "Product=Qubix OS" ${root}/.buildstamp
+
+# Create a deliberately partial Anaconda product fragment. The original Lorax build
+# stamp remains authoritative for version, architecture, final-release state, and UUID.
+mkdir /etc/anaconda
+remove /etc/anaconda/qubix-product.buildstamp
+append /etc/anaconda/qubix-product.buildstamp "[Main]\nProduct=Qubix OS"
+
+# Both the normal tmux launcher and inst.notmux direct launcher must export the override
+# before /usr/sbin/anaconda imports its cached product data.
+mkdir /etc/systemd/system/anaconda.service.d
+remove /etc/systemd/system/anaconda.service.d/50-qubix-product.conf
+append /etc/systemd/system/anaconda.service.d/50-qubix-product.conf "[Service]\nEnvironment=PRODBUILDPATH=/etc/anaconda/qubix-product.buildstamp"
+mkdir /etc/systemd/system/anaconda-direct.service.d
+remove /etc/systemd/system/anaconda-direct.service.d/50-qubix-product.conf
+append /etc/systemd/system/anaconda-direct.service.d/50-qubix-product.conf "[Service]\nEnvironment=PRODBUILDPATH=/etc/anaconda/qubix-product.buildstamp"
+
+# Fail during the available Lorax install phase if an expected launcher disappears or
+# any generated input is malformed.
+runcmd /usr/bin/test -f ${root}/usr/lib/systemd/system/anaconda.service
+runcmd /usr/bin/test -f ${root}/usr/lib/systemd/system/anaconda-direct.service
+runcmd /usr/bin/grep -qxF "Product=Qubix OS" ${root}/etc/anaconda/qubix-product.buildstamp
+runcmd /usr/bin/grep -qxF "Environment=PRODBUILDPATH=/etc/anaconda/qubix-product.buildstamp" ${root}/etc/systemd/system/anaconda.service.d/50-qubix-product.conf
+runcmd /usr/bin/grep -qxF "Environment=PRODBUILDPATH=/etc/anaconda/qubix-product.buildstamp" ${root}/etc/systemd/system/anaconda-direct.service.d/50-qubix-product.conf

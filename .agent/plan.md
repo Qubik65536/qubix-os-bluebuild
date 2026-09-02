@@ -1672,29 +1672,6 @@ should look at.
     - The result is confirmed in KDE applications on a newly installed ISO system
       *(open — requires a newly built ISO and installed-system check)*
 
-- [ ] **BRD-008** — Remove BlueBuild from visual distro branding
-  - **Category:** Branding
-  - **Depends on:** —
-  - **Notes:** Requested 2026-09-02. Prominent identity now uses `Qubix OS`: the image's
-    `os-release` `NAME` is clean, and a repository-owned Lorax post-template rewrites only
-    the installer's build-stamp `Product`. Technical GHCR/rebase names, `ID`, detailed
-    `PRETTY_NAME`, OCI/update routing, and generated deployment/GRUB details retain
-    BlueBuild provenance. Exact build assertions cover both halves of the split. Recipe
-    and workflow YAML, exact-value, and whitespace checks pass; installer/GRUB visual
-    confirmation needs a rebuilt ISO.
-  - **Acceptance criteria:**
-    - Prominent visual distro-name fields consumed by the installer and desktop identify
-      the product as `Qubix OS` without `BlueBuild`
-    - Technical identity remains stable: OCI/rebase names, `ID`, and detailed boot or
-      deployment labels retain their existing BlueBuild provenance
-    - Local assertions distinguish the visual product name from the detailed identity and
-      prevent either from regressing
-    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` document which identity
-      field each consumer uses and why the split is intentional
-    - A newly built ISO shows no `BlueBuild` in prominent installer welcome branding while
-      GRUB still exposes it in deployment details *(open — requires a newly built ISO and
-      installed-system check)*
-
 ### Desktop sessions
 
 - [ ] **IMG-039** — Discover Homebrew GUI applications in desktop launchers
@@ -2011,6 +1988,36 @@ on 2026-08-04.*
 ---
 
 ## Open
+
+### Desktop and installer branding
+
+- [ ] **BRD-008** — Remove BlueBuild from visual distro branding
+  - **Category:** Branding
+  - **Depends on:** —
+  - **Notes:** Requested 2026-09-02. Prominent installed identity uses `Qubix OS`, while
+    technical GHCR/rebase names, `ID`, detailed `PRETTY_NAME`, OCI/update routing, and
+    generated deployment/GRUB details retain BlueBuild provenance. The first installer
+    implementation incorrectly tried to replace `/.buildstamp` from an additional Lorax
+    install template; the 2026-09-02 ISO run proved that Lorax executes those templates
+    before creating the file. The replacement now creates a partial Anaconda product
+    fragment and exports it through `PRODBUILDPATH` in both installer service paths before
+    startup, while keeping the technical Lorax build stamp intact. YAML, exact template
+    structure, merge-precedence, documentation, and whitespace checks pass; the task stays
+    open until ISO CI proves the corrected template completes.
+  - **Acceptance criteria:**
+    - Prominent visual distro-name fields consumed by the installer and desktop identify
+      the product as `Qubix OS` without `BlueBuild`
+    - Technical identity remains stable: OCI/rebase names, `ID`, and detailed boot or
+      deployment labels retain their existing BlueBuild provenance
+    - The installer customization runs in the lifecycle phase available to additional
+      Lorax templates and does not require `/.buildstamp` to exist during that phase
+    - Local assertions distinguish the visual product name from the detailed identity and
+      prevent either from regressing
+    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` document which identity
+      field each consumer uses and why the split is intentional
+    - A newly built ISO shows no `BlueBuild` in prominent installer welcome branding while
+      GRUB still exposes it in deployment details *(open — requires a newly built ISO and
+      installed-system check)*
 
 ### Build and release
 

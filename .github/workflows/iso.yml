@@ -314,8 +314,8 @@ jobs:
       # Qubix; `image_src` makes the ISO payload itself come from the digest checked above.
       # The generated ref directory makes the action resolve runtimes and build an offline
       # Flathub repository that Anaconda transfers into the installed system. The Lorax
-      # template changes only Anaconda's visual Product field; image_name stays the exact
-      # technical OCI/update identity, including `bluebuild`. DD-061, DD-064.
+      # template adds Anaconda's visual Product override without changing Lorax's later
+      # technical build stamp; image_name remains the OCI/update identity. DD-061, DD-065.
       - name: Build ISO
         id: build
         uses: JasonN3/build-container-installer@bed71f841c250650a70f1ed8315ba92da1591ba6 # v1.5.0

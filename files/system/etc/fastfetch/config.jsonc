@@ -68,7 +68,7 @@
     // Pinned, NOT auto-detected — though detection would land on this same mark
     // today. fastfetch tries os-release ID, then NAME, then each word of ID_LIKE,
     // then the kernel's name, and only then its generic penguin. This image
-    // rewrites ID to `qubix_os_bluebuild` and NAME to `Qubix OS` (DD-003, DD-064),
+    // rewrites ID to `qubix_os_bluebuild` and NAME to `Qubix OS` (DD-003, DD-065),
     // so neither field matches a built-in logo. The field still saying fedora is the
     // base image's ID_LIKE — which is why
     // deleting this block draws the *full* mark, not a penguin, and why the box

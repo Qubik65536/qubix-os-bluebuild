@@ -2296,7 +2296,7 @@ order:
 | # | Field tried | This image's value | Match? |
 |---|---|---|---|
 | 1 | `ID` | `qubix_os_bluebuild` (DD-003) | no |
-| 2 | `NAME` | `Qubix OS` (DD-064) | no |
+| 2 | `NAME` | `Qubix OS` (DD-065) | no |
 | 3 | each word of `ID_LIKE` | `fedora`, from the base image | **yes** |
 | 4 | kernel name | `Linux` | — |
 | 5 | fallback | `unknown` | — |
@@ -3899,7 +3899,7 @@ This tests both the fresh-account result and the override contract before public
 
 ## DD-064 — Split the visual product name from technical BlueBuild provenance
 
-**Status:** Accepted
+**Status:** Superseded by [DD-065](#dd-065--override-anacondas-product-input-before-startup-not-loraxs-later-build-stamp)
 
 **Implements:** `BRD-008`
 
@@ -3952,3 +3952,62 @@ from accidentally renaming the update target or erasing deployment detail.
   additional runtime-template commands. Its exact grep fails CI if that contract changes.
 - Only a newly built ISO can confirm the welcome surface and a booted installation can
   confirm the GRUB detail together; `BRD-008` waits for that confirmation.
+
+---
+
+## DD-065 — Override Anaconda's product input before startup, not Lorax's later build stamp
+
+**Status:** Accepted
+
+**Implements:** `BRD-008`
+
+**Supersedes:** [DD-064](#dd-064--split-the-visual-product-name-from-technical-bluebuild-provenance)
+*(the visual/technical identity split stays; only the installer delivery mechanism changes)*
+
+**Context.** The first ISO build with DD-064 failed on 2026-09-02. Lorax reported
+`OSError: no files matched /.buildstamp` while running Qubix's additional template. The
+failure exposed an incorrect lifecycle assumption: an `--add-template` is a runtime
+*install* template, not a runtime post-install template.
+
+Pinned Lorax calls `RuntimeBuilder.install()`—which runs every additional template—before
+it constructs and writes `/.buildstamp`; only then does it call
+`RuntimeBuilder.postinstall()`. The order is explicit in Lorax's pinned
+[`run()` implementation](https://github.com/weldr/lorax/blob/ffba3078beab843c5d663f6443dca28d8e820948/src/pylorax/__init__.py#L296-L321).
+The pinned installer action exposes additional install templates but no corresponding
+runtime post-install-template input, so the build stamp cannot be edited through that
+interface after creation.
+
+Anaconda already supports the required split. Its product loader reads `/.buildstamp`
+first and then reads the path named by `PRODBUILDPATH`; normal ConfigParser merging means a
+second file containing only `[Main] Product=Qubix OS` overrides that one display field and
+inherits every omitted field from Lorax's technical stamp. See Anaconda's
+[`get_product_values()`](https://github.com/rhinstaller/anaconda/blob/a0e676960932ff044ad8d18b02e6a4e62f9cd511/pyanaconda/core/product.py#L66-L97).
+
+**Decision.** Keep the installer action's technical `image_name` and Lorax's resulting
+`/.buildstamp` unchanged. During the available additional-template install phase, create:
+
+| Runtime file | Purpose |
+|---|---|
+| `/etc/anaconda/qubix-product.buildstamp` | Partial Anaconda product fragment containing only `[Main]` and `Product=Qubix OS` |
+| `/etc/systemd/system/anaconda.service.d/50-qubix-product.conf` | Exports `PRODBUILDPATH` for the normal tmux-backed installer path |
+| `/etc/systemd/system/anaconda-direct.service.d/50-qubix-product.conf` | Exports the same value for the `inst.notmux` direct path |
+
+The template first asserts that both upstream service units still exist, then runs exact
+greps against all three generated files immediately. It removes its own output before
+appending so rerunning it cannot duplicate INI sections. Do not add version, architecture,
+UUID, final-release state, or technical image identity to the partial fragment; omission
+is what preserves those values from `/.buildstamp`.
+
+**Consequences.**
+
+- The failed early `replace` is gone; every template command now targets files that the
+  template itself creates during its actual lifecycle phase.
+- Anaconda sees `Qubix OS` as its product name before it imports and caches product data,
+  in both supported service launch paths.
+- Lorax, the embedded OCI payload, update routing, and boot/deployment metadata keep their
+  technical BlueBuild-bearing identities.
+- The customization relies on Anaconda's explicit `PRODBUILDPATH` precedence contract,
+  not a race, background watcher, or mutation of the pinned action.
+- A new ISO CI run must confirm Lorax accepts the template; booting that ISO must still
+  confirm the installer UI name and retained GRUB detail. `BRD-008` remains open until the
+  build succeeds, then returns to Awaiting confirmation for the visual check.

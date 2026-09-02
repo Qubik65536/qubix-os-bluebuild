@@ -117,12 +117,12 @@ it through GRUB's existing `custom.cfg` hook (DD-057).
 |---|---|---|
 | `files/system/usr/share/kde-settings/kde-profile/default/xdg/kcm-about-distrorc` | `/usr/share/kde-settings/kde-profile/default/xdg/kcm-about-distrorc` | KDE System Settings → **About this System**. Sets `Name=Qubix OS`, the `Variant` string, and `LogoPath=/usr/share/pixmaps/system-logo.png`. |
 | `files/system/usr/share/kde-settings/kde-profile/default/xdg/ksplashrc` | `/usr/share/kde-settings/kde-profile/default/xdg/ksplashrc` | KDE's distro profile. Selects `com.qubixos.desktop` for accounts without a higher-priority personal splash choice. |
-| `.github/lorax/qubix-product.tmpl` | ISO `/.buildstamp` | Replaces Lorax's installer-facing `Product` with `Qubix OS`, so Anaconda's welcome surface omits the build-system qualifier while the embedded OCI image name remains unchanged (DD-064). |
+| `.github/lorax/qubix-product.tmpl` | Installer runtime `/etc/anaconda/qubix-product.buildstamp` plus two systemd drop-ins | Supplies Anaconda a partial `PRODBUILDPATH` overlay with `Product=Qubix OS`; Lorax's later technical `/.buildstamp` and the embedded OCI image name remain unchanged (DD-065). |
 
 `os-release` (`ID`, `NAME`, `PRETTY_NAME`) is *not* in this tree — it is patched at build
 time by the `containerfile` module. Its visual `NAME` is `Qubix OS`; technical `ID` and
 detail-oriented `PRETTY_NAME` retain BlueBuild provenance. See
-[`recipe-reference.md`](recipe-reference.md) and DD-064.
+[`recipe-reference.md`](recipe-reference.md) and DD-065.
 
 ## Where branding shows up, by surface
 
@@ -131,7 +131,7 @@ detail-oriented `PRETTY_NAME` retain BlueBuild provenance. See
 | GRUB boot selector | Qubix Boot Console source in `/usr/share/qubix-os/grub-theme/`, copied and activated in `/boot` by `qubix-grub-theme.service` |
 | Boot / shutdown splash | Plymouth `watermark.png`, embedded by the recipe's late `initramfs` module |
 | Plasma startup splash | `com.qubixos.desktop`; Aurora dark/light QML paths are compatibility overrides |
-| Installer welcome / product heading | ISO `/.buildstamp` `Product=Qubix OS`, set by `.github/lorax/qubix-product.tmpl` |
+| Installer welcome / product heading | Anaconda's partial `PRODBUILDPATH` fragment, set before startup by `.github/lorax/qubix-product.tmpl` |
 | System Settings → About this System | `kcm-about-distrorc` + `system-logo.png` |
 | Niri floating-bar launcher | `qubixos-logo.png` through the DMS preset migration (DD-048) |
 | `neofetch` / `fastfetch` / terminal | `os-release` `PRETTY_NAME` (+ `ID` for logo selection) |
@@ -141,7 +141,7 @@ detail-oriented `PRETTY_NAME` retain BlueBuild provenance. See
 Prominent product surfaces use the clean name **Qubix OS**. Diagnostic and boot/deployment
 details deliberately retain the **BlueBuild** qualifier: `PRETTY_NAME`, the About page's
 variant text, OCI/update identity, and therefore generated GRUB deployment names continue
-to expose how the system was built (DD-064).
+to expose how the system was built (DD-065).
 
 ## Changing the logo
 

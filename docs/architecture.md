@@ -168,7 +168,7 @@ sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IM
   shell-safe token; it is consumed by tooling, not by humans.
 - `NAME` is the clean visual product label. `PRETTY_NAME` stays deliberately detailed so
   boot entries, diagnostics, and bug reports retain BlueBuild and upstream-version
-  provenance (DD-064).
+  provenance (DD-065).
 - The whole snippet is a single `RUN` under `set -eu`; semicolon-separated mutations and
   exact assertions therefore form one layer and fail atomically.
 

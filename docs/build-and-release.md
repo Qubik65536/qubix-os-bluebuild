@@ -112,7 +112,7 @@ DD-059, DD-060, DD-061).
 | Automatic matrix | `standard`, `cachyos`, `nvidia` from `latest`; `fail-fast: false` |
 | Installer action | `JasonN3/build-container-installer` v1.5.0, pinned to commit `bed71f8…` |
 | Installer variant | Kinoite |
-| Visual product name | `Qubix OS`, written to Lorax's build stamp by `.github/lorax/qubix-product.tmpl` |
+| Visual product name | `Qubix OS`, supplied through Anaconda's `PRODBUILDPATH` overlay by `.github/lorax/qubix-product.tmpl` |
 | Embedded applications | 25 apps, the Breeze theme runtime, and resolved dependencies from `flatpak_refs/iso-refs.txt` |
 | Dependency scanner | `umoci` v0.6.0, pinned by SHA-256 ahead of the installer action |
 | Timeout | 180 minutes (installer build plus multi-gigabyte upload) |
@@ -233,10 +233,13 @@ The action's `image_name` remains the technical GHCR image name because the pinn
 integration also uses it for the embedded payload and installed update target. Renaming it
 would change behaviour, not merely presentation. Instead, the workflow passes
 [`qubix-product.tmpl`](../.github/lorax/qubix-product.tmpl) through
-`additional_templates`; after Lorax creates `/.buildstamp`, the template changes only its
-`Product` field to `Qubix OS` and performs an exact assertion. The installer welcome
-surface is therefore clean while OCI identity, update routing, `PRETTY_NAME`, and GRUB
-deployment details retain BlueBuild provenance (DD-064).
+`additional_templates`. Those templates run before Lorax creates `/.buildstamp`, so this
+one creates a partial Anaconda product fragment containing only `Product=Qubix OS` and
+systemd drop-ins that export its path through `PRODBUILDPATH` for both installer launch
+paths. Anaconda loads that fragment after the technical build stamp and merges only the
+visual field. Exact template assertions cover every generated file; OCI identity, Lorax's
+stamp, update routing, `PRETTY_NAME`, and GRUB deployment details retain BlueBuild
+provenance (DD-065).
 
 ### Microsoft 365 OneDrive setup
 
@@ -512,6 +515,10 @@ uploader is repository-local and changes with this repository.
      both user and sudo lookups. Do not return to a `GITHUB_PATH`-only override: the action
      unpacks under sudo. Do not disable Flatpak dependency discovery; update the pinned
      binary and checksum deliberately if the upstream release asset changes.
+   - **`no files matched /.buildstamp` from `qubix-product.tmpl`** → the obsolete DD-064
+     template is still in the checkout. Additional templates run before Lorax creates that
+     file. The DD-065 template must instead create the partial Anaconda product fragment
+     and both `PRODBUILDPATH` service drop-ins; never make the missing-file error optional.
    - **ISO Lorax/repository failure** → Fedora may have retired or moved the selected old
      tag's installer repositories. The Fedora version is derived from the image, not typed.
    - **OneDrive action reports a required value is missing** → create/configure the GitHub

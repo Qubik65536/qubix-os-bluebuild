@@ -74,9 +74,11 @@ is the **only** place images and ISOs are built.
   signature policy. It is distinct from the explicit pre-build cosign verification.
 - The action's technical `image_name` remains the GHCR name because it also controls the
   embedded payload and update target. `additional_templates` passes
-  `.github/lorax/qubix-product.tmpl`, which rewrites only Lorax `/.buildstamp`'s `Product`
-  to `Qubix OS` and asserts it exactly. Installer-facing branding is clean while OCI,
-  `PRETTY_NAME`, and deployment/GRUB details retain BlueBuild (DD-064).
+  `.github/lorax/qubix-product.tmpl`. Additional templates run before Lorax writes
+  `/.buildstamp`, so the template creates a partial Anaconda product file and systemd
+  drop-ins that export it through `PRODBUILDPATH` for normal and `inst.notmux` startup.
+  Anaconda overlays only `Product=Qubix OS`; the Lorax stamp, OCI, `PRETTY_NAME`, and
+  deployment/GRUB details retain BlueBuild (DD-065).
 - Targets the GitHub `onedrive` environment and grants `id-token: write`. Environment
   variables provide `ONEDRIVE_TENANT_ID`, `ONEDRIVE_CLIENT_ID`, and `ONEDRIVE_USER_ID`;
   no Microsoft client secret or Azure subscription is used.
@@ -159,7 +161,8 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
 - Adding an active variant also requires adding its choice and mapping in `iso.yml`.
 - Do not replace the installer action's `image_name` with a display name. Change
   `.github/lorax/qubix-product.tmpl` for visual installer branding; the former is the
-  payload/update identity (DD-064).
+  payload/update identity. Do not target `/.buildstamp` from that template because Lorax
+  creates it only after every additional install template finishes (DD-065).
 - The OneDrive target must be a provisioned Microsoft 365 work/school drive. The Entra app
   needs tenant-admin consent for application permission `Sites.ReadWrite.All`, which is
   tenant-wide even though the action addresses only the configured user.

@@ -58,7 +58,7 @@ described here or in `files/system/`.
 - **`os-release` result:** `ID=qubix_os_bluebuild`, `NAME="Qubix OS"`,
   `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)"`. `NAME` drives the
   clean visual product label; `ID` and `PRETTY_NAME` retain technical provenance and all
-  other upstream fields survive untouched (DD-064).
+  other upstream fields survive untouched (DD-065).
 
 ### CachyOS-kernel recipes
 

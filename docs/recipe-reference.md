@@ -567,7 +567,7 @@ Implementation notes:
 - `IMAGE_VERSION` is captured **before** the rewrites.
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
 - `NAME` is the visual product label; technical `ID` and `PRETTY_NAME` retain BlueBuild
-  provenance for tooling and detailed deployment names (DD-064).
+  provenance for tooling and detailed deployment names (DD-065).
 - **Ordering:** must run after any module that can regenerate `os-release`.
 
 ### 7. `initramfs` — embed the finished early-boot content

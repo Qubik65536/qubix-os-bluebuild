@@ -268,7 +268,7 @@ Expected fields on Qubix OS:
 
 The version in `PRETTY_NAME` is the **Aurora/Fedora** version the image was built from —
 useful when reporting a bug, because it identifies the upstream base. Everything else in
-`os-release` is upstream's (DD-003, DD-064). This split is intentional: `NAME` is the
+`os-release` is upstream's (DD-003, DD-065). This split is intentional: `NAME` is the
 clean visual product name, while `ID`, `PRETTY_NAME`, and the OCI repository names retain
 BlueBuild provenance for diagnostics, rebases, and detailed boot/deployment labels.
 

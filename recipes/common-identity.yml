@@ -22,7 +22,7 @@ modules:
   #   - The last sed uses | as its delimiter because the replacement contains /.
   #   - NAME is the clean visual product name. ID and PRETTY_NAME deliberately retain
   #     technical BlueBuild provenance for tooling and detailed deployment labels.
-  #   - Single RUN with assertions: one layer, fails atomically. DD-064.
+  #   - Single RUN with assertions: one layer, fails atomically. DD-065.
   #
   # A variant that wants its own PRETTY_NAME rewrites the field again AFTER this module
   # rather than parameterising it — see the non-standard recipes/recipe-*.yml files.
