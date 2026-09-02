@@ -1,0 +1,27 @@
+#!/usr/bin/bash
+# Stabilize Homebrew icon metadata and refresh the two shipped desktop launchers.
+#
+# Homebrew casks can create or rewrite entries and icons after the graphical session has
+# already indexed applications. This command is run by qubix-app-launcher-refresh.path;
+# every stage is best-effort so one desktop or malformed cask cannot block the other.
+
+set -u
+
+# ── Stable Homebrew icon metadata ─────────────────────────────────────────────
+# Repair versioned absolute icon paths before either launcher rebuilds its model.
+if command -v qubix-stabilize-homebrew-icons >/dev/null 2>&1; then
+    qubix-stabilize-homebrew-icons >/dev/null 2>&1 || true
+fi
+
+# ── Plasma's KService cache ───────────────────────────────────────────────────
+# Rebuild only when Plasma's cache builder is installed. It is inherited on Qubix, but
+# keeping the guard makes the service safe if a future image variant changes that.
+if command -v kbuildsycoca6 >/dev/null 2>&1; then
+    kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+fi
+
+# ── Niri's DMS application model ──────────────────────────────────────────────
+# Restart only an already-running DMS instance. `try-restart` leaves Plasma alone because
+# DMS is deliberately inactive there; under Niri the restart causes Quickshell to rescan
+# XDG desktop entries immediately.
+systemctl --user try-restart dms.service >/dev/null 2>&1 || true

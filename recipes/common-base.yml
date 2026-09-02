@@ -655,6 +655,37 @@ modules:
                  | LC_ALL=C sort | xargs sha256sum > MANIFEST.sha256; \
              sha256sum --check --status MANIFEST.sha256)
 
+      #    4k. Validate Homebrew desktop application discovery and refresh wiring.
+      #
+      #        A working `brew` in a terminal does not prove that a graphical launcher can
+      #        see its desktop metadata. Assert both environment entry points, executable
+      #        helper modes/syntax, watched desktop/icon directories, service target, and
+      #        recipe-enabled path unit before publishing the image. DD-062.
+      #
+      #        Ordering: after `files`, which ships every asserted path.
+      - |
+        RUN set -eu; \
+            helper=/usr/bin/qubix-refresh-app-launchers; \
+            icon_helper=/usr/bin/qubix-stabilize-homebrew-icons; \
+            path_unit=/usr/lib/systemd/user/qubix-app-launcher-refresh.path; \
+            service_unit=/usr/lib/systemd/user/qubix-app-launcher-refresh.service; \
+            bash -n "$helper"; \
+            bash -n "$icon_helper"; \
+            sh -n /etc/profile.d/qubix-shell-env.sh; \
+            test -x "$helper"; \
+            test -x "$icon_helper"; \
+            grep -qF 'XDG_DATA_DIRS=/home/linuxbrew/.linuxbrew/share:' \
+                /usr/lib/environment.d/50-qubix-terminal.conf; \
+            grep -qxF 'PathModified=%h/.local/share/applications' "$path_unit"; \
+            grep -qxF 'PathModified=/home/linuxbrew/.linuxbrew/share/applications' \
+                "$path_unit"; \
+            grep -qxF 'PathModified=%h/.local/share/icons' "$path_unit"; \
+            grep -qxF 'PathModified=/home/linuxbrew/.linuxbrew/share/icons' "$path_unit"; \
+            grep -qxF 'Unit=qubix-app-launcher-refresh.service' "$path_unit"; \
+            grep -qxF 'ExecStart=/usr/bin/qubix-refresh-app-launchers' "$service_unit"; \
+            grep -qF 'qubix-stabilize-homebrew-icons' "$helper"; \
+            grep -qF 'systemctl --user try-restart dms.service' "$helper"
+
   # 5. Enable the system services this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already
   #    exist — the only thing in the terminal environment that cannot be delivered as a
@@ -662,11 +693,16 @@ modules:
   #    `chsh`, is deleted from the image by Aurora, so there was no manual path either.
   #    qubix-grub-theme.service copies the immutable theme into machine-local /boot and
   #    activates it through GRUB's custom.cfg hook without regenerating menu entries.
-  #    Both units and scripts come from the overlay (module 1); this only enables them.
-  #    DD-035, DD-057.
-  #    Ordering: after `files`, which ships the unit.
+  #    The user path unit watches Homebrew desktop-entry locations and refreshes the
+  #    already-running Plasma/DMS application index after an install or removal.
+  #    All units and scripts come from the overlay (module 1); this only enables them.
+  #    DD-035, DD-057, DD-062.
+  #    Ordering: after `files`, which ships the units.
   - type: systemd
     system:
       enabled:
         - qubix-default-shell.service
         - qubix-grub-theme.service
+    user:
+      enabled:
+        - qubix-app-launcher-refresh.path

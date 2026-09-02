@@ -20,7 +20,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `etc/xdg-desktop-portal/niri-portals.conf` | `xdg-desktop-portal`, under Niri only | Retains GNOME for Niri's general portal backend but maps `FileChooser` to GTK, because GNOME 47+ needs uninstalled Nautilus for that interface; Plasma reads its own profile (DD-053) |
 | `etc/profile.d/zz-qubix-fcitx-wayland.sh` | graphical sessions and interactive shells | Sorts after Fedora's `fcitx5.sh` and unsets its global `GTK_IM_MODULE` only on Wayland; preserves `XMODIFIERS` and Qt compatibility (DD-050) |
 | `etc/gtk-{3,4}.0/settings.ini` | GTK 3 and GTK 4 | Selects the packaged Fcitx module as the X11/XWayland fallback without forcing native Wayland clients away from compositor text-input; personal settings win (DD-050) |
-| `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012); `XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:+…:}/etc/xdg`, without which the WezTerm config below is unreachable (DD-034). **Appends, not defaults**, and reaches only what the user manager starts — `etc/profile.d/qubix-shell-env.sh` carries the same append for every shell (DD-038) |
+| `usr/lib/environment.d/50-qubix-terminal.conf` | systemd user manager | `TERMINAL=wezterm` (DD-012); appends `/etc/xdg` to `XDG_CONFIG_DIRS` for WezTerm and prepends `/home/linuxbrew/.linuxbrew/share` to `XDG_DATA_DIRS` for Homebrew application discovery. Both preserve inherited paths and reach only what the user manager starts; `etc/profile.d/qubix-shell-env.sh` carries the shell half (DD-038, DD-062) |
 | `etc/xdg/wezterm/wezterm.lua` | WezTerm | System-wide config: font stack, `Oxocarbon Dark`, no title bar, 0.75 opacity. Found via `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it wholesale (DD-034) |
 | `etc/xdg/wezterm/colors/*.toml` | WezTerm | Two custom schemes. Found because `colors/` sits in a config dir, so they stay available to a user's *own* `wezterm.lua` (DD-034) |
 | `usr/share/licenses/monaspace-krypton-nf/LICENSE` | nobody — legal | The OFL text for a font the recipe installs from upstream. **Vendored because Monaspace's archive ships none** (DD-034) |
@@ -29,6 +29,9 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/share/qubix-os/dms-theme.json` | DankMaterialShell, as `customThemeFile` | The same palette for the shell. Watched by DMS, so a rebase reloads it live (DD-022, DD-025) |
 | `usr/bin/qubix-dms-theme` | `qubix-dms-theme.service` | Enforces the theme pointer every Niri login and migrates DMS's native floating-bar settings plus the canonical cube launcher once per preset version. Version 2 makes `BarCanvas` transparent while retaining rounded `BasePill` backgrounds without outlines. Preserves widget arrays and unrelated settings; stamps completion under `$XDG_STATE_HOME/qubix-os/` (DD-025, DD-048). **Only executable in the overlay** |
 | `usr/lib/systemd/user/qubix-dms-theme.service` | systemd user manager | Runs the theme/preset seeder `Before=dms.service`; pulled in by `niri.service`, never enabled globally (DD-025, DD-048) |
+| `usr/bin/qubix-refresh-app-launchers` | Homebrew application path unit | Runs icon stabilisation, best-effort `kbuildsycoca6 --noincremental`, then `systemctl --user try-restart dms.service`; refreshes the active desktop without starting DMS under Plasma (DD-062). Mode `100755` |
+| `usr/bin/qubix-stabilize-homebrew-icons` | `qubix-refresh-app-launchers` | Detects readable absolute Caskroom icons and named loose cask icons, copies them to `$XDG_DATA_HOME/qubix-os/homebrew-icons`, rewrites only matching desktop entries/marked overrides, and removes only its own unreferenced output (DD-062). Mode `100755` |
+| `usr/lib/systemd/user/qubix-app-launcher-refresh.{path,service}` | systemd user manager | Enabled for every user; `PathModified` watches per-user and Homebrew `applications/` plus `icons/`, then invokes icon stabilisation and launcher refresh after install/update/removal (DD-062) |
 | `etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop` | XDG autostart / `systemd-xdg-autostart-generator` | **Replaces** the package's entry, adding `NotShowIn=niri;` so the bridge does not autostart under Niri (DD-021) |
 | `usr/bin/qubix-video-bridge` | `Mod+Shift+B` and the launcher entry below | Toggles the bridge, with a notification. **Only executable in the overlay** — the git mode bit is what makes it runnable (IMG-013) |
 | `usr/share/applications/qubix-video-bridge.desktop` | XDG application menu / DMS launcher | A **new** entry (upstream's is `NoDisplay=true`), `OnlyShowIn=niri;` (IMG-013) |
@@ -46,7 +49,7 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 
 | Path | Consumer | Effect |
 |---|---|---|
-| `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `XDG_CONFIG_DIRS` (DD-038), `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and — at the end — bash's interactive setup (DD-026, DD-030, DD-032). Every exported value is **re-resolved in every shell**, and only ever rewritten when it holds the image's own literal path (DD-037) |
+| `etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `XDG_CONFIG_DIRS` (DD-038), Homebrew's `XDG_DATA_DIRS` entry (DD-062), `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and — at the end — bash's interactive setup (DD-026, DD-030, DD-032). Search-path entries are added once without dropping inherited directories; tool-specific values are re-resolved in every shell (DD-037) |
 | `etc/profile.d/zz-qubix-fastfetch.sh` | interactive bash and zsh | Undoes Aurora's `alias fastfetch='ublue-fastfetch'`, without which `/etc/fastfetch/config.jsonc` — and the user's own — is never read. **Named `zz-` because `/etc/profile.d` is sourced alphabetically** and `qubix-shell-env.sh` sorts before `ublue-*` (DD-040) |
 | `etc/default/useradd` | `useradd(8)` | `SHELL=/usr/bin/zsh`. **Replaces** shadow-utils' copy; only one line differs |
 | `usr/bin/qubix-default-shell` | `qubix-default-shell.service` | Sets zsh as the login shell for existing accounts, once each, stamped in `/var/lib/qubix-os/default-shell/` (DD-035). Mode `100755` |
@@ -63,9 +66,11 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 | `usr/bin/qubix-distrobox-shell` | distrobox-init, **inside** a container, as root | Installs zsh, the plugins, starship, atuin and bat from the *container's* repositories, then fills the gaps from `/run/host` — text always, a host binary only after `--version` proves the container can run it; symlinks `/usr/share/qubix-os` → `/run/host/usr/share/qubix-os` and `/etc/profile.d/qubix-shell-env.sh` → the host's; writes the source block into the container's global `zshrc` between `# ── Qubix OS ──…` and `# ── end of the Qubix OS block ──…`, **replacing** any block already there, which is the only route a later fix has into a container that exists (DD-046). Idempotent — two runs give a byte-identical file — re-runnable by hand, **exits 0 from inside a container whatever happens**, and **never prints a line starting with `Error:`** (DD-043, DD-045). Mode `100755` |
 | `usr/share/qubix-os/fastfetch/retune.sh` | nobody — run by hand | Re-derives the box's four columns after a logo change. Reads the gutter **two ways** — a cursor step on fastfetch ≤ 2.63, leading spaces on ≥ 2.64, which reworked logo printing (DD-042) — so it is coupled to how fastfetch renders and needs re-checking when that changes. Mode `100755` in the overlay |
 
-**Nothing here writes to `$HOME`.** Configuration files, one hand-run tool, one system
-service that touches `/etc/passwd`, and one bounded bridge that writes its marked GRUB block
-plus image assets under `/boot` (DD-030, DD-031, DD-035, DD-057). An earlier design also seeded a
+**Nothing here seeds preferences into `$HOME`.** Configuration files, one hand-run tool,
+one system service that touches `/etc/passwd`, one bounded bridge that writes its marked
+GRUB block plus image assets under `/boot`, and one user path unit that maintains generated
+Homebrew desktop/icon integration plus normal desktop caches after application metadata
+changes (DD-030, DD-031, DD-035, DD-057, DD-062). An earlier design also seeded a
 `source` line into `~/.zshrc` from a systemd *user* service and vendored the LazyVim starter;
 both are gone. The login-shell service came back in DD-035, because the single `chsh` it was
 traded for does not exist on Aurora — upstream deletes `/usr/bin/chsh` from the image.
@@ -220,6 +225,8 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   relative `include "qubix-theme.kdl"` is rewritten to an absolute path, because a verbatim
   copy names a file that is not in `~/.config/niri/` and the session does not load (DD-039).
 - **File modes carry through.** `usr/bin/qubix-video-bridge`, `usr/bin/qubix-dms-theme`,
+  `usr/bin/qubix-refresh-app-launchers`,
+  `usr/bin/qubix-stabilize-homebrew-icons`,
   `usr/bin/qubix-grub-theme`, `usr/bin/qubix-config` and
   `usr/share/qubix-os/fastfetch/retune.sh` are executable only because git records mode
   `100755`; the `files` module copies the bit as it finds it. A rewrite that drops it
@@ -256,6 +263,21 @@ of which one differs. Re-check it against shadow-utils if that package changes i
   last rather than defaulting to it: `:-` did nothing to a session that already exported a
   list without it. Deleting either line silently removes the WezTerm configuration from
   whichever half it covered (DD-038).
+- **`XDG_DATA_DIRS` is the equivalent boundary for Homebrew GUI metadata.** A terminal's
+  `PATH` proves only that an executable can run; DMS and Plasma index desktop entries and
+  icons through data directories. The same environment.d/profile.d pair prepends
+  `/home/linuxbrew/.linuxbrew/share`, explicitly falling back to
+  `/usr/local/share:/usr/share` so setting the variable never erases the XDG defaults.
+  Flatpak export directories already present in the session remain untouched (DD-062).
+- **Homebrew icon repair owns one narrow user-data subtree and marked overrides.** The
+  stabiliser may rewrite a cask-owned desktop entry already in
+  `$XDG_DATA_HOME/applications`, or create a same-basename override for a shared entry. It
+  only does so when it can read an absolute Homebrew icon or find a loose named cask icon;
+  unmarked user overrides and icon-theme names without a detected cask-owned source remain
+  untouched. Cleanup is bounded to
+  `X-Qubix-Homebrew-Icon-Managed=true` entries whose recorded source vanished and files
+  under `$XDG_DATA_HOME/qubix-os/homebrew-icons` with no remaining `Icon=` reference.
+  `PathModified` is required because upgrades overwrite existing files (DD-062).
 - **A WezTerm colour scheme's name is its `[metadata] name`, not its filename.** That string
   is what `color_scheme` in `wezterm.lua` has to match; renaming the `.toml` changes nothing
   and editing the metadata breaks the reference. The build catches the second case

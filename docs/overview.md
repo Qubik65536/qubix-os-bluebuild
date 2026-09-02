@@ -55,6 +55,7 @@ Everything Aurora DX provides is inherited for free. This repository only record
 | Terminal configuration | WezTerm's font stack, colour scheme and window settings, system-wide. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` still wins (DD-034) | `files/system/etc/xdg/wezterm/` |
 | Terminal fonts | Monaspace Krypton NF and IBM Plex Math from pinned upstream releases; IBM Plex Mono/Sans and Noto Sans CJK from Fedora (DD-034) | `recipe.yml` (`dnf`, `containerfile`) |
 | Default browser | Ungoogled Chromium, claimed for the web MIME types in both sessions | `files/system/etc/xdg/mimeapps.list`, `files/system/etc/xdg/kdeglobals` |
+| Homebrew desktop integration | Adds Homebrew's shared metadata prefix to `XDG_DATA_DIRS`, stabilises versioned/loose cask icons, and refreshes Plasma/DMS when cask desktop metadata changes (DD-062) | `files/system/usr/lib/environment.d/`, `files/system/etc/profile.d/`, `files/system/usr/bin/qubix-stabilize-homebrew-icons`, `files/system/usr/lib/systemd/user/` |
 | Simplified Chinese input | Fcitx 5 with English (US) and Pinyin defaults; `Super+Space` in Plasma, `Ctrl+Space` in Niri; native startup integration for both | `recipe.yml` (`dnf`), `files/system/etc/xdg/fcitx5/`, `files/system/etc/xdg/kwinrc`, `files/system/etc/niri/config.kdl` |
 | Second session | Niri added alongside — nothing KDE removed. System config shipped | `recipe.yml` (`dnf`), `files/system/etc/niri/config.kdl` |
 | Niri shell | DankMaterialShell, started by systemd under Niri only | `files/system/usr/lib/systemd/user/niri.service.d/` |

@@ -149,6 +149,73 @@ brew upgrade
 brew uninstall --cask zed-linux
 ```
 
+#### If an installed Homebrew app is missing from the launcher
+
+Homebrew's Linux prefix stores shared desktop metadata under
+`/home/linuxbrew/.linuxbrew/share`. A terminal can still run an application when that
+directory is absent from `XDG_DATA_DIRS`, but Plasma and Niri's DMS launcher cannot index
+the metadata. Homebrew's `shellenv` does not add the directory itself.
+
+Qubix adds it for graphical sessions and shells as of IMG-039 (DD-062). An enabled user
+path unit also watches the Homebrew and per-user application directories: it rebuilds
+Plasma's application-service cache and restarts DMS only when DMS is already active. New
+installs and removals therefore appear without a logout and do not start the Niri shell in
+Plasma.
+
+It watches the matching icon directories too. Before refreshing a launcher,
+`qubix-stabilize-homebrew-icons` handles two cask patterns that otherwise age badly:
+
+- an absolute `Icon=` below `Caskroom/<version>/`, which disappears on upgrade;
+- a named icon such as `Icon=zed` paired with a loose cask file such as
+  `~/.local/share/icons/zed.png`, which launchers do not consistently resolve as an icon
+  theme entry.
+
+For those entries only, it copies the readable source to the stable
+`${XDG_DATA_HOME:-$HOME/.local/share}/qubix-os/homebrew-icons/` directory and points the
+user desktop entry at that absolute copy. A shared Homebrew entry gets a marked user
+override with the same desktop ID; an existing unmarked user override always wins. A cask
+update refreshes the copy, and uninstall removes Qubix's marked override and unreferenced
+copy. Icon-theme names without a detected cask-owned loose/bundle source, and absolute
+paths outside Homebrew, are left untouched.
+
+After first rebasing to that image, **log out and back in once** so the user manager and
+desktop inherit the new search path and start the watcher. Confirm it with:
+
+```bash
+printf '%s\n' "$XDG_DATA_DIRS" | tr : '\n'
+# must include /home/linuxbrew/.linuxbrew/share
+```
+
+To repair the currently running Niri session without logging out, import the corrected
+value and restart only DMS:
+
+```bash
+export XDG_DATA_DIRS="/home/linuxbrew/.linuxbrew/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+systemctl --user import-environment XDG_DATA_DIRS
+/usr/bin/qubix-refresh-app-launchers
+```
+
+The icon repair can also be run and inspected on its own:
+
+```bash
+qubix-stabilize-homebrew-icons
+find "${XDG_DATA_HOME:-$HOME/.local/share}/qubix-os/homebrew-icons" \
+     -maxdepth 1 -type f -print 2>/dev/null
+```
+
+For Plasma, logging out and back in is the reliable refresh because the launcher and its
+service cache both need the new environment. If Zed is still absent afterward, verify that
+the cask actually installed a desktop entry:
+
+```bash
+find "${XDG_DATA_HOME:-$HOME/.local/share}/applications" \
+     /home/linuxbrew/.linuxbrew/share/applications \
+     -maxdepth 1 -iname '*zed*.desktop' -print 2>/dev/null
+```
+
+An empty result is a cask-install problem rather than a launcher-index problem; reinstall
+it with `brew reinstall --cask ublue-os/tap/zed-linux`.
+
 **The terminal environment is already there** — the prompt, the aliases and the zsh
 plugins are files in the image, not anything seeded into your home directory. **Your login
 shell is zsh from the first boot after a rebase**, including on an account that was created

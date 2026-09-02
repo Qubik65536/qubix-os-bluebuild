@@ -1649,6 +1649,44 @@ should look at.
 
 ### Desktop sessions
 
+- [ ] **IMG-039** — Discover Homebrew GUI applications in desktop launchers
+  - **Category:** Image content
+  - **Depends on:** IMG-002, IMG-003
+  - **Notes:** Reported 2026-09-01 after installing Zed from Universal Blue's Homebrew
+    tap: the executable works from a terminal, but the application does not appear in
+    Niri's DMS launcher. Homebrew applications can install metadata in the user's XDG
+    application directory or below `/home/linuxbrew/.linuxbrew/share`; `brew shellenv`
+    does not add the shared directory to `XDG_DATA_DIRS`, and an already-running launcher
+    can retain its pre-install index. The image now supplies the missing graphical/shell
+    environment and an enabled per-user watcher that refreshes Plasma and an active DMS
+    instance. The same integration also stabilises absolute versioned and loose named
+    Homebrew icon sources so a Caskroom replacement cannot leave a broken launcher icon.
+    Shell, expansion, executable-mode, unit-wiring, YAML, and diff checks pass. Temporary
+    fixtures also pass for absolute and named icons, action-icon preservation, idempotence,
+    icon-only updates, removed-version relocation, and managed uninstall cleanup.
+    Discovery and icon persistence await a rebuilt-image check in both sessions.
+  - **Acceptance criteria:**
+    - Every graphical user session prepends Homebrew's `share` directory to
+      `XDG_DATA_DIRS` without losing inherited Flatpak or system data directories
+    - Interactive and login shells expose the same application-data search path, without
+      duplicating the Homebrew entry when it is already present
+    - A user path unit watches both Homebrew application-entry locations and refreshes
+      Plasma's service cache plus an already-running DMS instance after an install or
+      removal, without starting DMS in Plasma
+    - Desktop entries with a readable absolute Homebrew icon get an automatically managed
+      stable icon copy and launcher override; named icons without a detected cask-owned
+      loose/bundle source are unchanged
+    - Updating or uninstalling a Homebrew cask refreshes or removes only Qubix-managed icon
+      overrides, without leaving a launcher bound to a removed version directory
+    - The image does not install, copy, or pin any optional Homebrew application
+    - User documentation gives a current-session recovery command and explains when a
+      logout is required
+    - The environment files, desktop documentation, design decision, and context cache
+      agree and pass static syntax/value checks
+    - On the rebased image, installing `zed-linux` makes Zed discoverable from Niri's
+      `Super+Space` launcher and Plasma's application launcher, with its icon still present
+      after a cask update *(open — needs a build and hardware)*
+
 - [ ] **IMG-038** — Restore file chooser dialogs in the Niri session
   - **Category:** Image content
   - **Depends on:** IMG-002

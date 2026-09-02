@@ -89,7 +89,7 @@ substitution.
   | `/etc/xdg/kwinrc` | KWin fallback: launch Fcitx as Plasma's Wayland input-method client; `~/.config/kwinrc` shadows it (DD-050) |
   | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Runs after Fedora's Fcitx profile and unsets `GTK_IM_MODULE` on Wayland, avoiding a duplicate native GTK input path (DD-050) |
   | `/etc/gtk-{3,4}.0/settings.ini` | Keeps the packaged Fcitx GTK module as the GTK 3/4 X11/XWayland fallback after the global variable is unset (DD-050) |
-  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012), and `/etc/xdg` **appended** to `XDG_CONFIG_DIRS` so the file below is reachable (DD-034, DD-038). Reaches only what the systemd user manager starts; `/etc/profile.d/qubix-shell-env.sh` carries the same append for every shell |
+  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` for every user session (DD-012), `/etc/xdg` **appended** to `XDG_CONFIG_DIRS` so the file below is reachable (DD-034, DD-038), and Homebrew's `share` prefix prepended to `XDG_DATA_DIRS` so graphical launchers see its applications (DD-062). Reaches only what the systemd user manager starts; `/etc/profile.d/qubix-shell-env.sh` carries both search-path guarantees for every shell |
   | `/etc/xdg/wezterm/wezterm.lua` | WezTerm's system-wide config. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it (DD-034) |
   | `/etc/xdg/wezterm/colors/*.toml` | The colour schemes it selects. Available to a user's own `wezterm.lua` too (DD-034) |
   | `/usr/share/licenses/monaspace-krypton-nf/LICENSE` | The OFL text for a font installed in module 4d. Vendored because Monaspace's archive carries none (DD-034) |
@@ -97,10 +97,13 @@ substitution.
   | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
   | `/usr/bin/qubix-dms-theme` | Enforces DMS's Qubix Slate pointer and applies the versioned floating-component bar plus canonical cube launcher once (DD-025, DD-048) |
   | `/usr/lib/systemd/user/qubix-dms-theme.service` | Runs that migration before DMS under Niri; never enabled globally (DD-025, DD-048) |
+  | `/usr/bin/qubix-refresh-app-launchers` | Rebuilds Plasma's application-service cache and `try-restart`s DMS, so only the active desktop is affected (DD-062) |
+  | `/usr/bin/qubix-stabilize-homebrew-icons` | Copies readable versioned/loose Homebrew icons to a stable per-user XDG data path and rewrites only the matching desktop metadata; cleans its own stale overrides/copies (DD-062) |
+  | `/usr/lib/systemd/user/qubix-app-launcher-refresh.{path,service}` | Watches user and Homebrew desktop-entry plus icon directories; the path is enabled for every user by module 5 and invokes the static refresh service only after metadata changes (DD-062) |
   | `/usr/share/qubix-os/grub-theme/` | Immutable Qubix Boot Console source: layout, background, UI primitives, build-generated PF2 fonts, and integrity manifest (DD-057) |
   | `/usr/bin/qubix-grub-theme` | Copies that validated source into machine-local `/boot/grub2/themes/` and maintains only its marked `custom.cfg` block; never regenerates GRUB entries (DD-057) |
   | `/usr/lib/systemd/system/qubix-grub-theme.service` | Runs the GRUB installer after local filesystems mount. Enabled by module 5 in every variant (DD-057) |
-  | `/etc/profile.d/qubix-shell-env.sh` | `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's interactive setup (DD-026, DD-030) |
+  | `/etc/profile.d/qubix-shell-env.sh` | The shell half of the `XDG_CONFIG_DIRS` and Homebrew `XDG_DATA_DIRS` guarantees, plus `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, and bash's interactive setup (DD-026, DD-030, DD-038, DD-062) |
   | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on. **Replaces** shadow-utils' copy (DD-030) |
   | `/usr/bin/qubix-default-shell` | Moves accounts that already exist to zsh, once each (DD-035) |
   | `/usr/bin/qubix-config` | Copies any shipped configuration into `~/.config` on request. **Nothing runs it** (DD-039) |
@@ -471,15 +474,25 @@ The tenth snippet builds the **Qubix Boot Console payload** (DD-057):
   it. The runtime installer hashes that manifest into the `/boot` directory name, so a
   changed image gets a new complete directory instead of modifying live assets in place.
 
+The eleventh snippet validates **Homebrew desktop discovery** (DD-062):
+
+- It parses the refresh, icon-stabilisation, and shell helpers, checks both executable
+  modes, and requires the graphical `environment.d` file to prepend Homebrew's shared
+  data prefix.
+- It verifies all four watched application/icon directories, the path-to-service
+  relationship, and the refresh helper named by the oneshot unit. This makes a dropped
+  executable bit or renamed unit fail the image build rather than silently leaving
+  launchers stale or icons tied to removed Caskroom versions.
+
 - **Ordering:** after `dnf`, which installs `zsh`, `git`, `unzip`, `wezterm`, and
   `grub2-mkfont`; after module 4d, which installs the pinned Krypton NF faces; after the
   `files` module, which ships `/etc/zellij/config.kdl`,
   `/etc/xdg/wezterm/`, `/usr/share/qubix-os/shell/qubix.zsh`, `/usr/bin/qubix-config`,
-  `/etc/distrobox/distrobox.conf`, `/usr/bin/qubix-distrobox-shell` and every path
-  `qubix-config` names. The fifth snippet must follow the fourth. Before the identity
+  `/etc/distrobox/distrobox.conf`, `/usr/bin/qubix-distrobox-shell`, the Homebrew launcher
+  refresh/icon helpers and units, and every path `qubix-config` names. Before the identity
   rewrite, though nothing forces that.
 
-### 5. `systemd` — enable machine-local bridge services
+### 5. `systemd` — enable bridge services
 
 *Defined in `common-base.yml`.*
 
@@ -489,9 +502,13 @@ The tenth snippet builds the **Qubix Boot Console payload** (DD-057):
     enabled:
       - qubix-default-shell.service
       - qubix-grub-theme.service
+  user:
+    enabled:
+      - qubix-app-launcher-refresh.path
 ```
 
-The module enables two narrow bridges from immutable image policy to machine-local state:
+The module enables three narrow bridges from immutable image policy to machine-local or
+per-session state:
 
 - `qubix-default-shell.service` runs `Before=systemd-user-sessions.service`, so nobody is logged in while it rewrites
   `/etc/passwd`, and stamps each account in `/var/lib/qubix-os/default-shell/` so an account
@@ -502,8 +519,13 @@ The module enables two narrow bridges from immutable image policy to machine-loc
   block overrides bootupd's one-second default with an eight-second visible menu. It does
   not call `grub2-mkconfig` or generate entries. Full behaviour and opt-out:
   [`branding.md`](branding.md#installing-and-overriding-the-grub-theme).
-- Both units and scripts are shipped by module 1; this module only enables them.
-- **Ordering:** after `files`, which ships the unit. Nothing else depends on it.
+- `qubix-app-launcher-refresh.path` runs in each user manager and watches the per-user and
+  Homebrew application/icon directories. Its oneshot first stabilises fragile Homebrew
+  icons, then rebuilds Plasma's KService cache and uses `try-restart` for DMS, which
+  refreshes Niri without ever starting DMS under Plasma.
+  Full behaviour: [`usage.md`](usage.md#if-an-installed-homebrew-app-is-missing-from-the-launcher).
+- All units and scripts are shipped by module 1; this module only enables them.
+- **Ordering:** after `files`, which ships the units. Nothing else depends on it.
 
 ### 6. `containerfile` — raw build steps
 

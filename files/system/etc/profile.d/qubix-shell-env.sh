@@ -39,6 +39,22 @@ case ":${XDG_CONFIG_DIRS:-}:" in
         ;;
 esac
 
+# ── Homebrew application data search path ────────────────────────────────────
+# Homebrew's Linux prefix can contain desktop files and icons, but `brew shellenv`
+# deliberately does not add its share directory to XDG_DATA_DIRS. The graphical
+# session gets the same entry from environment.d; this half covers shells reached
+# through SSH, a text console, or `su -`. Prepend once, retain Flatpak/system paths,
+# and spell out the XDG defaults when no earlier component supplied the variable.
+_qubix_homebrew_share=/home/linuxbrew/.linuxbrew/share
+case ":${XDG_DATA_DIRS:-}:" in
+    *:"$_qubix_homebrew_share":*) ;;
+    *)
+        XDG_DATA_DIRS="$_qubix_homebrew_share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+        export XDG_DATA_DIRS
+        ;;
+esac
+unset _qubix_homebrew_share
+
 # ── Editor ────────────────────────────────────────────────────────────────────
 # Neovim is the configured editor; `micro` stays installed for anyone who prefers it.
 # Set only when the user has not already chosen, so an override in ~/.bashrc wins.

@@ -1,0 +1,235 @@
+#!/usr/bin/bash
+# Stabilize versioned absolute Homebrew application icons for desktop launchers.
+#
+# A cask can point Icon= into Caskroom/<version>/...; Homebrew removes that directory on
+# upgrade, leaving an otherwise valid launcher with a broken icon. This script copies
+# readable Homebrew-prefix icons and detected loose/bundled named cask icons into a
+# Qubix-owned stable data path, then rewrites the corresponding user desktop entry. Named
+# icons with no cask-owned source and absolute non-Homebrew paths are deliberately untouched.
+
+set -u
+
+# ── Search and managed-output locations ───────────────────────────────────────
+data_home=${XDG_DATA_HOME:-$HOME/.local/share}
+user_apps=$data_home/applications
+homebrew_prefix=${QUBIX_HOMEBREW_PREFIX:-/home/linuxbrew/.linuxbrew}
+homebrew_apps=${QUBIX_HOMEBREW_APPLICATIONS_DIR:-$homebrew_prefix/share/applications}
+stable_icons=$data_home/qubix-os/homebrew-icons
+
+mkdir -p -- "$user_apps" "$stable_icons"
+
+# Read one key from the main Desktop Entry group. Desktop actions may have their own Icon
+# keys and must not be mistaken for the application icon.
+desktop_key() {
+    local desktop=$1 key=$2
+    awk -v wanted="$key" '
+        /^\[Desktop Entry\][[:space:]]*$/ { in_main = 1; next }
+        /^\[/ { if (in_main) exit }
+        in_main {
+            split($0, pair, "=")
+            name = pair[1]
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+            if (name == wanted) {
+                sub(/^[^=]*=[[:space:]]*/, "")
+                sub(/[[:space:]]+$/, "")
+                print
+                exit
+            }
+        }
+    ' "$desktop"
+}
+
+# Find a cask's loose named icon. Proper theme icons need no rewriting; this covers the
+# common Linux-cask pattern that writes `Icon=zed` beside `$XDG_DATA_HOME/icons/zed.png`,
+# plus icons left inside a versioned Caskroom bundle.
+find_named_icon() {
+    local name=$1 root candidate file base newest=
+    for root in "$data_home/icons" "$homebrew_prefix/share/icons"; do
+        for candidate in "$root/$name" "$root/$name.png" "$root/$name.svg" \
+                         "$root/$name.svgz" "$root/$name.xpm" "$root/$name.ico"; do
+            if [ -f "$candidate" ] && [ -r "$candidate" ]; then
+                printf '%s\n' "$candidate"
+                return 0
+            fi
+        done
+    done
+
+    if [ -d "$homebrew_prefix/Caskroom" ]; then
+        while IFS= read -r -d '' file; do
+            base=${file##*/}
+            case "$base" in
+                "$name" | "$name".png | "$name".svg | "$name".svgz \
+                    | "$name".xpm | "$name".ico)
+                    if [ -z "$newest" ] || [ "$file" -nt "$newest" ]; then
+                        newest=$file
+                    fi
+                    ;;
+            esac
+        done < <(find "$homebrew_prefix/Caskroom" -type f -print0)
+    fi
+    if [ -n "$newest" ]; then
+        printf '%s\n' "$newest"
+        return 0
+    fi
+    return 1
+}
+
+# Replace only the main Icon key. Source markers let a later icon-only upgrade refresh the
+# stable copy; shared Homebrew entries also get an ownership/desktop-source marker so
+# uninstall cleanup can identify the generated override.
+write_desktop() {
+    local source=$1 target=$2 icon=$3 original_icon=$4 icon_source=$5
+    local managed_source=${6:-}
+    local temp
+    temp=$(mktemp "${target}.qubix.XXXXXX")
+    awk -v icon="$icon" -v original_icon="$original_icon" \
+        -v icon_source="$icon_source" -v managed_source="$managed_source" '
+        /^X-Qubix-Homebrew-Icon-Managed=/ { next }
+        /^X-Qubix-Homebrew-Icon-Stabilized=/ { next }
+        /^X-Qubix-Homebrew-Icon-Original=/ { next }
+        /^X-Qubix-Homebrew-Icon-Source=/ { next }
+        /^X-Qubix-Homebrew-Desktop-Source=/ { next }
+        /^\[Desktop Entry\][[:space:]]*$/ {
+            in_main = 1
+            print
+            print "X-Qubix-Homebrew-Icon-Stabilized=true"
+            print "X-Qubix-Homebrew-Icon-Original=" original_icon
+            print "X-Qubix-Homebrew-Icon-Source=" icon_source
+            if (managed_source != "") {
+                print "X-Qubix-Homebrew-Icon-Managed=true"
+                print "X-Qubix-Homebrew-Desktop-Source=" managed_source
+            }
+            next
+        }
+        /^\[/ { if (in_main) in_main = 0 }
+        in_main && /^[[:space:]]*Icon[[:space:]]*=/ {
+            print "Icon=" icon
+            replaced = 1
+            next
+        }
+        { print }
+        END { if (!replaced) exit 3 }
+    ' "$source" > "$temp" || { rm -f -- "$temp"; return 1; }
+    chmod 0644 "$temp"
+    if [ -f "$target" ] && cmp -s -- "$temp" "$target"; then
+        rm -f -- "$temp"
+    else
+        mv -f -- "$temp" "$target"
+    fi
+}
+
+# Turn one versioned or loose Homebrew icon into a stable copy. A shared entry gets a marked
+# user override with the same basename; an unmarked user entry always wins and is never
+# replaced.
+stabilize_desktop() {
+    local desktop=$1 origin=$2 icon exec try_exec source_icon original_icon stabilized
+    local recorded_source base app_id extension stable icon_temp target
+
+    icon=$(desktop_key "$desktop" Icon)
+    stabilized=$(desktop_key "$desktop" X-Qubix-Homebrew-Icon-Stabilized)
+    if [ "$stabilized" = true ]; then
+        original_icon=$(desktop_key "$desktop" X-Qubix-Homebrew-Icon-Original)
+        recorded_source=$(desktop_key "$desktop" X-Qubix-Homebrew-Icon-Source)
+        if [ -f "$recorded_source" ] && [ -r "$recorded_source" ]; then
+            source_icon=$recorded_source
+        else
+            case "$original_icon" in
+                /*) source_icon=$(find_named_icon "${original_icon##*/}") || return 0 ;;
+                *) source_icon=$(find_named_icon "$original_icon") || return 0 ;;
+            esac
+        fi
+    else
+        original_icon=$icon
+        case "$icon" in
+            "$homebrew_prefix"/* | /var/home/linuxbrew/.linuxbrew/*)
+                source_icon=$icon
+                if [ ! -f "$source_icon" ] || [ ! -r "$source_icon" ]; then
+                    source_icon=$(find_named_icon "${icon##*/}") || return 0
+                fi
+                ;;
+            /*)
+                # Absolute non-Homebrew paths are owned by another installer or the user.
+                return 0
+                ;;
+            *)
+                exec=$(desktop_key "$desktop" Exec)
+                try_exec=$(desktop_key "$desktop" TryExec)
+                if [ "$origin" != shared ]; then
+                    case "$exec $try_exec" in
+                        *"$homebrew_prefix/"* | */var/home/linuxbrew/.linuxbrew/*) ;;
+                        *) return 0 ;;
+                    esac
+                fi
+                source_icon=$(find_named_icon "$icon") || return 0
+                ;;
+        esac
+    fi
+    [ -f "$source_icon" ] && [ -r "$source_icon" ] || return 0
+
+    base=${desktop##*/}
+    app_id=${base%.desktop}
+    app_id=$(printf '%s' "$app_id" | tr -c 'A-Za-z0-9_.-' '_')
+    extension=${source_icon##*.}
+    extension=$(printf '%s' "$extension" | tr '[:upper:]' '[:lower:]')
+    case "$extension" in
+        png | svg | svgz | xpm | ico) ;;
+        *) extension=icon ;;
+    esac
+    stable=$stable_icons/${app_id}.${extension}
+
+    if [ ! -f "$stable" ] || ! cmp -s -- "$source_icon" "$stable"; then
+        icon_temp=$(mktemp "${stable}.qubix.XXXXXX")
+        install -m 0644 -- "$source_icon" "$icon_temp"
+        mv -f -- "$icon_temp" "$stable"
+    fi
+
+    if [ "$origin" = user ]; then
+        write_desktop "$desktop" "$desktop" "$stable" "$original_icon" "$source_icon"
+        return
+    fi
+
+    target=$user_apps/$base
+    if [ -e "$target" ] && ! grep -q '^X-Qubix-Homebrew-Icon-Managed=true$' "$target"; then
+        # Respect a cask- or user-owned higher-priority desktop entry.
+        return 0
+    fi
+    write_desktop "$desktop" "$target" "$stable" "$original_icon" "$source_icon" \
+        "$desktop"
+}
+
+# ── Remove overrides whose shared Homebrew source was uninstalled ─────────────
+while IFS= read -r -d '' desktop; do
+    grep -q '^X-Qubix-Homebrew-Icon-Managed=true$' "$desktop" || continue
+    source=$(desktop_key "$desktop" X-Qubix-Homebrew-Desktop-Source)
+    if [ -z "$source" ] || [ ! -f "$source" ]; then
+        rm -f -- "$desktop"
+    fi
+done < <(find "$user_apps" -maxdepth 1 -type f -name '*.desktop' -print0)
+
+# ── Stabilize user entries first, then unshadowed shared entries ──────────────
+while IFS= read -r -d '' desktop; do
+    grep -q '^X-Qubix-Homebrew-Icon-Managed=true$' "$desktop" && continue
+    stabilize_desktop "$desktop" user
+done < <(find "$user_apps" -maxdepth 1 -type f -name '*.desktop' -print0)
+
+if [ -d "$homebrew_apps" ]; then
+    while IFS= read -r -d '' desktop; do
+        stabilize_desktop "$desktop" shared
+    done < <(find "$homebrew_apps" -maxdepth 1 -type f -name '*.desktop' -print0)
+fi
+
+# ── Remove only Qubix-owned icon copies that no desktop entry still references ─
+while IFS= read -r -d '' icon; do
+    referenced=false
+    for applications in "$user_apps" "$homebrew_apps"; do
+        if [ -d "$applications" ] \
+            && grep -rFl --include='*.desktop' -- "Icon=$icon" "$applications" \
+                >/dev/null 2>&1; then
+            referenced=true
+            break
+        fi
+    done
+    if [ "$referenced" = false ]; then
+        rm -f -- "$icon"
+    fi
+done < <(find "$stable_icons" -maxdepth 1 -type f -print0)

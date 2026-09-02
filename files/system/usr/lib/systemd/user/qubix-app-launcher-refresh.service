@@ -1,0 +1,13 @@
+# Read by: the systemd USER manager, when qubix-app-launcher-refresh.path fires.
+#
+# The script stabilizes fragile Homebrew icons, then refreshes whichever of Plasma or DMS
+# is active. This unit is intentionally static: the enabled path unit starts it only after
+# application metadata changes.
+# See DD-062.
+
+[Unit]
+Description=Refresh desktop application launchers
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/qubix-refresh-app-launchers

@@ -1,0 +1,21 @@
+# Read by: the systemd USER manager.
+#
+# Watches the application and icon locations used by Linux Homebrew GUI packages. Current
+# casks such as Zed can write into the user's XDG data directory, while formulae and other
+# casks can install shared metadata below Homebrew's fixed prefix. Modification events
+# cover both newly added entries and an existing entry/icon overwritten during upgrade.
+#
+# Enabled for every user/session by the recipe. See DD-062.
+
+[Unit]
+Description=Watch Homebrew application and icon metadata
+
+[Path]
+PathModified=%h/.local/share/applications
+PathModified=/home/linuxbrew/.linuxbrew/share/applications
+PathModified=%h/.local/share/icons
+PathModified=/home/linuxbrew/.linuxbrew/share/icons
+Unit=qubix-app-launcher-refresh.service
+
+[Install]
+WantedBy=default.target

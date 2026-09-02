@@ -51,6 +51,25 @@ by systemd.
 | Clipboard history | yes (backed by `cliphist`) |
 | Settings UI, task manager, notepad | yes |
 
+### Homebrew applications in the launcher
+
+DMS and Plasma discover applications from XDG desktop entries, not from the executable
+`PATH`. Linux Homebrew keeps shared entries and icons under
+`/home/linuxbrew/.linuxbrew/share`, so Qubix prepends that directory to `XDG_DATA_DIRS` for
+the graphical user manager and for shells (DD-062). Existing Flatpak and system data
+directories remain in the list. A user path unit watches that prefix and the user's
+`~/.local/share/applications`, plus their icon directories. Before an install/update/removal
+refresh, it replaces readable Homebrew `Icon=` paths tied to versioned Caskroom directories
+or loose named cask icons with stable Qubix-managed copies under the user's XDG data
+directory. It then refreshes Plasma's KService cache and restarts DMS only when the Niri
+shell is already running. Existing user overrides and icon-theme names without a detected
+cask-owned source are not replaced (DD-062).
+
+The environment is fixed when the session starts. After rebasing to the image that adds
+this integration, log out and back in once to start with the new environment and watcher.
+Subsequent Homebrew installs refresh automatically. For a manual Niri refresh and cask-level
+diagnostics, see [Homebrew in the usage guide](usage.md#if-an-installed-homebrew-app-is-missing-from-the-launcher).
+
 ### It runs under Niri only
 
 DMS's unit is installed **disabled**, and niri's unit pulls it in:

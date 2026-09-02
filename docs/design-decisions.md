@@ -3739,3 +3739,94 @@ layer.
   refs, and Firefox's absence. Only a newly built and installed ISO can prove Anaconda
   transfers the repository and both Bazaar and Chromium launch; `BLD-012` waits for that
   confirmation.
+
+---
+
+## DD-062 — Add Homebrew's shared data prefix to desktop application discovery
+
+**Status:** Accepted
+
+**Implements:** `IMG-039`
+
+**Context.** Linux Homebrew uses the fixed prefix `/home/linuxbrew/.linuxbrew`. Its
+`bin/` directory is enough for an interactive shell to run an installed application, but
+desktop launchers do not build menus from `PATH`: they index desktop entries and icons
+through `XDG_DATA_HOME` and `XDG_DATA_DIRS`. Formulae and casks can place shared metadata
+under the prefix's `share/` tree. Homebrew's `shellenv` intentionally does not add that
+tree to `XDG_DATA_DIRS`, so a successful GUI application install can remain absent from
+Plasma and from DMS's `Super+Space` launcher.
+
+Adding the directory only in `/etc/profile.d` is insufficient. DMS runs as a systemd user
+service and is not a child of an interactive shell; Plasma also has user-manager-started
+components. Conversely, `environment.d` does not cover SSH, text-console, or `su -`
+shells. This is the same process-boundary split DD-038 established for
+`XDG_CONFIG_DIRS`.
+
+**Decision.** Prepend `/home/linuxbrew/.linuxbrew/share` to `XDG_DATA_DIRS` in both
+`/usr/lib/environment.d/50-qubix-terminal.conf` and
+`/etc/profile.d/qubix-shell-env.sh`. Preserve the inherited list so Flatpak export paths
+retain their order, and use `/usr/local/share:/usr/share` when no list exists; setting
+`XDG_DATA_DIRS` to the Homebrew directory alone would suppress the specification's normal
+system defaults. The shell implementation checks membership before prepending so nested
+shells do not grow duplicate entries. The declarative environment file may repeat an
+already inherited Homebrew entry, which is harmless and preferable to replacing the
+session's data path.
+
+Enable `qubix-app-launcher-refresh.path` in every user manager. Watch
+`%h/.local/share/applications`, where current casks such as Zed can create their entry,
+and `/home/linuxbrew/.linuxbrew/share/applications`, where shared Homebrew metadata lives;
+also watch the corresponding per-user and Homebrew `icons/` directories. Use
+`PathModified`, not `PathChanged`, so overwriting an existing desktop file during a cask
+upgrade triggers the service as reliably as adding a new file.
+
+Before refreshing launcher caches, run `qubix-stabilize-homebrew-icons`. A readable
+absolute `Icon=` below Homebrew's prefix is fragile when it includes
+`Caskroom/<cask>/<version>`. A named icon can be equally unreliable when a Linux cask
+places a loose file directly in `$XDG_DATA_HOME/icons` instead of a proper icon-theme
+tree. Copy those detected sources into the stable, Qubix-owned
+`$XDG_DATA_HOME/qubix-os/homebrew-icons/` directory and rewrite the matching user desktop
+entry to the absolute stable path. For a desktop entry in Homebrew's shared directory,
+create a higher-priority user entry with the same basename and explicit Qubix ownership
+and source markers. Never replace an existing unmarked user entry, a normal icon-theme
+name without a cask-owned source, or an absolute icon outside Homebrew.
+
+The icon operation is idempotent. An update that rewrites the desktop file or loose icon
+refreshes the stable bytes; a second path-unit event sees the stable value and makes no
+change. On uninstall, remove only a marked Qubix override whose source disappeared and
+only an icon inside the Qubix-owned directory that no desktop file references. This is a
+runtime integration cache, not a seeded preference. It deliberately does not rewrite
+`Exec=` or any other desktop key.
+
+After stabilisation, rebuild Plasma's KService cache when `kbuildsycoca6` exists and call
+`systemctl --user try-restart dms.service`. `try-restart` is load-bearing: it refreshes
+the Quickshell application model under Niri but never starts DMS in a Plasma session. Do
+not run `update-desktop-database` from the service, because it writes into a watched
+application directory and would retrigger the path unit without improving icon lookup.
+
+Do not install or pin Zed or any other optional cask in the image. This is integration for
+applications the user chooses, not a change to DD-061's installer contents. A session
+must be restarted after first receiving the environment change. For Niri, importing the
+corrected variable into the user manager and restarting `dms.service` is a bounded
+current-session recovery; Plasma users should log out and back in so both its launcher
+and service cache share the new environment.
+
+**Consequences.**
+
+- Homebrew desktop entries and icons below the shared prefix become discoverable in both
+  shipped desktop sessions, while user entries in `$XDG_DATA_HOME` retain higher priority.
+- Flatpak application exports and `/usr/share` remain reachable. The change only adds one
+  search root. Icon repair may add a marked desktop override and stable icon to the user's
+  XDG data directory, but only for metadata Homebrew already installed and only while its
+  source application exists.
+- A command working in a terminal no longer implies that its desktop metadata is visible;
+  the documented diagnostic checks `XDG_DATA_DIRS` and the actual `.desktop` file
+  separately.
+- Existing sessions need one logout after rebasing. After that, application-entry changes
+  and icon updates refresh both launchers automatically. The manual helper is sufficient
+  for an immediate Niri refresh, but it cannot retrofit the new environment into every
+  Plasma process.
+- A cask that installs no desktop entry still cannot appear in a launcher. Reinstalling or
+  correcting that cask remains separate from this search-path integration.
+- A named icon with no detected cask-owned loose/bundle source gets no managed copy. The
+  stabiliser is intentionally conservative rather than guessing icons by application
+  name across the whole filesystem.

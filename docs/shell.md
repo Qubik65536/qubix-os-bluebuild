@@ -39,7 +39,7 @@ with nothing to re-run and nothing stale left behind (DD-030).
 
 | File | Read by | Holds |
 |---|---|---|
-| `/etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `XDG_CONFIG_DIRS`, `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE` — and, at the end, bash's interactive setup |
+| `/etc/profile.d/qubix-shell-env.sh` | sh, bash and zsh | `XDG_CONFIG_DIRS`, Homebrew's `XDG_DATA_DIRS` entry, `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE` — and, at the end, bash's interactive setup |
 | `/etc/zshrc`, last block | zsh, when it is interactive | One `source` of the file below, appended to Fedora's file at build time |
 | `/usr/share/qubix-os/shell/` | the two above | The prompt, the plugin loading, the aliases |
 | `/usr/share/qubix-os/lazygit/config.yml` | lazygit, via `LG_CONFIG_FILE` | Nerd Font icons and the project palette (DD-032) |
@@ -647,7 +647,7 @@ directory — which the image never writes to.
 
 | Path | Purpose |
 |---|---|
-| `/etc/profile.d/qubix-shell-env.sh` | `XDG_CONFIG_DIRS`, `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and bash's setup |
+| `/etc/profile.d/qubix-shell-env.sh` | `XDG_CONFIG_DIRS`, Homebrew's `XDG_DATA_DIRS` entry, `EDITOR`, `VISUAL`, `STARSHIP_CONFIG`, the `ATUIN_*` settings, `LG_CONFIG_FILE`, and bash's setup |
 | `/etc/zshrc`, last block | Sources the zsh half. **Appended to** Fedora's file at build time, never replacing it (DD-036) |
 | `/etc/default/useradd` | `SHELL=/usr/bin/zsh` for accounts created from now on |
 | `/usr/bin/qubix-default-shell` | Moves existing accounts to zsh, once each (DD-035) |
