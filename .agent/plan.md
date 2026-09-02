@@ -1649,6 +1649,29 @@ should look at.
 
 ### Desktop and installer branding
 
+- [ ] **BRD-009** — Replace Plasma's launcher button with the Qubix OS logo
+  - **Category:** Branding
+  - **Depends on:** —
+  - **Notes:** Reported 2026-09-02 after the Plasma panel continued to show KDE's
+    `start-here-kde-symbolic` mark even though the image already provides the freedesktop
+    `distributor-logo` icon. The first implementation tried to rewrite Kickoff and Kicker's
+    installed schema XML, but the 2026-09-02 image build proved Fedora 44 Plasma 6.7 embeds
+    those applets in Qt plugins and ships no such XML paths. The corrected build step
+    verifies both compiled plugins and replaces every installed instance of the four
+    regular/symbolic Breeze KDE/Plasma alias families. A reconstruction from Fedora 44's
+    current RPMs replaced and byte-checked all 34 alias files; YAML, embedded shell syntax,
+    documentation, and whitespace checks pass. Only the visible built-image result remains.
+  - **Acceptance criteria:**
+    - Kickoff and Kicker's stock `start-here` icon resolves to Qubix artwork
+    - Existing launcher instances that name KDE's regular or symbolic `start-here` aliases
+      resolve those aliases to Qubix artwork
+    - The late image-build step verifies the compiled Plasma applets and every overridden
+      Breeze alias family without requiring obsolete unpackaged schema paths
+    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` document the override and
+      the Plasma 6.7 packaging boundary
+    - The Plasma panel shows the Qubix OS logo on a rebased and a fresh-ISO account
+      *(open — requires a built image and hardware)*
+
 - [ ] **BRD-007** — Make KDE theming complete on fresh ISO installations
   - **Category:** Branding
   - **Depends on:** —
@@ -1673,6 +1696,73 @@ should look at.
       *(open — requires a newly built ISO and installed-system check)*
 
 ### Desktop sessions
+
+- [ ] **IMG-040** — Restore the DankMaterialShell surfaces in Niri
+  - **Category:** Image content
+  - **Depends on:** IMG-003
+  - **Notes:** Reported 2026-09-02 immediately after the KDE appearance change: Niri still
+    renders its startup shortcut overlay and cursor, but its DMS wallpaper, bar, and
+    launchers disappear afterward. The preceding commit made KDE's Qt platform theme a
+    global systemd-user-manager variable, so the Qt/Quickshell DMS service inherited a
+    Plasma-specific integration setting even though only KDE applications launched inside
+    Niri need it. The setting now belongs to niri-spawned applications and shells, the DMS
+    service explicitly strips it from the shell itself, and DMS's supported default launch
+    prefix restores it only for applications opened from its launcher. YAML, shell syntax,
+    boundary assertions, docs, and whitespace checks pass; only the rebuilt Niri-session
+    check remains.
+  - **Acceptance criteria:**
+    - DMS no longer inherits Qubix's Plasma-specific `QT_QPA_PLATFORMTHEME` default
+    - KDE applications launched by Niri, DMS, or an interactive shell still receive the
+      KDE platform theme and the complete system appearance fallback
+    - A build assertion preserves the session/service boundary
+    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` document the regression
+      and environment ownership
+    - After rebasing, Niri shows the DMS wallpaper and bar and opens applications
+      *(open — requires a built image and hardware)*
+
+- [ ] **IMG-041** — Remove Fcitx's Wayland Diagnose warning in Plasma
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Reported 2026-09-02 in Plasma. IMG-036 removed the global GTK module in
+    Wayland but deliberately retained Fedora's Qt module for Niri. Plasma instead gives
+    native Wayland GTK and Qt clients to KWin's selected Fcitx input-method frontend, so
+    both toolkit variables must be removed in Plasma without changing Niri's Qt fallback.
+    The late image step now prefixes Plasma's existing Wayland session command with
+    `env -u` for GTK/Qt/SDL, removing them before the desktop starts. The profile correction
+    repeats that policy for nested shell loads, removes only GTK for Niri, and leaves XIM
+    intact. Executed static session-policy assertions, shell syntax, docs, and whitespace
+    checks pass; the notification and input path await a built Plasma session.
+  - **Acceptance criteria:**
+    - Plasma Wayland sessions leave `GTK_IM_MODULE`, `QT_IM_MODULE`, and `SDL_IM_MODULE`
+      unset while retaining `XMODIFIERS` for XWayland
+    - Niri retains its required `QT_IM_MODULE=fcitx` compatibility path and clears only
+      `GTK_IM_MODULE`
+    - The Plasma session-command boundary, desktop-aware shell correction, and executed
+      static assertions prevent the two session policies from collapsing into one global
+      setting
+    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` document the split
+    - After rebasing and logging into Plasma, Fcitx no longer opens Wayland Diagnose and
+      Pinyin still enters text in native Wayland applications *(open — requires a built
+      image and hardware)*
+
+- [ ] **IMG-042** — Make the pinned Plasma Discover launcher functional
+  - **Category:** Image content
+  - **Depends on:** —
+  - **Notes:** Reported 2026-09-02: Plasma's default favorites include
+    `org.kde.discover.desktop`, but Aurora DX does not provide the corresponding application
+    in this image. Qubix already seeds Flathub applications, so Discover needs both its GUI
+    and Fedora's Flatpak backend. Both packages are now explicit and the late image step
+    checks the executable, pinned desktop ID, and backend path. Fedora 44 package metadata,
+    recipe YAML, shell syntax, docs, and whitespace checks pass; launching/browsing awaits
+    the rebuilt image.
+  - **Acceptance criteria:**
+    - Every image installs Plasma Discover and its Flatpak backend from Fedora
+    - The pinned `org.kde.discover.desktop` favorite resolves to an installed desktop file
+      and executable
+    - A build assertion verifies both the launcher and Flatpak backend
+    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` document the package choice
+    - Discover opens from Plasma's taskbar and can browse the configured Flathub remote
+      after rebasing *(open — requires a built image and hardware)*
 
 - [ ] **IMG-039** — Discover Homebrew GUI applications in desktop launchers
   - **Category:** Image content

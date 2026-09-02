@@ -88,14 +88,15 @@ substitution.
   | `/etc/xdg/fcitx5/profile` | Fcitx fallback profile: English (US) plus Pinyin; `~/.config/fcitx5/profile` shadows it (DD-050) |
   | `/etc/xdg/fcitx5/config` | Fcitx fallback: native `Super+Space` and `Ctrl+Space` triggers; Niri consumes Super for DMS and leaves Control to Fcitx; `~/.config/fcitx5/config` shadows it (DD-050) |
   | `/etc/xdg/kwinrc` | KWin fallbacks: Breeze window decoration (DD-063) and Fcitx as Plasma's Wayland input-method client (DD-050); `~/.config/kwinrc` shadows it |
-  | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Runs after Fedora's Fcitx profile and unsets `GTK_IM_MODULE` on Wayland, avoiding a duplicate native GTK input path (DD-050) |
+  | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Runs after Fedora's Fcitx profile; unsets `GTK_IM_MODULE` on Wayland and, only when SDDM identifies Plasma, also unsets Qt/SDL. The late recipe step separately removes all three from Plasma's parent session command before startup; Niri retains Qt and both retain XIM (DD-050, DD-067) |
   | `/etc/gtk-{3,4}.0/settings.ini` | Keeps the packaged Fcitx GTK module as the GTK 3/4 X11/XWayland fallback after the global variable is unset (DD-050) |
-  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` (DD-012), KDE's Qt platform integration in both sessions (DD-063), `/etc/xdg` appended to `XDG_CONFIG_DIRS` (DD-034, DD-038), and Homebrew's shared data prefix (DD-062). Reaches what the systemd user manager starts; `/etc/profile.d/qubix-shell-env.sh` carries the shell half |
+  | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` (DD-012), `/etc/xdg` appended to `XDG_CONFIG_DIRS` (DD-034, DD-038), and Homebrew's shared data prefix (DD-062). It deliberately omits KDE's Qt platform theme because that would reach DMS (DD-066); `/etc/profile.d/qubix-shell-env.sh` carries the shell half |
   | `/etc/xdg/wezterm/wezterm.lua` | WezTerm's system-wide config. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it (DD-034) |
   | `/etc/xdg/wezterm/colors/*.toml` | The colour schemes it selects. Available to a user's own `wezterm.lua` too (DD-034) |
   | `/usr/share/licenses/monaspace-krypton-nf/LICENSE` | The OFL text for a font installed in module 4d. Vendored because Monaspace's archive carries none (DD-034) |
-  | `/etc/niri/config.kdl` | System-default Niri configuration; DMS uses `Mod+Space`, while `Ctrl+Space` remains unbound for Fcitx's native trigger (DD-014, DD-050) |
+  | `/etc/niri/config.kdl` | System-default Niri configuration; DMS uses `Mod+Space`, `Ctrl+Space` remains unbound for Fcitx, and compositor-launched KDE applications receive `QT_QPA_PLATFORMTHEME=kde` without exporting it to DMS (DD-014, DD-050, DD-066) |
   | `/usr/lib/systemd/user/niri.service.d/50-qubix-dms.conf` | Starts DankMaterialShell under Niri only (DD-015) |
+  | `/usr/lib/systemd/user/dms.service.d/50-qubix-environment.conf` | Removes KDE's Qt platform theme from DMS itself and restores it through DMS's default prefix only for launched applications; a niri-unit drop-in cannot affect this sibling service (DD-066) |
   | `/usr/bin/qubix-dms-theme` | Enforces DMS's Qubix Slate pointer and applies the versioned floating-component bar plus canonical cube launcher once (DD-025, DD-048) |
   | `/usr/lib/systemd/user/qubix-dms-theme.service` | Runs that migration before DMS under Niri; never enabled globally (DD-025, DD-048) |
   | `/usr/bin/qubix-refresh-app-launchers` | Rebuilds Plasma's application-service cache and `try-restart`s DMS, so only the active desktop is affected (DD-062) |
@@ -146,6 +147,7 @@ substitution.
        material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist,
        fcitx5, fcitx5-autostart, fcitx5-chinese-addons,
        fcitx5-gtk, fcitx5-qt, kcm-fcitx5,
+       plasma-discover, plasma-discover-flatpak,
        zsh, zsh-autosuggestions, zsh-syntax-highlighting, atuin, bat, yazi, fastfetch,
        neovim, ripgrep, fd-find, fzf, git, lazygit, cascadia-mono-nf-fonts]
   remove:
@@ -155,7 +157,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `grub2-tools-extra` converts module 4d's Monaspace Krypton NF OTF faces to GRUB's PF2 format in module 4j (DD-057); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `grub2-tools-extra` converts module 4d's Monaspace Krypton NF OTF faces to GRUB's PF2 format in module 4j (DD-057); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); `plasma-discover` and `plasma-discover-flatpak` make Plasma's stock favorite a functional Flathub software centre (DD-068); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
 | `remove.packages` | Removed RPMs. `firefox` goes because a browser belongs in a Flatpak (DD-006) and because the browser here is Ungoogled Chromium (DD-023); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
@@ -202,6 +204,13 @@ The Simplified Chinese input stack (DD-050):
 | `fcitx5-gtk`, `fcitx5-qt` | Toolkit bridges. Their conditional dependencies pull the matching GTK 2/3/4 and Qt 5/6 modules already needed by Aurora's applications |
 | `kcm-fcitx5` | Fcitx configuration page integrated into KDE System Settings |
 
+The Plasma software-centre pair (DD-068):
+
+| Package(s) | Role |
+|---|---|
+| `plasma-discover` | KDE's Discover GUI and `org.kde.discover.desktop`, which Plasma pins by default |
+| `plasma-discover-flatpak` | Flatpak backend for the image's system and user Flathub remotes; no PackageKit backend is added to the immutable image |
+
 - **Ordering:** must precede `default-flatpaks` so the Firefox RPM is gone before the
   Flatpak is queued, and precede the `containerfile` module below, which needs `zsh` and
   `git` installed.
@@ -245,11 +254,12 @@ No `repo` is specified, so Flathub is used by default.
 
 ### 4. `containerfile` — build steps no module covers
 
-*Defined in `common-base.yml`. Twelve snippets: zsh completions, the login-shell
+*Defined in `common-base.yml`. Thirteen snippets: zsh completions, the login-shell
 assertions, zellij, WezTerm's two upstream fonts, the WezTerm configuration assertion, the
 zsh wiring appended to `/etc/zshrc`, the `qubix-config`, fastfetch, and distrobox
 assertions, GRUB theme generation/validation, Homebrew launcher validation, and the
-fresh-account KDE appearance assertion.*
+fresh-account KDE appearance/session-environment assertion, followed by Discover/compiled
+Plasma applet validation and the Breeze launcher-alias branding rewrite.*
 
 ```yaml
 - type: containerfile

@@ -43,10 +43,13 @@ input {
 // ── Application environment ──────────────────────────────────────────────────
 // Fedora's Fcitx profile enables its GTK module broadly. Niri already provides the
 // Wayland text-input protocol, so native GTK clients should use that path instead of
-// opening a duplicate Fcitx module path. The profile.d override also covers applications
-// launched by systemd services, which do not inherit this compositor block. DD-050.
+// opening a duplicate Fcitx module path. Keep the Qt module: unlike KWin, niri does not
+// provide Qt's text-input-v2 path. KDE applications launched by niri receive KDE's platform
+// theme here instead of through the systemd user manager; this keeps that Plasma-specific
+// integration out of the independently started DMS/Quickshell service. DD-050, DD-066.
 environment {
     GTK_IM_MODULE null
+    QT_QPA_PLATFORMTHEME "kde"
 }
 
 // ── Layout ────────────────────────────────────────────────────────────────────

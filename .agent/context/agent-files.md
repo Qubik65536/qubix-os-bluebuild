@@ -84,6 +84,12 @@ input check on the built image. Its first Niri check exposed Fedora's duplicate 
 environment; a later terminal test proved Fcitx switching worked but Niri did not invoke
 its system binding. The task now tracks the Wayland correction and Fcitx's dual native
 triggers, with `Ctrl+Space` deliberately absent from Niri's compositor bindings.
+`IMG-040` isolates `QT_QPA_PLATFORMTHEME=kde` from DMS after the global systemd-user
+environment added for KDE applications blanked Niri's shell surfaces; `IMG-041` adds the
+desktop-aware Plasma/Niri Fcitx environment split; `IMG-042` installs Discover with its
+Flatpak backend; and `BRD-009` replaces the Breeze aliases requested by compiled
+Kickoff/Kicker with Qubix's distributor artwork. All four wait in Awaiting confirmation
+after static checks pass.
 `IMG-037` added NVIDIA and NVIDIA+CachyOS recipes. The plain NVIDIA image remains active;
 repeated Fedora 44 failures kept the combined driver from reaching hardware validation.
 `BLD-002` therefore parks that combined recipe and removes it from automatic and manual

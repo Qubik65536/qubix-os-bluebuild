@@ -114,6 +114,13 @@ modules:
         - fcitx5-gtk
         - fcitx5-qt
         - kcm-fcitx5
+        # ── Plasma software centre ───────────────────────────────────────────
+        # Plasma's default Kickoff favorites contain org.kde.discover.desktop. Aurora DX
+        # does not guarantee the application, which leaves a dead panel/taskbar favorite.
+        # Install the GUI explicitly and the backend for Qubix's configured Flathub remotes;
+        # PackageKit is intentionally not added to this bootc/immutable image. DD-068.
+        - plasma-discover
+        - plasma-discover-flatpak
         # ── Terminal environment ──────────────────────────────────────────────
         # The shell, its editor, and the tools they call. Configuration for all of it is
         # in the overlay — files/system/etc/profile.d/ and usr/share/qubix-os/shell/,
@@ -194,7 +201,7 @@ modules:
       - scope: user # Also add Flathub user repo, but no user packages
 
   # 4. Build steps no BlueBuild module covers: things that are not an RPM and not a file
-  #    that can simply be copied. Twelve snippets, each its own layer.
+  #    that can simply be copied. Thirteen snippets, each its own layer.
   #
   #    4a. zsh-completions: completion functions for tools zsh does not cover itself.
   #    A raw build step because there is nothing to install FROM: Fedora does not package
@@ -692,8 +699,10 @@ modules:
       #        missing system default. An ISO-created account has no such file. Resolve the
       #        shipped cascade with an empty HOME, assert every Breeze Dark component it
       #        names, then add a user file and prove that the user still wins. Selecting
-      #        KDE's Qt platform integration in both environment entry points makes the
-      #        same cascade apply to KDE applications launched under Niri. DD-063.
+      #        KDE's Qt platform integration in Niri and the shell fallback makes the same
+      #        cascade apply outside Plasma without leaking the setting into DMS. Plasma's
+      #        session command is also narrowed before startup so Fcitx gets one native
+      #        Wayland route per toolkit. DD-063, DD-066, DD-067.
       #
       #        Ordering: after `files` and `dnf`; the former ships the fragments and the
       #        latter/base image supplies every asserted Breeze and integration asset.
@@ -720,10 +729,40 @@ modules:
             grep -qxF 'name=breeze-dark' /etc/xdg/plasmarc; \
             grep -qxF 'library=org.kde.breeze' /etc/xdg/kwinrc; \
             grep -qxF 'theme=Breeze' /etc/xdg/kwinrc; \
-            grep -qxF 'QT_QPA_PLATFORMTHEME=kde' \
-                /usr/lib/environment.d/50-qubix-terminal.conf; \
+            if grep -q '^QT_QPA_PLATFORMTHEME=' \
+                /usr/lib/environment.d/50-qubix-terminal.conf; then \
+                echo 'Plasma platform theme leaked into every systemd user service'; \
+                exit 1; \
+            fi; \
+            grep -qE '^[[:space:]]*QT_QPA_PLATFORMTHEME "kde"$' \
+                /etc/niri/config.kdl; \
             grep -qE '^[[:space:]]*QT_QPA_PLATFORMTHEME=kde$' \
                 /etc/profile.d/qubix-shell-env.sh; \
+            grep -qF 'DMS_DEFAULT_LAUNCH_PREFIX' \
+                /usr/share/quickshell/dms/Services/SessionService.qml; \
+            grep -qxF 'UnsetEnvironment=QT_QPA_PLATFORMTHEME' \
+                /usr/lib/systemd/user/dms.service.d/50-qubix-environment.conf; \
+            grep -qxF \
+                'Environment="DMS_DEFAULT_LAUNCH_PREFIX=env QT_QPA_PLATFORMTHEME=kde"' \
+                /usr/lib/systemd/user/dms.service.d/50-qubix-environment.conf; \
+            plasma_session=/usr/share/wayland-sessions/plasma.desktop; \
+            test -f "$plasma_session"; \
+            grep -qE '^Exec=.*startplasma-wayland' "$plasma_session"; \
+            sed -i '/^Exec=.*startplasma-wayland/s|^Exec=|Exec=/usr/bin/env -u GTK_IM_MODULE -u QT_IM_MODULE -u SDL_IM_MODULE |' \
+                "$plasma_session"; \
+            grep -qE '^Exec=/usr/bin/env -u GTK_IM_MODULE -u QT_IM_MODULE -u SDL_IM_MODULE .*startplasma-wayland' \
+                "$plasma_session"; \
+            fcitx_env=/etc/profile.d/zz-qubix-fcitx-wayland.sh; \
+            env XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=KDE \
+                GTK_IM_MODULE=fcitx QT_IM_MODULE=fcitx SDL_IM_MODULE=fcitx \
+                XMODIFIERS=@im=fcitx sh -c \
+                '. "$1"; test -z "${GTK_IM_MODULE+x}${QT_IM_MODULE+x}${SDL_IM_MODULE+x}"; test "$XMODIFIERS" = @im=fcitx' \
+                sh "$fcitx_env"; \
+            env XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=niri \
+                GTK_IM_MODULE=fcitx QT_IM_MODULE=fcitx SDL_IM_MODULE=fcitx \
+                XMODIFIERS=@im=fcitx sh -c \
+                '. "$1"; test -z "${GTK_IM_MODULE+x}"; test "$QT_IM_MODULE" = fcitx; test "$SDL_IM_MODULE" = fcitx; test "$XMODIFIERS" = @im=fcitx' \
+                sh "$fcitx_env"; \
             install -d -m 0700 "$tmp/.config"; \
             printf '%s\n' '[General]' 'ColorScheme=BreezeLight' '[KDE]' \
                 'widgetStyle=Fusion' > "$tmp/.config/kdeglobals"; \
@@ -734,6 +773,43 @@ modules:
                 kreadconfig6 --file kdeglobals --group KDE --key widgetStyle \
                 | grep -qxF Fusion; \
             rm -rf "$tmp"
+
+      #    4m. Make Plasma's two stock panel affordances match the installed image.
+      #
+      #        Kickoff pins Discover and both launcher applets request KDE's start icon.
+      #        Plasma 6.7 compiles those applets into plugins, so there is no installed
+      #        schema XML to patch. Verify both plugins, the Discover desktop file and
+      #        Flatpak backend, then replace every packaged Breeze KDE/Plasma start-icon
+      #        alias with the freedesktop distributor logo.
+      #
+      #        This must run after `dnf`, because Plasma and Breeze own the files being
+      #        amended, and after `files`, which supplies the canonical Qubix SVG. Refuse to
+      #        publish if either applet plugin disappears or any alias family has no
+      #        installed files. DD-068.
+      - |
+        RUN set -eu; \
+            command -v plasma-discover >/dev/null; \
+            test -f /usr/share/applications/org.kde.discover.desktop; \
+            test -f /usr/lib64/qt6/plugins/discover/flatpak-backend.so; \
+            logo=/usr/share/icons/hicolor/scalable/distributor-logo.svg; \
+            test -s "$logo"; \
+            for applet in kickoff kicker; do \
+                test -f "/usr/lib64/qt6/plugins/plasma/applets/org.kde.plasma.${applet}.so"; \
+            done; \
+            icons="$(mktemp)"; \
+            for icon_name in start-here-kde-symbolic.svg \
+                start-here-kde-plasma-symbolic.svg start-here-kde.svg \
+                start-here-kde-plasma.svg; do \
+                find /usr/share/icons/breeze /usr/share/icons/breeze-dark \
+                    \( -type f -o -type l \) -name "$icon_name" -print >> "$icons"; \
+                grep -q "/${icon_name}$" "$icons"; \
+            done; \
+            while IFS= read -r icon; do \
+                rm -f "$icon"; \
+                install -m 0644 "$logo" "$icon"; \
+                cmp -s "$logo" "$icon"; \
+            done < "$icons"; \
+            rm -f "$icons"
 
   # 5. Enable the system services this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already

@@ -2944,6 +2944,8 @@ There is a third persistence layer: Plasma writes a user's splash choice to
 
 **Implements:** `IMG-036`
 
+**Amended by:** [DD-067](#dd-067--use-different-fcitx-wayland-environment-policies-in-plasma-and-niri)
+
 **Context.** Simplified Chinese input needs three distinct pieces: an input-method
 framework, a Chinese engine, and integration with both applications and the compositor.
 The [Rocky Linux 10 KDE reference guide](https://www.qubik65536.top/posts/2025-12-23-InstallChineseInputOnRockyWorkstation10KDE)
@@ -3001,8 +3003,9 @@ Unsetting a global variable must not discard GTK X11/XWayland input. Follow
 [Fcitx's recommended split](https://fcitx-im.org/wiki/Using_Fcitx_5_on_Wayland) by setting
 `gtk-im-module=fcitx` in GTK 3 and GTK 4's system
 `settings.ini` files. Native Wayland GTK prefers its built-in input path, while GTK on X11
-can select the packaged module. Leave `XMODIFIERS` and `QT_IM_MODULE` from Fedora's profile
-intact: X11 still needs the former and non-KWin Qt applications still need the latter.
+can select the packaged module. Leave `XMODIFIERS` intact for XWayland. DD-067 narrows the
+Qt rule by compositor: Plasma removes `QT_IM_MODULE` for KWin's native frontend, while Niri
+retains it because a non-KWin compositor does not provide Qt's text-input-v2 path.
 
 **Consequences.**
 
@@ -3016,8 +3019,9 @@ intact: X11 still needs the former and non-KWin Qt applications still need the l
   remains valid in Plasma too; that overlap trades strict session exclusivity for a switch
   that does not depend on Niri loading or executing a compositor binding.
 - Native GTK applications no longer open a second Fcitx module path alongside the working
-  Wayland frontend, so the **Wayland Diagnose** notification in Niri is resolved rather
-  than hidden. GTK 3/4 X11 and XWayland clients keep a settings-based module fallback.
+  Wayland frontend. Plasma also removes the Qt and SDL globals, so its **Wayland Diagnose**
+  notification is resolved rather than hidden. GTK 3/4 X11 and XWayland clients keep a
+  settings-based module fallback.
 - `~/.config/fcitx5/profile` and `~/.config/fcitx5/config` win over their `/etc/xdg`
   fallbacks, and `~/.config/kwinrc` wins over `/etc/xdg/kwinrc`. The first user change
   becomes persistent without the image ever rewriting it.
@@ -3839,6 +3843,8 @@ and service cache share the new environment.
 
 **Implements:** `BRD-007`
 
+**Amended by:** [DD-066](#dd-066--scope-kdes-qt-platform-theme-to-kde-applications-not-the-dms-service)
+
 **Context.** Reported 2026-09-02: after installing Qubix from its ISO, KDE applications
 including System Settings and Dolphin stayed light and rendered controls with a fallback
 style even when Breeze or Aurora was selected. A machine rebased from Aurora did not show
@@ -3868,11 +3874,12 @@ problem is selection, not missing third-party theme software.
 | Icons | `/etc/xdg/kdeglobals [Icons] Theme` | `breeze-dark` |
 | Plasma Shell | `/etc/xdg/plasmarc [Theme] name` | `breeze-dark` |
 | KWin | `/etc/xdg/kwinrc [org.kde.kdecoration2] library/theme` | `org.kde.breeze` / `Breeze` |
-| Qt platform integration | `environment.d` and `profile.d` | `QT_QPA_PLATFORMTHEME=kde` |
+| Qt platform integration | Niri's compositor environment and `profile.d` | `QT_QPA_PLATFORMTHEME=kde` |
 
-Set the platform integration in both process families DD-038 identified: `environment.d`
-for user-manager-started graphical processes and `profile.d` for shells and their
-descendants. The shell assignment is guarded so an existing user/session export wins.
+Set the platform integration for applications niri launches and in `profile.d` for shells
+and their descendants. Plasma selects its own integration. Do not set this in the systemd
+user manager: DD-066 records why the independent DMS service must not inherit it. The shell
+assignment is guarded so an existing user/session export wins.
 
 Add a build assertion with an empty temporary home. It must find every named Breeze asset
 and the Fedora KDE platform plugin, resolve the four `kdeglobals` keys through
@@ -3887,8 +3894,8 @@ This tests both the fresh-account result and the override contract before public
   files below `~/.config`; the image does not seed or repeatedly rewrite preferences.
 - Existing rebased users retain their choices. The defaults affect only keys absent from
   their user files.
-- A logout is required after first receiving `QT_QPA_PLATFORMTHEME`; a running Qt process
-  cannot replace its platform plugin.
+- A running Qt application cannot replace its platform plugin; restart that application
+  after changing the session or shell environment.
 - Qubix now owns a small, explicit appearance fragment instead of assuming the full Fedora
   distro-profile path is present in every compositor's environment. Upstream asset removal
   becomes a deliberate build failure.
@@ -4011,3 +4018,148 @@ is what preserves those values from `/.buildstamp`.
 - A new ISO CI run must confirm Lorax accepts the template; booting that ISO must still
   confirm the installer UI name and retained GRUB detail. `BRD-008` remains open until the
   build succeeds, then returns to Awaiting confirmation for the visual check.
+
+---
+
+## DD-066 — Scope KDE's Qt platform theme to KDE applications, not the DMS service
+
+**Status:** Accepted
+
+**Implements:** `IMG-040`
+
+**Amends:** [DD-063](#dd-063--ship-a-complete-breeze-dark-fallback-and-select-kdes-qt-integration-in-both-sessions)
+
+**Context.** The first image carrying DD-063 regressed Niri: its compositor still drew the
+startup shortcut overlay and cursor, proving that niri itself was alive, but the wallpaper,
+bar, launcher, and normal DMS surfaces disappeared. The only new setting on DMS's process
+path was `QT_QPA_PLATFORMTHEME=kde` in `environment.d`. That file configures the entire
+systemd user manager; DMS is a Qt/Quickshell service started by that manager, not an
+application launched by niri and not a Plasma application.
+
+KDE applications under Niri do need the platform theme so they consume the complete
+KConfig fallback. Niri's `environment` block is the narrower owner: it reaches processes
+the compositor launches without changing sibling user services.
+
+**Decision.** Remove `QT_QPA_PLATFORMTHEME` from the systemd `environment.d` file. Set it
+to `kde` in `/etc/niri/config.kdl` for compositor-launched applications and keep the guarded
+shell fallback for terminal-launched applications. Add
+`UnsetEnvironment=QT_QPA_PLATFORMTHEME` to a drop-in on `dms.service` itself as a hard
+boundary; it also protects the shell if a user manager imported the variable from another
+source. Set [DMS's supported `DMS_DEFAULT_LAUNCH_PREFIX`](https://github.com/AvengeMedia/DankMaterialShell/blob/master/quickshell/Services/SessionService.qml)
+in that drop-in to
+`env QT_QPA_PLATFORMTHEME=kde`. DMS applies this fallback only to applications launched
+through the shell, while a non-empty personal `launchPrefix` remains higher priority. A
+drop-in on `niri.service` would not propagate: the `Wants=` relationship starts DMS as a
+sibling unit, not a child process.
+
+The build assertion fails if the variable returns to Qubix's global user-manager file,
+disappears from niri or the shell fallback, loses DMS's explicit exclusion, or the packaged
+DMS stops supporting the default launch prefix.
+
+**Consequences.**
+
+- DMS starts with Qt's normal Wayland/Quickshell environment and can provide Niri's desktop
+  surfaces again.
+- Dolphin, System Settings, and other KDE applications launched by niri, a terminal, or
+  DMS retain Breeze Dark integration; Plasma continues selecting its own KDE platform
+  theme. A user-set DMS launch prefix intentionally replaces the image fallback.
+- A user who deliberately wants a platform theme in DMS must override the packaged service
+  drop-in, rather than accidentally inheriting an application-wide setting.
+- Static checks prove the process boundary. A rebuilt image and Niri login are still needed
+  to confirm the DMS render path end to end.
+
+---
+
+## DD-067 — Use different Fcitx Wayland environment policies in Plasma and Niri
+
+**Status:** Accepted
+
+**Implements:** `IMG-041`
+
+**Amends:** [DD-050](#dd-050--fcitx-5-pinyin-from-fedora-with-system-fallbacks-rather-than-a-user-seeder)
+
+**Context.** Plasma displayed Fcitx's Wayland Diagnose notification because Fedora's login
+profile left both `GTK_IM_MODULE` and `QT_IM_MODULE` set while KWin's native input-method
+frontend was active. DD-050 cleared GTK globally on Wayland but retained Qt for good reason:
+niri does not implement KWin's Qt text-input-v2 path. One global policy therefore cannot be
+correct for both shipped compositors.
+
+Fcitx's Wayland guidance explicitly recommends that KDE Plasma leave `GTK_IM_MODULE`,
+`QT_IM_MODULE`, and `SDL_IM_MODULE` unset, while retaining `XMODIFIERS` for XWayland. It
+also says a non-KWin compositor needs the Fcitx Qt module when it lacks that native Qt path.
+
+**Decision.** Prefix the installed Plasma Wayland session's existing `Exec=` command with
+`/usr/bin/env -u GTK_IM_MODULE -u QT_IM_MODULE -u SDL_IM_MODULE`. This removes the three
+variables before Plasma, KWin, Fcitx, or any session child is created while preserving the
+package's original command and `XMODIFIERS`. Niri's session file is untouched, so its Qt
+module remains available.
+
+Also extend the existing late `/etc/profile.d` Wayland correction. It always unsets GTK,
+then uses SDDM's `XDG_CURRENT_DESKTOP` / `XDG_SESSION_DESKTOP` identity to unset Qt and SDL
+only for Plasma. This repeats the correct policy if a later interactive shell sources
+Fedora's Fcitx profile again; it is not the mechanism on which Plasma startup depends.
+
+Do not use `plasma-workspace/env` for this removal. [Plasma's loader](https://invent.kde.org/plasma/plasma-workspace/-/blob/master/startkde/startplasma.cpp)
+sources those scripts in a child shell and copies variables present in its resulting `env`
+back into the parent process. An unset variable is absent from that output, so the loader
+cannot remove a value the parent already inherited. The profile fragment runs after
+Fedora's package-owned `fcitx5.sh`. Changing the session command is the only declarative
+point here that guarantees the variables are absent from the parent before startup.
+
+**Consequences.**
+
+- Plasma has one input route per native toolkit through KWin and no longer triggers the
+  duplicate-path diagnostic.
+- Niri keeps Fcitx's Qt bridge while native GTK continues through compositor text-input.
+- XWayland keeps XIM in both sessions. Individual legacy applications may still be launched
+  with an explicit toolkit module if they require one.
+- The build executes the fragment against synthetic Plasma and Niri Wayland environments;
+  it also asserts the patched session command and fails if either policy changes or
+  `XMODIFIERS` disappears.
+- A logout is required to replace the session environment. Actual Pinyin entry and absence
+  of the notification need confirmation on a built image.
+
+---
+
+## DD-068 — Make Plasma's stock favorites functional and distribution-branded
+
+**Status:** Accepted
+
+**Implements:** `IMG-042`, `BRD-009`
+
+**Context.** Plasma upstream pins `org.kde.discover.desktop` in
+[Kickoff's defaults](https://github.com/KDE/plasma-desktop/blob/master/applets/kickoff/main.xml)
+and uses `start-here-kde-symbolic` as the compact launcher icon in both Kickoff and
+[Kicker](https://github.com/KDE/plasma-desktop/blob/master/applets/kicker/main.xml).
+On the reported image the first resolved to no installed application and the second showed
+KDE's logo even though Qubix already shipped a freedesktop `distributor-logo` asset.
+
+Fedora splits Discover's Flatpak support into
+[`plasma-discover-flatpak`](https://packages.fedoraproject.org/pkgs/plasma-discover/plasma-discover-flatpak/)
+beside the [`plasma-discover` GUI](https://packages.fedoraproject.org/pkgs/plasma-discover/plasma-discover/).
+Installing only the GUI would make the favorite launch but would not expose the Flathub
+remotes Qubix configures. PackageKit is not the image's update model and is not needed for
+this application-management role.
+
+**Decision.** Install both `plasma-discover` and `plasma-discover-flatpak` in every recipe.
+Assert the executable, desktop file, and Fedora Flatpak backend are all present.
+
+Plasma 6.7 packages Kickoff and Kicker as compiled Qt plugins and no longer installs their
+schema XML under `/usr/share/plasma/plasmoids/`. Keep the applets' stock
+`start-here-kde-symbolic` lookup and replace every installed instance of Breeze's four
+KDE/Plasma regular and symbolic alias families with the canonical Qubix SVG. This covers
+the compiled default and personal configurations that persisted another stock alias.
+Refuse the image build if either compiled applet or any alias family disappears; this makes
+an upstream packaging/layout change visible instead of silently restoring the KDE mark.
+
+**Consequences.**
+
+- Plasma's stock Discover favorite opens a software centre that can manage Flatpaks from
+  the configured remotes; operating-system updates remain in Qubix's bootc update path.
+- Fresh, default-backed, and stock-alias launcher instances use the distribution artwork.
+  A user-selected custom launcher icon remains in the widget's personal configuration and
+  still wins.
+- The recipe intentionally amends package-owned Plasma/Breeze files late, after `dnf`; a
+  base update cannot overwrite the Qubix result before publication.
+- Package/file assertions are local to the image build. Launching Discover and visually
+  checking the panel still require the rebuilt image.

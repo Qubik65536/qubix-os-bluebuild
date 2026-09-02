@@ -51,7 +51,7 @@ The logo green stays the logo's; it is not a system accent.
 | Repository path | Image path | Consumed by |
 |---|---|---|
 | `files/system/usr/share/pixmaps/qubixos-logo.svg` | `/usr/share/pixmaps/qubixos-logo.svg` | Qubix-named canonical copy; reference source for the other SVG placements. |
-| `files/system/usr/share/icons/hicolor/scalable/distributor-logo.svg` | `/usr/share/icons/hicolor/scalable/distributor-logo.svg` | The freedesktop "distributor logo" icon. Application launchers, About dialogs, and anything resolving the `distributor-logo` icon name. |
+| `files/system/usr/share/icons/hicolor/scalable/distributor-logo.svg` | `/usr/share/icons/hicolor/scalable/distributor-logo.svg` | The freedesktop "distributor logo" icon. Application launchers, About dialogs, and anything resolving the `distributor-logo` icon name. The late recipe step also copies it over Breeze's regular and symbolic KDE/Plasma `start-here` aliases used by Kickoff and Kicker (DD-068). |
 
 ### Logo mark — PNG (artwork B)
 
@@ -135,6 +135,7 @@ detail-oriented `PRETTY_NAME` retain BlueBuild provenance. See
 | System Settings → About this System | `kcm-about-distrorc` + `system-logo.png` |
 | Niri floating-bar launcher | `qubixos-logo.png` through the DMS preset migration (DD-048) |
 | `neofetch` / `fastfetch` / terminal | `os-release` `PRETTY_NAME` (+ `ID` for logo selection) |
+| Plasma Kickoff/Kicker panel button | The applets' stock `start-here-kde-symbolic` lookup; every packaged Breeze KDE/Plasma regular and symbolic alias receives `distributor-logo.svg`'s bytes |
 | Application menus, icon lookups | `distributor-logo.svg` |
 | Fedora-aware apps and docs viewers | `fedora-logo*.png` overrides |
 

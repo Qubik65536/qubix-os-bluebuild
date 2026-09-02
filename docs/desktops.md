@@ -37,7 +37,7 @@ Aurora's distro profile:
 | Icons | `breeze-dark` | `/etc/xdg/kdeglobals` |
 | Plasma surface style | `breeze-dark` | `/etc/xdg/plasmarc` |
 | KWin window decoration | `org.kde.breeze` / `Breeze` | `/etc/xdg/kwinrc` |
-| Qt platform integration | `kde` | `/usr/lib/environment.d/50-qubix-terminal.conf` and `/etc/profile.d/qubix-shell-env.sh` |
+| Qt platform integration | `kde` | Niri's `/etc/niri/config.kdl` environment and `/etc/profile.d/qubix-shell-env.sh` |
 
 This fixes a difference that a rebase can hide. An Aurora account usually already has
 theme choices in `~/.config/kdeglobals`, `plasmarc`, and `kwinrc`; an account created by
@@ -46,11 +46,36 @@ platform integration implicitly. Without complete system fallbacks, Dolphin and 
 Settings can therefore stay light or use fallback controls even though the desktop theme
 selector says Breeze or Aurora (DD-063).
 
+The Niri setting belongs to compositor-launched applications, not the whole systemd user
+manager. DMS is itself a Qt/Quickshell Wayland shell and is started as a separate systemd
+service; exporting Plasma's platform plugin into that service caused the 2026-09-02
+regression where niri still drew its shortcut overlay and cursor but DMS supplied no bar or
+wallpaper. A drop-in on `dms.service` itself now strips that variable explicitly; putting it
+on niri would not work because the wanted DMS unit is a sibling, not a child process
+(DD-066). The same drop-in sets DMS's supported `DMS_DEFAULT_LAUNCH_PREFIX` to
+`env QT_QPA_PLATFORMTHEME=kde`, so applications opened from DMS still receive KDE
+integration without loading that plugin into the shell. A personal non-empty DMS
+`launchPrefix` overrides the image default.
+
 These are defaults, not enforced preferences. KDE's cascade searches the user's
 `~/.config` first, so applying Breeze Light, Aurora, or another installed theme in System
 Settings writes higher-priority user keys and wins. Existing rebased accounts keep their
-choices. Log out and back in once after receiving the new platform-theme environment;
-applications already running cannot change the Qt platform plugin in place.
+choices. Applications already running cannot change the Qt platform plugin in place.
+
+## Plasma panel applications and identity
+
+Plasma's stock Kickoff favorites name `org.kde.discover.desktop`. Qubix therefore installs
+Fedora's `plasma-discover` GUI and `plasma-discover-flatpak` backend together: the taskbar
+entry opens a real application, and that application manages the same Flathub remotes the
+image configures. A PackageKit backend is not added to this bootc/immutable image (DD-068).
+
+Kickoff and Kicker upstream default their compact panel button to
+`start-here-kde-symbolic`, which is KDE branding rather than distribution branding. The
+image build replaces every installed instance of Breeze's four regular/symbolic KDE/Plasma
+alias families with the existing freedesktop `distributor-logo` SVG. Plasma 6.7 embeds the
+applets and their defaults in Qt plugins rather than installing editable schema XML, so the
+icon theme is the supported lookup boundary. A custom icon chosen by a user remains a
+higher-priority per-widget setting (DD-068).
 
 ## What Niri is
 
@@ -610,7 +635,8 @@ compiled locally and no EPEL or COPR repository is involved (DD-050).
 | Native toggles | `/etc/xdg/fcitx5/config` | Fcitx accepts `Super+Space` for Plasma and `Ctrl+Space` for Niri |
 | Niri routing | `/etc/niri/config.kdl` | DMS consumes `Super+Space` for its launcher; `Ctrl+Space` stays unbound and reaches Fcitx |
 | Plasma Wayland launch | `/etc/xdg/kwinrc` | Selects `/usr/share/applications/org.fcitx.Fcitx5.desktop` as KWin's input-method client |
-| Native GTK Wayland path | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Unsets Fedora's broad `GTK_IM_MODULE` export in Wayland sessions so GTK uses compositor text-input |
+| Plasma session environment | `/usr/share/wayland-sessions/plasma.desktop` | The late image step prefixes Plasma's existing command with `env -u` for GTK/Qt/SDL, before KWin or Fcitx starts; keeps `XMODIFIERS` |
+| Shell/Niri correction | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Runs after Fedora's broad Fcitx profile; unsets GTK in both sessions and Qt/SDL when a nested profile load identifies Plasma |
 | GTK X11 fallback | `/etc/gtk-{3,4}.0/settings.ini` | Selects the packaged Fcitx module for GTK 3/4 clients running through X11 or XWayland |
 
 Plasma starts Fcitx through KWin's dedicated Wayland input-method socket, which is the
@@ -623,17 +649,30 @@ This avoids depending on Niri loading the image's system config: a personal
 `~/.config/niri/config.kdl` cannot remove the Fcitx shortcut unless it adds its own
 conflicting `Ctrl+Space` binding.
 
+The decisive Plasma correction is on the session command itself, so the variables are
+absent before Plasma, KWin, Fcitx, or any child starts. The late profile fragment repeats
+the policy for shells that source Fedora's Fcitx fragment again, using the desktop identity
+SDDM supplied. Plasma's `plasma-workspace/env` directory cannot do this job: its loader
+sources scripts in a child shell and copies back variables that remain in `env`; an `unset`
+is absent from that output and cannot remove a value already held by the parent session
+(DD-067).
+
 `Ctrl+Space` also remains accepted by Fcitx in Plasma. That small overlap is intentional:
 `Super+Space` is the documented Plasma shortcut, while using Fcitx's own second trigger is
 more reliable than asking Niri to spawn a control command.
 
-Fedora's `fcitx5-autostart` package exports `GTK_IM_MODULE=fcitx` for every graphical
-session. That is useful when a compositor lacks Wayland input-method support, but Niri and
-KWin already provide a working native frontend. Qubix OS therefore unsets only that
-variable in Wayland sessions. This resolves Fcitx's **Wayland Diagnose** duplicate-path
-notification and lets native GTK 3/4 use text-input-v3; `XMODIFIERS` and the Qt fallback
-remain available, while the GTK settings files retain the Fcitx module for GTK 3/4
-X11/XWayland clients. The diagnostic is fixed at its cause rather than disabled.
+Fedora's `fcitx5-autostart` package exports toolkit compatibility variables broadly. The
+correct Wayland policy differs by compositor (DD-067):
+
+- Plasma removes `GTK_IM_MODULE`, `QT_IM_MODULE`, and `SDL_IM_MODULE` before the desktop
+  starts. KWin's selected Fcitx client supplies native GTK and Qt text-input paths.
+- Niri removes only `GTK_IM_MODULE`. It has GTK text-input support but no KWin-compatible
+  Qt text-input-v2 frontend, so `QT_IM_MODULE=fcitx` remains required there.
+- Both retain `XMODIFIERS=@im=fcitx` for XWayland. The GTK settings files retain the Fcitx
+  module as the GTK 3/4 X11/XWayland fallback.
+
+This removes Fcitx's **Wayland Diagnose** notification in Plasma at its cause without
+breaking the non-KWin session's Qt input path.
 
 The three image files are **fallbacks, not migrations**. Personal
 `~/.config/fcitx5/profile`, `~/.config/fcitx5/config`, and `~/.config/kwinrc` files take
