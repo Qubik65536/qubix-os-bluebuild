@@ -147,7 +147,6 @@ substitution.
        material-symbols-fonts, fira-code-fonts, rsms-inter-fonts, cliphist,
        fcitx5, fcitx5-autostart, fcitx5-chinese-addons,
        fcitx5-gtk, fcitx5-qt, kcm-fcitx5,
-       plasma-discover, plasma-discover-flatpak,
        zsh, zsh-autosuggestions, zsh-syntax-highlighting, atuin, bat, yazi, fastfetch,
        neovim, ripgrep, fd-find, fzf, git, lazygit, cascadia-mono-nf-fonts]
   remove:
@@ -157,7 +156,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `grub2-tools-extra` converts module 4d's Monaspace Krypton NF OTF faces to GRUB's PF2 format in module 4j (DD-057); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); `plasma-discover` and `plasma-discover-flatpak` make Plasma's stock favorite a functional Flathub software centre (DD-068); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `grub2-tools-extra` converts module 4d's Monaspace Krypton NF OTF faces to GRUB's PF2 format in module 4j (DD-057); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); the rest is the terminal environment — see below and [`shell.md`](shell.md). |
 | `remove.packages` | Removed RPMs. `firefox` goes because a browser belongs in a Flatpak (DD-006) and because the browser here is Ungoogled Chromium (DD-023); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
@@ -203,13 +202,6 @@ The Simplified Chinese input stack (DD-050):
 | `fcitx5-chinese-addons` | Fedora's Pinyin and table engines; this is the packaged equivalent of the guide's manually compiled Chinese addons |
 | `fcitx5-gtk`, `fcitx5-qt` | Toolkit bridges. Their conditional dependencies pull the matching GTK 2/3/4 and Qt 5/6 modules already needed by Aurora's applications |
 | `kcm-fcitx5` | Fcitx configuration page integrated into KDE System Settings |
-
-The Plasma software-centre pair (DD-068):
-
-| Package(s) | Role |
-|---|---|
-| `plasma-discover` | KDE's Discover GUI and `org.kde.discover.desktop`, which Plasma pins by default |
-| `plasma-discover-flatpak` | Flatpak backend for the image's system and user Flathub remotes; no PackageKit backend is added to the immutable image |
 
 - **Ordering:** must precede `default-flatpaks` so the Firefox RPM is gone before the
   Flatpak is queued, and precede the `containerfile` module below, which needs `zsh` and
@@ -258,8 +250,9 @@ No `repo` is specified, so Flathub is used by default.
 assertions, zellij, WezTerm's two upstream fonts, the WezTerm configuration assertion, the
 zsh wiring appended to `/etc/zshrc`, the `qubix-config`, fastfetch, and distrobox
 assertions, GRUB theme generation/validation, Homebrew launcher validation, and the
-fresh-account KDE appearance/session-environment assertion, followed by Discover/compiled
-Plasma applet validation and the Breeze launcher-alias branding rewrite.*
+fresh-account KDE appearance/session-environment assertion, followed by the Aurora
+package-free Plasma launcher-default assertion and compiled applet validation plus the
+Breeze launcher-alias branding rewrite.*
 
 ```yaml
 - type: containerfile

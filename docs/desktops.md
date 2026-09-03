@@ -64,10 +64,17 @@ choices. Applications already running cannot change the Qt platform plugin in pl
 
 ## Plasma panel applications and identity
 
-Plasma's stock Kickoff favorites name `org.kde.discover.desktop`. Qubix therefore installs
-Fedora's `plasma-discover` GUI and `plasma-discover-flatpak` backend together: the taskbar
-entry opens a real application, and that application manages the same Flathub remotes the
-image configures. A PackageKit backend is not added to this bootc/immutable image (DD-068).
+Plasma's default panel and application launcher follow Aurora's package-free profile.
+Aurora's `kicker-extra-favoritesrc` sets `IgnoreDefaults=true` and supplies its own
+favorites, while the Aurora look-and-feel layout sets the taskbar launchers explicitly.
+Neither default contains `org.kde.discover.desktop`, so Qubix does not install
+`plasma-discover` or its Flatpak backend. Discover is therefore absent from a fresh
+account's default taskbar and application launcher by design (DD-069).
+
+These are system defaults, not enforced user preferences. An existing account's personal
+panel configuration remains higher priority, so a user who pinned Discover manually must
+remove that item once. The image's configured Flathub remotes and seeded applications are
+unchanged.
 
 Kickoff and Kicker upstream default their compact panel button to
 `start-here-kde-symbolic`, which is KDE branding rather than distribution branding. The

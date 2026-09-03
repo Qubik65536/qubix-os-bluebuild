@@ -1745,24 +1745,28 @@ should look at.
       Pinyin still enters text in native Wayland applications *(open — requires a built
       image and hardware)*
 
-- [ ] **IMG-042** — Make the pinned Plasma Discover launcher functional
+- [ ] **IMG-042** — Keep Plasma Discover out of the default desktop
   - **Category:** Image content
   - **Depends on:** —
-  - **Notes:** Reported 2026-09-02: Plasma's default favorites include
-    `org.kde.discover.desktop`, but Aurora DX does not provide the corresponding application
-    in this image. Qubix already seeds Flathub applications, so Discover needs both its GUI
-    and Fedora's Flatpak backend. Both packages are now explicit and the late image step
-    checks the executable, pinned desktop ID, and backend path. Fedora 44 package metadata,
-    recipe YAML, shell syntax, docs, and whitespace checks pass; launching/browsing awaits
-    the rebuilt image.
+  - **Notes:** Requested 2026-09-02 to reverse the previous commit's Discover addition.
+    Upstream Aurora deliberately keeps Discover out of the image and uses its
+    `kicker-extra-favoritesrc` plus look-and-feel layout defaults to omit it from the
+    taskbar and application launcher. The Qubix recipe now follows that design again:
+    neither Discover package nor its Flatpak backend is installed, and the late image step
+    fails if a base-image change reintroduces the package, desktop entry, backend, or
+    `org.kde.discover.desktop` in Aurora's default launcher files. The independent Qubix
+    launcher-alias branding remains covered by `BRD-009` and `DD-068`.
   - **Acceptance criteria:**
-    - Every image installs Plasma Discover and its Flatpak backend from Fedora
-    - The pinned `org.kde.discover.desktop` favorite resolves to an installed desktop file
-      and executable
-    - A build assertion verifies both the launcher and Flatpak backend
-    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` document the package choice
-    - Discover opens from Plasma's taskbar and can browse the configured Flathub remote
-      after rebasing *(open — requires a built image and hardware)*
+    - Every active image omits Plasma Discover and its Flatpak backend
+    - Aurora's default taskbar and application-launcher files contain no
+      `org.kde.discover.desktop` favorite
+    - A build assertion rejects the Discover executable, desktop entry, backend, or default
+      launcher reference if any returns through the base image
+    - `docs/`, `docs/design-decisions.md`, and `.agent/context/` document the intentional
+      alignment with Aurora's package-free defaults
+    - A fresh ISO account and a rebased account without a personal panel override show no
+      Discover entry in Plasma's default taskbar or application launcher *(open — requires a
+      built image and hardware)*
 
 - [ ] **IMG-039** — Discover Homebrew GUI applications in desktop launchers
   - **Category:** Image content

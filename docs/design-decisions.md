@@ -4123,7 +4123,8 @@ point here that guarantees the variables are absent from the parent before start
 
 ## DD-068 — Make Plasma's stock favorites functional and distribution-branded
 
-**Status:** Accepted
+**Status:** Accepted for `BRD-009`; the Discover portion is superseded by
+[DD-069](#dd-069--retain-auroras-package-free-plasma-launcher-defaults)
 
 **Implements:** `IMG-042`, `BRD-009`
 
@@ -4163,3 +4164,47 @@ an upstream packaging/layout change visible instead of silently restoring the KD
   base update cannot overwrite the Qubix result before publication.
 - Package/file assertions are local to the image build. Launching Discover and visually
   checking the panel still require the rebuilt image.
+
+---
+
+## DD-069 — Retain Aurora's package-free Plasma launcher defaults
+
+**Status:** Accepted
+
+**Implements:** `IMG-042`
+
+**Supersedes:** the Discover portion of
+[DD-068](#dd-068--make-plasmas-stock-favorites-functional-and-distribution-branded)
+
+**Context.** Aurora's shared system files deliberately keep Discover out of the default
+desktop. Its
+[`kicker-extra-favoritesrc`](https://github.com/get-aurora-dev/common/blob/main/system_files/shared/usr/share/kde-settings/kde-profile/default/xdg/kicker-extra-favoritesrc)
+sets `IgnoreDefaults=true` and supplies the supported favorites, while its
+[Plasma layout script](https://github.com/get-aurora-dev/common/blob/main/system_files/shared/usr/share/plasma/look-and-feel/dev.getaurora.aurora.desktop/contents/layouts/org.kde.plasma.desktop-layout.js)
+sets the taskbar launchers explicitly. Neither default includes
+`org.kde.discover.desktop`.
+
+The previous implementation installed Fedora's Discover GUI and Flatpak backend to satisfy
+an assumed stock favorite. That diverged from Aurora's intended immutable desktop and made a
+software centre visible in the default panel and application launcher even though Qubix
+already configures Flathub for its seeded applications.
+
+**Decision.** Do not install `plasma-discover` or `plasma-discover-flatpak`, and do not add a
+replacement desktop entry or launcher override. Keep Aurora's default-favorites and
+taskbar-layout files inherited from the base image. The late shared image assertion rejects
+the Discover executable, desktop entry, Flatpak backend, and `org.kde.discover.desktop` in
+those two default launcher files, so a base-image change cannot silently reintroduce it.
+
+This decision changes only defaults. A user's personal Plasma panel configuration remains
+higher priority; a manually pinned Discover entry is not removed from an existing account.
+The Qubix launcher-alias branding in DD-068 remains independent and continues to replace
+Breeze's stock `start-here` aliases with the distributor logo.
+
+**Consequences.**
+
+- Fresh ISO accounts and rebased accounts without a personal override retain Aurora's
+  package-free taskbar and application-launcher defaults.
+- Qubix still configures Flathub and seeds its browser and image viewer; operating-system
+  updates remain in the bootc update path.
+- The build fails closed if Aurora or another dependency begins shipping Discover or adds it
+  to the inherited default launcher files.

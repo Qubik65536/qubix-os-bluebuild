@@ -114,13 +114,6 @@ modules:
         - fcitx5-gtk
         - fcitx5-qt
         - kcm-fcitx5
-        # ── Plasma software centre ───────────────────────────────────────────
-        # Plasma's default Kickoff favorites contain org.kde.discover.desktop. Aurora DX
-        # does not guarantee the application, which leaves a dead panel/taskbar favorite.
-        # Install the GUI explicitly and the backend for Qubix's configured Flathub remotes;
-        # PackageKit is intentionally not added to this bootc/immutable image. DD-068.
-        - plasma-discover
-        - plasma-discover-flatpak
         # ── Terminal environment ──────────────────────────────────────────────
         # The shell, its editor, and the tools they call. Configuration for all of it is
         # in the overlay — files/system/etc/profile.d/ and usr/share/qubix-os/shell/,
@@ -774,23 +767,37 @@ modules:
                 | grep -qxF Fusion; \
             rm -rf "$tmp"
 
-      #    4m. Make Plasma's two stock panel affordances match the installed image.
+      #    4m. Keep Plasma's launcher defaults aligned with upstream Aurora and brand them.
       #
-      #        Kickoff pins Discover and both launcher applets request KDE's start icon.
-      #        Plasma 6.7 compiles those applets into plugins, so there is no installed
-      #        schema XML to patch. Verify both plugins, the Discover desktop file and
-      #        Flatpak backend, then replace every packaged Breeze KDE/Plasma start-icon
-      #        alias with the freedesktop distributor logo.
+      #        Aurora deliberately omits Discover from its default taskbar and application
+      #        launcher files. Verify those defaults and reject any Discover package, desktop
+      #        entry, backend, or favorite reintroduced by a base-image change. Plasma 6.7
+      #        compiles the launcher applets into plugins, so there is no installed schema XML
+      #        to patch; replace every packaged Breeze KDE/Plasma start-icon alias with the
+      #        freedesktop distributor logo instead.
       #
       #        This must run after `dnf`, because Plasma and Breeze own the files being
-      #        amended, and after `files`, which supplies the canonical Qubix SVG. Refuse to
-      #        publish if either applet plugin disappears or any alias family has no
-      #        installed files. DD-068.
+      #        amended, and after `files`, which supplies the canonical Qubix SVG. The base
+      #        image supplies the launcher-default files asserted below. Refuse to publish
+      #        if either applet plugin disappears or any alias family has no installed files.
+      #        DD-068, DD-069.
       - |
         RUN set -eu; \
-            command -v plasma-discover >/dev/null; \
-            test -f /usr/share/applications/org.kde.discover.desktop; \
-            test -f /usr/lib64/qt6/plugins/discover/flatpak-backend.so; \
+            if command -v plasma-discover >/dev/null 2>&1 || \
+                test -e /usr/share/applications/org.kde.discover.desktop || \
+                test -e /usr/lib64/qt6/plugins/discover/flatpak-backend.so; then \
+                echo 'Plasma Discover must remain absent from the image'; \
+                exit 1; \
+            fi; \
+            for launcher_defaults in \
+                /usr/share/kde-settings/kde-profile/default/xdg/kicker-extra-favoritesrc \
+                /usr/share/plasma/look-and-feel/dev.getaurora.aurora.desktop/contents/layouts/org.kde.plasma.desktop-layout.js; do \
+                test -f "$launcher_defaults"; \
+                if grep -qF 'org.kde.discover.desktop' "$launcher_defaults"; then \
+                    echo "Aurora launcher defaults must not reference Discover: $launcher_defaults"; \
+                    exit 1; \
+                fi; \
+            done; \
             logo=/usr/share/icons/hicolor/scalable/distributor-logo.svg; \
             test -s "$logo"; \
             for applet in kickoff kicker; do \
