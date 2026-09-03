@@ -4247,8 +4247,9 @@ the private ABI.
 - Existing deployments need a rebase and reboot to receive the corrected package set;
   `ujust update` reporting no pending deployment does not change the packages inside the
   currently booted image.
-- The guard is specific to Quickshell's runtime boundary and does not alter Plasma's
-  session environment or DMS's KDE platform-theme isolation.
+- The DMS portion of the guard remains specific to Quickshell's runtime boundary; DD-071
+  extends the same build step to Plasma's greeter plugin without altering Plasma's session
+  environment or DMS's KDE platform-theme isolation.
 
 ---
 

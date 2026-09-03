@@ -511,7 +511,14 @@ can load (DD-070, DD-071):
           /usr/bin/qs --version >/dev/null; \
           plasma_battery_plugin=/usr/lib64/qt6/qml/org/kde/plasma/private/battery/libbatterycontrolplugin.so; \
           test -f "$plasma_battery_plugin"; \
-          ldd -r "$plasma_battery_plugin"
+          if ! plasma_loader_report="$(ldd -r "$plasma_battery_plugin" 2>&1)"; then \
+              printf '%s\n' "$plasma_loader_report"; \
+              exit 1; \
+          fi; \
+          if printf '%s\n' "$plasma_loader_report" | grep -Eq 'undefined symbol|not found'; then \
+              printf '%s\n' "$plasma_loader_report"; \
+              exit 1; \
+          fi
 ```
 
 Quickshell and Plasma's battery QML plugin use Qt private symbols, so RPM's public soname
