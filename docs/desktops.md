@@ -15,13 +15,13 @@ Plasma remains the full, untouched Aurora DX desktop. See
 ## Switching between them
 
 1. Log out (or reboot).
-2. At the SDDM login screen, use the session selector — bottom-left on the Breeze
+2. At the Plasma Login Manager screen, use the session selector — bottom-left on the Breeze
    greeter, showing the current session name.
 3. Pick **Plasma (Wayland)** or **Niri**, then log in.
 
-SDDM lists whatever it finds in `/usr/share/wayland-sessions/`. Niri's own RPM installs
-`niri.desktop` there, so no configuration in this repository is involved in making the
-entry appear. The choice is remembered per user for the next login.
+Plasma Login Manager lists whatever it finds in `/usr/share/wayland-sessions/`. Niri's own
+RPM installs `niri.desktop` there, so no configuration in this repository is involved in
+making the entry appear. The choice is remembered per user for the next login.
 
 ## KDE application appearance in both sessions
 
@@ -327,6 +327,27 @@ keep working normally.
 Report what you find to IMG-040. The fix belongs in the image, not in your home directory —
 please do not paper over it with per-user config before it is recorded.
 
+#### The login screen is blank before a session starts
+
+If the screen is blank before you can choose Plasma or Niri, Niri and DMS are not involved
+yet. Check the display manager and its greeter user first:
+
+```bash
+systemctl status plasmalogin.service display-manager.service --no-pager -l
+journalctl -b _UID="$(id -u plasmalogin)" -n 300 --no-pager -o short-monotonic
+rpm -q plasma-login-manager plasma-workspace plasma-workspace-libs kwin
+rpm -qf /usr/lib64/qt6/qml/org/kde/plasma/private/battery/libbatterycontrolplugin.so
+ldd -r /usr/lib64/qt6/qml/org/kde/plasma/private/battery/libbatterycontrolplugin.so
+```
+
+The service and executable are named `plasmalogin`, but the RPM is
+`plasma-login-manager`; querying `plasmalogin` with `rpm -q` therefore reports that no such
+package is installed. A QML error naming `BreezeComponents.Battery`, followed by an
+undefined `Qt_6.11_PRIVATE_API` symbol while loading
+`libbatterycontrolplugin.so`, is the same Qt private-ABI class as the Quickshell failure.
+The greeter can remain `active` while its QML component has failed, so the service state
+alone does not prove that the login screen rendered.
+
 #### `qs` fails with an undefined Qt private symbol
 
 If `dms.service` exits with status 127 and the journal contains
@@ -339,9 +360,10 @@ Capture the complete package and library boundary:
 
 ```bash
 /usr/bin/qs --version
-rpm -q dms quickshell qt6-qtbase qt6-qtdeclarative qt6-qtwayland
+rpm -qa | grep -E '^qt6-(qtbase|qtdeclarative|qtwayland)(-|$)' | sort
+rpm -q dms quickshell plasma-workspace plasma-workspace-libs plasma-login-manager kwin
 rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE} build=%{BUILDTIME:date} install=%{INSTALLTIME:date}\n' \
-  dms quickshell qt6-qtbase qt6-qtdeclarative qt6-qtwayland
+  dms quickshell plasma-workspace plasma-workspace-libs plasma-login-manager kwin
 command -v qs
 readlink -f /usr/bin/qs
 ldd /usr/bin/qs | grep -E 'Qt6|quickshell'
@@ -350,15 +372,18 @@ journalctl --user -u dms.service -b -n 100 --no-pager -o cat
 
 The Quickshell RPM release alone is not enough to identify a rebuild: the current COPR can
 publish the same `0.3.1-1` release after rebuilding it for a new Fedora Qt patch. Compare
-the Qt package versions and the library paths used by `ldd`. The image now runs a targeted
-upgrade of `qt6-qtbase`, `qt6-qtdeclarative`, and `qt6-qtwayland`, then executes
-`/usr/bin/qs --version` during the build. That keeps the private ABI aligned with the
-Quickshell COPR artifact and fails CI before a broken DMS image is published (DD-070).
+the complete Qt package set and the library paths used by `ldd`; a single current
+`qt6-qtwayland` package does not prove that Qt Core and Qt QML are current. The image now
+updates `qt6-qtbase`, `qt6-qtdeclarative`, `qt6-qtwayland`, `kwin`, and `plasma-workspace`
+together, then runs both `/usr/bin/qs --version` and `ldd -r` against Plasma's battery QML
+plugin during the build. That keeps the DMS and Plasma Login Manager private-ABI consumers
+aligned and fails CI before either graphical entry point is published broken (DD-070,
+DD-071).
 
 On an already booted image, `ujust update` saying there is nothing to update only means the
-current image digest is already installed. Rebase to an image built after DD-070, reboot
+current image digest is already installed. Rebase to an image built after DD-071, reboot
 into that deployment, and rerun the commands above. Do not try to repair this particular
-error with DMS settings or a personal Niri configuration.
+error with DMS settings, a personal Niri configuration, or greeter settings.
 
 ## Niri configuration
 
@@ -692,7 +717,7 @@ conflicting `Ctrl+Space` binding.
 The decisive Plasma correction is on the session command itself, so the variables are
 absent before Plasma, KWin, Fcitx, or any child starts. The late profile fragment repeats
 the policy for shells that source Fedora's Fcitx fragment again, using the desktop identity
-SDDM supplied. Plasma's `plasma-workspace/env` directory cannot do this job: its loader
+the display manager supplied. Plasma's `plasma-workspace/env` directory cannot do this job: its loader
 sources scripts in a child shell and copies back variables that remain in `env`; an `unset`
 is absent from that output and cannot remove a value already held by the parent session
 (DD-067).

@@ -88,7 +88,7 @@ substitution.
   | `/etc/xdg/fcitx5/profile` | Fcitx fallback profile: English (US) plus Pinyin; `~/.config/fcitx5/profile` shadows it (DD-050) |
   | `/etc/xdg/fcitx5/config` | Fcitx fallback: native `Super+Space` and `Ctrl+Space` triggers; Niri consumes Super for DMS and leaves Control to Fcitx; `~/.config/fcitx5/config` shadows it (DD-050) |
   | `/etc/xdg/kwinrc` | KWin fallbacks: Breeze window decoration (DD-063) and Fcitx as Plasma's Wayland input-method client (DD-050); `~/.config/kwinrc` shadows it |
-  | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Runs after Fedora's Fcitx profile; unsets `GTK_IM_MODULE` on Wayland and, only when SDDM identifies Plasma, also unsets Qt/SDL. The late recipe step separately removes all three from Plasma's parent session command before startup; Niri retains Qt and both retain XIM (DD-050, DD-067) |
+  | `/etc/profile.d/zz-qubix-fcitx-wayland.sh` | Runs after Fedora's Fcitx profile; unsets `GTK_IM_MODULE` on Wayland and, only when the display manager identifies Plasma, also unsets Qt/SDL. The late recipe step separately removes all three from Plasma's parent session command before startup; Niri retains Qt and both retain XIM (DD-050, DD-067) |
   | `/etc/gtk-{3,4}.0/settings.ini` | Keeps the packaged Fcitx GTK module as the GTK 3/4 X11/XWayland fallback after the global variable is unset (DD-050) |
   | `/usr/lib/environment.d/50-qubix-terminal.conf` | `TERMINAL=wezterm` (DD-012), `/etc/xdg` appended to `XDG_CONFIG_DIRS` (DD-034, DD-038), and Homebrew's shared data prefix (DD-062). It deliberately omits KDE's Qt platform theme because that would reach DMS (DD-066); `/etc/profile.d/qubix-shell-env.sh` carries the shell half |
   | `/etc/xdg/wezterm/wezterm.lua` | WezTerm's system-wide config. Found through `$XDG_CONFIG_DIRS`; `~/.config/wezterm/` shadows it (DD-034) |
@@ -156,7 +156,7 @@ substitution.
 | Field | Effect |
 |---|---|
 | `repos.copr` | Enables COPR repositories before installing. See the table below. |
-| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `grub2-tools-extra` converts module 4d's Monaspace Krypton NF OTF faces to GRUB's PF2 format in module 4j (DD-057); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); the rest is the terminal environment — see below and [`shell.md`](shell.md). Quickshell's Qt runtime families are refreshed by the final build guard (DD-070). |
+| `install.packages` | Layered RPMs. `micro` = terminal editor; `starship` = shell prompt; `wezterm` = default terminal emulator (DD-012), and the `ibm-plex-*`, `google-noto-sans-cjk` and `unzip` entries behind it serve its shipped configuration (DD-034); `grub2-tools-extra` converts module 4d's Monaspace Krypton NF OTF faces to GRUB's PF2 format in module 4j (DD-057); `niri` = the second desktop session (DD-013); `dms` with `material-symbols-fonts`, `fira-code-fonts`, `rsms-inter-fonts` and `cliphist` = DankMaterialShell, Niri's desktop shell (DD-015); the `fcitx5-*` packages and `kcm-fcitx5` provide Simplified Chinese Pinyin input and both desktop/toolkit integrations (DD-050); the rest is the terminal environment — see below and [`shell.md`](shell.md). Quickshell and Plasma's Qt private-ABI consumers are refreshed by the early build guard (DD-070, DD-071). |
 | `remove.packages` | Removed RPMs. `firefox` goes because a browser belongs in a Flatpak (DD-006) and because the browser here is Ungoogled Chromium (DD-023); `firefox-langpacks` must be listed explicitly because dependency removal is not automatic. |
 
 COPR repositories in use:
@@ -249,11 +249,11 @@ No `repo` is specified, so Flathub is used by default.
 *Defined in `common-base.yml`. Fourteen snippets: zsh completions, the login-shell
 assertions, zellij, WezTerm's two upstream fonts, the WezTerm configuration assertion, the
 zsh wiring appended to `/etc/zshrc`, the `qubix-config`, fastfetch, and distrobox
-assertions, GRUB theme generation/validation, Homebrew launcher validation, and the
-fresh-account KDE appearance/session-environment assertion, followed by the Aurora
-package-free Plasma launcher-default assertion and compiled applet validation plus the
-Breeze launcher-alias branding rewrite, followed by Quickshell's targeted Qt runtime
-upgrade and loader smoke test.*
+assertions, GRUB theme generation/validation, Homebrew launcher validation, Qt private-ABI
+synchronization and loader smoke tests for Quickshell and Plasma's login greeter, the
+fresh-account KDE appearance/session-environment assertion, and the Aurora package-free
+Plasma launcher-default assertion plus compiled applet validation and Breeze launcher-alias
+branding rewrite.*
 
 ```yaml
 - type: containerfile
@@ -498,7 +498,31 @@ The eleventh snippet validates **Homebrew desktop discovery** (DD-062):
   refresh/icon helpers and units, and every path `qubix-config` names. Before the identity
   rewrite, though nothing forces that.
 
-The twelfth validates the complete KDE appearance fallback and the Plasma/Niri environment
+The twelfth synchronizes the Qt runtime and its private-ABI consumers before the later
+package-owned overrides, then proves that both Quickshell and Plasma's battery QML plugin
+can load (DD-070, DD-071):
+
+```yaml
+    - |
+      RUN set -eu; \
+          dnf5 -y upgrade --refresh \
+              qt6-qtbase qt6-qtdeclarative qt6-qtwayland \
+              kwin plasma-workspace; \
+          /usr/bin/qs --version >/dev/null; \
+          plasma_battery_plugin=/usr/lib64/qt6/qml/org/kde/plasma/private/battery/libbatterycontrolplugin.so; \
+          test -f "$plasma_battery_plugin"; \
+          ldd -r "$plasma_battery_plugin"
+```
+
+Quickshell and Plasma's battery QML plugin use Qt private symbols, so RPM's public soname
+dependencies can accept a binary built against a newer Qt patch level while the image still
+contains an older library or private-ABI consumer. The targeted upgrade keeps the three Qt
+runtime families, KWin, and Plasma Workspace together without upgrading the entire image.
+`qs --version` and the explicit `ldd -r` check turn unresolved loader symbols into a build
+failure. This guard runs after the shared package module has made the Fedora repositories
+available and before later snippets edit package-owned session and launcher files.
+
+The thirteenth validates the complete KDE appearance fallback and the Plasma/Niri environment
 boundary (DD-063, DD-066, DD-067):
 
 - It resolves the system Breeze Dark defaults with an empty `HOME`, proves that every
@@ -509,7 +533,7 @@ boundary (DD-063, DD-066, DD-067):
   from KDE's Qt platform plugin. The snippet updates the installed Plasma session command
   to enforce that boundary at the point the session starts.
 
-The thirteenth keeps Plasma's launcher defaults aligned with upstream Aurora and applies
+The fourteenth keeps Plasma's launcher defaults aligned with upstream Aurora and applies
 Qubix's independent launcher branding (DD-068, DD-069):
 
 - It fails if Discover's executable, desktop entry, Flatpak backend, or default launcher
@@ -517,24 +541,6 @@ Qubix's independent launcher branding (DD-068, DD-069):
 - It proves that the compiled Kickoff and Kicker applets are present, then replaces every
   installed Breeze `start-here` alias with the canonical distributor logo. Plasma 6.7 has
   no editable applet schema XML, so the compiled applets are asserted rather than patched.
-
-The fourteenth upgrades the Qt runtime that Quickshell loads and proves that its executable
-can start (DD-070):
-
-```yaml
-    - |
-      RUN set -eu; \
-          dnf5 -y upgrade --refresh \
-              qt6-qtbase qt6-qtdeclarative qt6-qtwayland; \
-          /usr/bin/qs --version >/dev/null
-```
-
-Quickshell uses Qt private symbols, so RPM's public soname dependencies can accept a
-binary built against a newer Qt patch level while the image still contains an older
-library. The targeted upgrade keeps the three runtime families together without upgrading
-the entire image, and `qs --version` turns an unresolved loader symbol into a build failure.
-This final guard runs before the identity rewrite and after the shared package module has
-made the Fedora repositories available.
 
 ### 5. `systemd` — enable bridge services
 

@@ -51,6 +51,7 @@ terms over synonyms.
 | **Overlay** | The `files/system/` tree, copied verbatim into the image root. Repository path = image path. |
 | **Override** | Shipping a file at an upstream path so the upstream file is replaced in the image. The branding mechanism (DD-004). |
 | **PF2** | GRUB's bitmap font format. Module 4j extracts bounded text/TUI glyph ranges from Monaspace Krypton NF OTF faces into three PF2 files for Qubix Boot Console (DD-057). |
+| **Plasma Login Manager** | KDE's QML display manager. Its `plasmalogin.service` starts the greeter as the `plasmalogin` user and offers the Wayland sessions found in `/usr/share/wayland-sessions/`. |
 | **Plymouth** | The boot splash system. Reads the watermark this image overrides. |
 | **Quickshell** | The QtQuick-based shell toolkit DankMaterialShell is written against. |
 | **`qubix-default-shell`** | The boot service that gives an account which already exists zsh as its login shell, once per account. It exists because `/etc/passwd` is per machine and Aurora deletes `chsh` from the image (DD-035). See [`shell.md`](shell.md#the-login-shell). |
@@ -59,7 +60,7 @@ terms over synonyms.
 | **`XDG_DATA_DIRS`** | The colon-separated list of shared application-data directories. Desktop launchers use its `applications/` entries and icon trees; Qubix prepends Linux Homebrew's `/home/linuxbrew/.linuxbrew/share` while preserving Flatpak and system directories (DD-062). |
 | **Recipe** | A `recipes/recipe*.yml` file: the declarative definition of one published image. Shared parts live in `recipes/common-*.yml`. |
 | **`rpm-ostree`** | The package/deployment manager on Fedora Atomic systems. |
-| **SDDM** | The display manager (login screen). Lists sessions from `/usr/share/wayland-sessions/`, which is how Niri appears as a login choice. |
+| **SDDM** | A display manager used by earlier Fedora/KDE layouts. Historical Qubix decisions may use this name; current Aurora-derived images use Plasma Login Manager, which reads the same Wayland-session directory. |
 | **Secure Boot** | UEFI feature where firmware only loads signed boot binaries. Fedora's kernel is signed; the CachyOS one is not, so the active CachyOS image needs it off or a [MOK](variants.md#secure-boot) enrolled. The same caveat applies if the parked combined recipe is re-enabled. |
 | **Seeder** | A user service that writes a *preference* into `$HOME` because the image cannot ship it there. Only one remains: `qubix-dms-theme`, which writes the theme pointer every Niri session and applies versioned shell-presentation migrations once (DD-025, DD-048). The Homebrew launcher unit writes derived icon/desktop integration, not preferences (DD-062). The shell and editor once had seeders too; they were replaced by plain system files (DD-030). Not to be confused with `qubix-default-shell`, which is a *system* service and writes to `/etc/passwd`, never to `$HOME`. |
 | **Session** | One desktop environment as offered at the login screen. This image has two: Plasma (Wayland) and Niri. |

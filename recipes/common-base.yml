@@ -80,7 +80,7 @@ modules:
         - unzip
         # Second desktop session, ALONGSIDE KDE Plasma — nothing Plasma is removed.
         # In Fedora's main repos. Ships /usr/share/wayland-sessions/niri.desktop, which
-        # is all SDDM needs to offer it as a login choice. Weak deps bring the pieces a
+        # is all the display manager needs to offer it as a login choice. Weak deps bring the pieces a
         # bare compositor does not have (waybar, fuzzel, swaylock, the GTK/GNOME
         # portals); xwayland-satellite is a hard dependency and needs no setup. DD-013.
         - niri
@@ -194,7 +194,7 @@ modules:
       - scope: user # Also add Flathub user repo, but no user packages
 
   # 4. Build steps no BlueBuild module covers: things that are not an RPM and not a file
-  #    that can simply be copied. Thirteen snippets, each its own layer.
+  #    that can simply be copied. Fourteen snippets, each its own layer.
   #
   #    4a. zsh-completions: completion functions for tools zsh does not cover itself.
   #    A raw build step because there is nothing to install FROM: Fedora does not package
@@ -686,7 +686,39 @@ modules:
             grep -qF 'qubix-stabilize-homebrew-icons' "$helper"; \
             grep -qF 'systemctl --user try-restart dms.service' "$helper"
 
-      #    4l. Validate the complete KDE appearance fallback for fresh accounts.
+      #    4l. Synchronize Qt's private-ABI consumers before package-owned overrides.
+      #
+      #        Quickshell/DankMaterialShell and Plasma's login greeter both load Qt private
+      #        symbols. RPM checks the public Qt sonames, so an older base-image library can
+      #        remain installed beside a Quickshell or Plasma build made for a newer patch
+      #        release. Upgrade the three Qt runtime families together with KWin and
+      #        Plasma Workspace, whose battery QML plugin is loaded before user login.
+      #        Smoke-test both loader boundaries so a DMS or greeter failure stops the build.
+      #        DD-070, DD-071.
+      #
+      #        Ordering: after `dnf`, which installs DMS/Quickshell and supplies the Fedora
+      #        repositories, but before the later assertions and edits of package-owned
+      #        session/default files. A package update must not overwrite those edits.
+      - |
+        RUN set -eu; \
+            dnf5 -y upgrade --refresh \
+                qt6-qtbase qt6-qtdeclarative qt6-qtwayland \
+                kwin plasma-workspace; \
+            /usr/bin/qs --version >/dev/null; \
+            plasma_battery_plugin=/usr/lib64/qt6/qml/org/kde/plasma/private/battery/libbatterycontrolplugin.so; \
+            test -f "$plasma_battery_plugin"; \
+            if ! plasma_loader_report="$(ldd -r "$plasma_battery_plugin" 2>&1)"; then \
+                echo 'Plasma battery QML plugin could not be loaded'; \
+                printf '%s\n' "$plasma_loader_report"; \
+                exit 1; \
+            fi; \
+            if printf '%s\n' "$plasma_loader_report" | grep -Eq 'undefined symbol|not found'; then \
+                echo 'Plasma battery QML plugin has unresolved runtime dependencies'; \
+                printf '%s\n' "$plasma_loader_report"; \
+                exit 1; \
+            fi
+
+      #    4m. Validate the complete KDE appearance fallback for fresh accounts.
       #
       #        A rebase from Aurora can carry a populated ~/.config/kdeglobals, masking a
       #        missing system default. An ISO-created account has no such file. Resolve the
@@ -767,7 +799,7 @@ modules:
                 | grep -qxF Fusion; \
             rm -rf "$tmp"
 
-      #    4m. Keep Plasma's launcher defaults aligned with upstream Aurora and brand them.
+      #    4n. Keep Plasma's launcher defaults aligned with upstream Aurora and brand them.
       #
       #        Aurora deliberately omits Discover from its default taskbar and application
       #        launcher files. Verify those defaults and reject any Discover package, desktop
@@ -817,24 +849,6 @@ modules:
                 cmp -s "$logo" "$icon"; \
             done < "$icons"; \
             rm -f "$icons"
-
-      #    4n. Keep Quickshell's private Qt ABI matched to the runtime libraries.
-      #
-      #        Quickshell links against Qt private symbols. Its RPM dependency metadata
-      #        checks the public Qt sonames, which can leave an older base-image library
-      #        installed even when the COPR binary was rebuilt against a newer Qt patch
-      #        release. Upgrade only the three runtime families Quickshell loads, then
-      #        execute its version path so an unresolved private symbol fails this build
-      #        instead of breaking DMS on a user's first Niri login. DD-070.
-      #
-      #        Ordering: after `dnf`, which installs DMS/Quickshell and supplies the Fedora
-      #        repositories, and after the other assertions, so the package boundary is
-      #        checked immediately before the image leaves this shared module.
-      - |
-        RUN set -eu; \
-            dnf5 -y upgrade --refresh \
-                qt6-qtbase qt6-qtdeclarative qt6-qtwayland; \
-            /usr/bin/qs --version >/dev/null
 
   # 5. Enable the system services this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already

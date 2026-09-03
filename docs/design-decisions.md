@@ -363,11 +363,11 @@ session worse in ways that only surface weeks later, on hardware you no longer h
 front of you.
 
 Fedora packages `niri` in its main repositories, and the RPM installs
-`/usr/share/wayland-sessions/niri.desktop`. SDDM builds its session list from that
-directory, so a second session needs no display-manager configuration at all.
+`/usr/share/wayland-sessions/niri.desktop`. Plasma Login Manager builds its session list
+from that directory, so a second session needs no display-manager configuration at all.
 
 **Decision.** Install `niri` as a **purely additive** layer. Both sessions are present at
-all times and the choice is made per login in SDDM. No KDE Plasma package is removed,
+all times and the choice is made per login in Plasma Login Manager. No KDE Plasma package is removed,
 masked, or reconfigured. Where a default has to name one thing (the terminal, DD-012), the
 default is changed for both sessions rather than one session being special-cased.
 
@@ -1991,8 +1991,9 @@ session id when the shell nests. Wrapping that in a guard on the same variable d
 but stop it running.
 
 The third row costs something subtler and is the reason this record covers the environment
-blocks too. **The graphical session reads `/etc/profile.d` as well** — SDDM's
-`wayland-session` sources `/etc/profile` — so "does the user have a `starship.toml` of their
+blocks too. **The graphical session reads `/etc/profile.d` as well** — the display
+manager's `wayland-session` launcher sources `/etc/profile` — so "does the user have a
+`starship.toml` of their
 own?" was answered once, at login, exported, and inherited by every terminal opened
 underneath. `docs/shell.md` promises that creating the file wins with nothing to undo. It
 did win, after a logout.
@@ -4095,8 +4096,8 @@ package's original command and `XMODIFIERS`. Niri's session file is untouched, s
 module remains available.
 
 Also extend the existing late `/etc/profile.d` Wayland correction. It always unsets GTK,
-then uses SDDM's `XDG_CURRENT_DESKTOP` / `XDG_SESSION_DESKTOP` identity to unset Qt and SDL
-only for Plasma. This repeats the correct policy if a later interactive shell sources
+then uses the display manager's `XDG_CURRENT_DESKTOP` / `XDG_SESSION_DESKTOP` identity to
+unset Qt and SDL only for Plasma. This repeats the correct policy if a later interactive shell sources
 Fedora's Fcitx profile again; it is not the mechanism on which Plasma startup depends.
 
 Do not use `plasma-workspace/env` for this removal. [Plasma's loader](https://invent.kde.org/plasma/plasma-workspace/-/blob/master/startkde/startplasma.cpp)
@@ -4217,6 +4218,8 @@ Breeze's stock `start-here` aliases with the distributor logo.
 
 **Implements:** `IMG-043`
 
+**Amended by:** [DD-071](#dd-071--extend-the-private-qt-abi-guard-to-plasmas-pre-login-greeter)
+
 **Context.** The image carrying the DMS environment boundary still failed before startup:
 `/usr/bin/qs --version` reported an undefined `QUntypedPropertyBinding` symbol versioned
 `Qt_6.11_PRIVATE_API`. The Quickshell RPM had been rebuilt in Fedora 44's current COPR
@@ -4246,3 +4249,55 @@ the private ABI.
   currently booted image.
 - The guard is specific to Quickshell's runtime boundary and does not alter Plasma's
   session environment or DMS's KDE platform-theme isolation.
+
+---
+
+## DD-071 — Extend the private Qt ABI guard to Plasma's pre-login greeter
+
+**Status:** Accepted
+
+**Implements:** `IMG-043`
+
+**Amends:** [DD-070](#dd-070--match-quickshells-private-qt-abi-to-the-image-runtime)
+
+**Context.** The same deployment that exposed the Quickshell failure also showed a blank
+screen before any user session started. `plasmalogin.service` was active and its greeter
+user had launched KWin, but the greeter journal reported that
+`BreezeComponents.Battery` could not load. The failing
+`libbatterycontrolplugin.so` pulled in Qt QML, which then requested an unresolved
+`Qt_6.11_PRIVATE_API` symbol. A running display-manager unit is therefore not proof that
+its QML greeter rendered.
+
+The package evidence showed the ABI boundary more precisely: the image already had
+`qt6-qtwayland-6.11.2-1.fc44` and `plasma-workspace-6.7.4-1.fc44`, while Fedora's current
+`plasma-workspace-6.7.4-2.fc44` is explicitly rebuilt for Qt 6. The original guard updated
+only Qt runtime families and ran only `qs --version`; it could leave an older Plasma
+private-API consumer in place and it ran after package-owned session files had already
+been edited. The service and executable are called `plasmalogin`, but the owning RPM is
+`plasma-login-manager`.
+
+**Decision.** Run the targeted Qt synchronization before any later assertion or edit of
+package-owned files. Upgrade `qt6-qtbase`, `qt6-qtdeclarative`, and `qt6-qtwayland` together
+with `kwin` and `plasma-workspace`; the latter's exact-version dependencies bring its
+matching common and library subpackages along. Then:
+
+- execute `/usr/bin/qs --version` to load Quickshell's runtime;
+- run `ldd -r` against
+  `/usr/lib64/qt6/qml/org/kde/plasma/private/battery/libbatterycontrolplugin.so` and fail
+  on an unresolved object or symbol.
+
+Do not start the greeter during an image build. The loader check is deterministic and catches
+the exact QML/plugin boundary without requiring a compositor, DRM device, PAM session, or
+hardware display.
+
+**Consequences.**
+
+- The build rejects both known failure paths: DMS cannot start with an incompatible
+  Quickshell/Qt set, and Plasma Login Manager cannot load its battery QML component with an
+  incompatible Plasma/Qt set.
+- The package upgrade remains narrower than a full distribution upgrade, but it now includes
+  the KDE private-API consumers whose binaries must track the selected Qt patch level.
+- The Qt synchronization precedes the Plasma session-command and launcher edits, so those
+  package-owned files cannot be overwritten after Qubix patches them.
+- The checks verify dynamic loading in CI; only a rebuilt image and real Plasma/Niri session
+  checks can confirm the complete graphical result on hardware.

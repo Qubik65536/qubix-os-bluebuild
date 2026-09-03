@@ -9,11 +9,11 @@
 # (DD-036). Bash, which has no such problem, is wired up at the end of this file.
 #
 # EVERY EXPORTED VALUE BELOW IS RE-RESOLVED IN EVERY SHELL, and that is deliberate. This
-# file is read by the graphical session too — SDDM's wayland-session sources /etc/profile —
-# so anything decided once and exported is inherited by every terminal opened under that
-# session. Resolving "does the user have a config of their own?" only in the first shell
-# would have made the answer good until logout, when the promise these blocks make is that
-# creating the file wins in the next shell (DD-037).
+# file is read by the graphical session too — the display manager's Wayland session launcher
+# sources /etc/profile — so anything decided once and exported is inherited by every terminal
+# opened under that session. Resolving "does the user have a config of their own?" only in
+# the first shell would have made the answer good until logout, when the promise these blocks
+# make is that creating the file wins in the next shell (DD-037).
 #
 # See docs/shell.md and docs/design-decisions.md DD-026, DD-030, DD-036, DD-037, DD-038.
 

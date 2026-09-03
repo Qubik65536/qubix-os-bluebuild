@@ -188,7 +188,7 @@
       "outputColor": "#be95ff"
     },
     {
-      // Linux only (gdm/sddm/…)
+      // Linux only (display manager)
       "type": "lm",
       "key": "\u001b[112G{##be95ff}│\u001b[45G│  {##33b1ff}\uf090\u001b[51Glm",
       "outputColor": "#33b1ff"

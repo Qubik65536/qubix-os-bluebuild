@@ -280,11 +280,11 @@ Nothing stays in **Open** merely because CI has not run yet.
   - **Category:** Image content
   - **Depends on:** IMG-001
   - **Notes:** Niri is in Fedora's main repositories and ships
-    `/usr/share/wayland-sessions/niri.desktop`, so SDDM lists it automatically.
+    `/usr/share/wayland-sessions/niri.desktop`, so Plasma Login Manager lists it automatically.
     See DD-013 and DD-014.
   - **Acceptance criteria:**
     - `recipe.yml` installs `niri`
-    - Both "Plasma (Wayland)" and "Niri" are selectable in SDDM at login
+    - Both "Plasma (Wayland)" and "Niri" are selectable in Plasma Login Manager at login
     - A system-wide `/etc/niri/config.kdl` gives a working session on first login
     - The Niri terminal keybind opens WezTerm
     - Nothing that ships with KDE Plasma is removed or disabled
@@ -1350,7 +1350,8 @@ Nothing stays in **Open** merely because CI has not run yet.
     - The same mistake in `/etc/profile.d/qubix-shell-env.sh` costs something subtler.
       `STARSHIP_CONFIG`, `LG_CONFIG_FILE` and the `ATUIN_*` block are resolved from whether
       the user has a config of their own, exported, and then never reconsidered — and the
-      **session itself** reads that file (SDDM's `wayland-session` sources `/etc/profile`),
+      **session itself** reads that file (the display manager's `wayland-session` launcher
+      sources `/etc/profile`),
       so the answer is fixed at login and inherited by every terminal under it. "Create
       `~/.config/starship.toml` and it wins", as the docs promise, has meant "log out and
       back in".
@@ -1775,22 +1776,29 @@ should look at.
     `/usr/bin/qs --version` still failed before startup with an undefined
     `QUntypedPropertyBinding` symbol from `Qt_6.11_PRIVATE_API`. The published
     `quickshell-0.3.1-1.fc44` COPR artifact was rebuilt in a Fedora 44 chroot carrying
-    Qt 6.11.2, while the Aurora-derived image retained Qt 6.11.1 because the DMS
-    dependency transaction satisfied the Qt sonames without upgrading the already
-    installed packages. Quickshell uses Qt private APIs, so matching only the soname is
-    insufficient. The shared recipe now upgrades the three Qt runtime families together
-    and runs `/usr/bin/qs --version` as a build-time loader smoke test; static checks pass,
-    and only the rebuilt-image Niri check remains.
+    Qt 6.11.2, while the Aurora-derived image retained an older mixed Qt set because the
+    DMS dependency transaction satisfied public Qt sonames without upgrading all installed
+    packages. The same boundary then appeared before login: Plasma Login Manager's QML
+    greeter could not load `BreezeComponents.Battery` through
+    `libbatterycontrolplugin.so`, while the image carried `qt6-qtwayland-6.11.2-1.fc44` and
+    `plasma-workspace-6.7.4-1.fc44`; Fedora's current `plasma-workspace-6.7.4-2.fc44` is
+    the Qt rebuild. The service is named `plasmalogin`, but its RPM is
+    `plasma-login-manager`. The shared recipe now upgrades the three Qt runtime families
+    with KWin and Plasma Workspace, then smoke-tests both loader boundaries before later
+    package-owned overrides; static checks pass, and only the rebuilt-image checks remain
+    (DD-070, DD-071).
   - **Acceptance criteria:**
     - Every active image upgrades the Qt runtime packages used by Quickshell
-      (`qt6-qtbase`, `qt6-qtdeclarative`, and `qt6-qtwayland`) during the image build
-    - A build-time `/usr/bin/qs --version` smoke assertion fails before publication when
-      the Quickshell loader cannot resolve its Qt private ABI
+      (`qt6-qtbase`, `qt6-qtdeclarative`, and `qt6-qtwayland`) together with KWin and
+      Plasma Workspace during the image build
+    - Build-time `/usr/bin/qs --version` and Plasma battery-plugin loader assertions fail
+      before publication when either graphical entry point cannot resolve its Qt private ABI
     - The package, recipe, desktop, design-decision, and context-cache documentation
-      records the private-ABI constraint and the intentional targeted Qt upgrade
+      records the shared Qt/Plasma private-ABI constraint, the correct
+      `plasma-login-manager` package name, and the intentional targeted upgrade
     - Local recipe YAML, embedded shell syntax, and whitespace checks pass
-    - After rebasing, a Niri login starts DMS with its wallpaper, bar, and launcher
-      *(open — requires a built image and hardware)*
+    - After rebasing, the Plasma Login Manager renders and a Niri login starts DMS with its
+      wallpaper, bar, and launcher *(open — requires a built image and hardware)*
 
 - [ ] **IMG-039** — Discover Homebrew GUI applications in desktop launchers
   - **Category:** Image content

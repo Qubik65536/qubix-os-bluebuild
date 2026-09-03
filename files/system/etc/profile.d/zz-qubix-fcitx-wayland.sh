@@ -10,8 +10,9 @@
 # default without replacing the package-owned file. XMODIFIERS always remains intact for
 # XWayland; GTK's X11 path is selected separately by /etc/gtk-{3,4}.0/settings.ini.
 
-# Use native Wayland input paths, with Qt/SDL removal scoped to Plasma only. SDDM supplies
-# the desktop identity before it starts the login shell and sources this file.
+# Use native Wayland input paths, with Qt/SDL removal scoped to Plasma only. The display
+# manager supplies the desktop identity before it starts the login shell and sources this
+# file.
 if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
     unset GTK_IM_MODULE
 

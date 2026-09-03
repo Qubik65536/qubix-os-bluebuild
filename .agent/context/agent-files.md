@@ -137,7 +137,7 @@ Dark/KDE integration for an empty home. `BRD-008` is open again: its first ISO a
 proved additional Lorax templates run before `/.buildstamp` exists. The replacement uses
 Anaconda's pre-start `PRODBUILDPATH` overlay for the clean visual product while preserving
 Lorax/OCI/boot technical identity; it needs a successful ISO rerun before returning to
-Awaiting confirmation (DD-065). `IMG-043` tracks the Quickshell private-ABI mismatch:
-`common-base.yml` refreshes the three Qt runtime families used by Quickshell and runs
-`qs --version` as a build-time loader smoke test; it waits in Awaiting confirmation for a
-rebuilt image and Niri hardware check (DD-070).
+Awaiting confirmation (DD-065). `IMG-043` tracks the shared Qt private-ABI mismatch:
+`common-base.yml` refreshes the three Qt runtime families with KWin and Plasma Workspace,
+runs `qs --version`, and checks Plasma's battery QML plugin with `ldd -r`; it waits in
+Awaiting confirmation for a rebuilt image and Plasma/Niri hardware checks (DD-070, DD-071).
