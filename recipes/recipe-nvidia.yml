@@ -33,12 +33,16 @@ modules:
   # Shared distribution identity first, then the variant-specific human-readable name.
   - from-file: common-identity.yml
 
+  # Preserve the shared upstream version and source revision while naming this driver
+  # variant in the detailed system identity (DD-073).
   - type: containerfile
     snippets:
       - |
         RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release \
-            && grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, Version: ${IMAGE_VERSION})\"" /usr/lib/os-release
+            && GIT_SHA=$(grep '^QUBIX_GIT_SHA=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"|" /usr/lib/os-release \
+            && grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"" /usr/lib/os-release \
+            && grep -qxF "QUBIX_GIT_SHA=\"${GIT_SHA}\"" /usr/lib/os-release
 
   # Rebuild after the Plymouth overlay while retaining the matching NVIDIA module.
   - type: initramfs

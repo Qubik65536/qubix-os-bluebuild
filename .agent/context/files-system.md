@@ -8,6 +8,10 @@ The image root overlay. The `files` module copies `files/system/*` verbatim into
 image, so **repository path = image path**. Two kinds of content live here: branding assets
 (the bulk of it) and system-wide desktop configuration.
 
+The image workflow temporarily adds `usr/lib/qubix-os/source-revision` before BlueBuild
+runs. It contains the checked-out full Git SHA and is consumed by
+`recipes/common-identity.yml`; it is generated per CI job rather than committed.
+
 ## Desktop configuration
 
 | Path | Consumer | Effect |

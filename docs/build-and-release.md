@@ -38,6 +38,7 @@ image, or confirm anything renders. Those need CI — and the kernel needs real 
 | `fail-fast` | `false` | One failing variant doesn't cancel the others. |
 | `timeout-minutes` | `90` | A full build is 30–45 min; this only catches a hung run. |
 | `maximize_build_space` | `true` | Reclaims runner disk before building; the images are large. |
+| Source provenance | Pinned checkout plus `files/system/usr/lib/qubix-os/source-revision` | The checked-out full Git SHA is stamped before BlueBuild runs; the action uses `skip_checkout: true` so it builds that exact workspace (DD-073). |
 
 ### What gets built
 
@@ -53,6 +54,14 @@ it (DD-052). A registry tag left by an earlier attempt is not a current release.
 
 `recipes/common-*.yml` files are **included**, never built ([`variants.md`](variants.md),
 DD-016).
+
+Before the BlueBuild action runs, each matrix job checks out the exact `github.sha`,
+validates that it is a full 40-character hexadecimal revision, and writes it to the
+temporary overlay path `files/system/usr/lib/qubix-os/source-revision`. The action's
+`skip_checkout: true` input prevents a second checkout from replacing that stamped
+workspace. `common-identity.yml` copies the stamp into the image's `QUBIX_GIT_SHA`
+`os-release` field and includes it alongside the retained upstream `IMAGE_VERSION` in
+`PRETTY_NAME` (DD-073).
 
 ### Selecting recipes
 
@@ -348,8 +357,15 @@ The ISO remains in OneDrive; GitHub stores only a small, searchable release reco
 successful matrix cell creates one release and one unique tag:
 
 ```text
-iso-<variant>-<scheduled|push>-<tag>-f<fedora>-<digest>-run-<run>-<attempt>
+iso-z-<YYYYMMDDHHMMSS>-<variant>-<scheduled|push>-<tag>-f<fedora>-<digest>-run-<run>-<attempt>
 ```
+
+GitHub's Releases page orders this non-semver family by the tag identifier rather than
+the publication timestamp in the notes. The fixed `z` is a migration sentinel: it sorts
+new records above legacy `iso-<variant>-...` tags, while the UTC timestamp immediately
+after it is the chronological key within the new family. Retention and age cleanup accept
+both formats, so existing records remain removable while the page transitions to the
+timestamp-prefixed family.
 
 The release title names the Qubix variant, Fedora major, source class, and UTC date. Its
 download table places the durable OneDrive ISO link and the literal SHA-256 on the same
@@ -369,9 +385,11 @@ delivered `workflow_run`:
 
 When OneDrive permanently deletes a version beyond its channel's 3/5 count, the following
 release step derives that version's exact generated tag and best-effort deletes both its
-GitHub Release and tag. It also scans only tags in the strict generated ISO tag families
-and best-effort removes releases whose `published_at` is older than three calendar months.
-Cleanup warnings do not invalidate the new release: an API outage
+GitHub Release and tag. For timestamp-prefixed tags it matches the exact variant/channel/
+version suffix; the legacy variant-first name is also checked. It scans only tags in the
+strict generated ISO tag families and best-effort removes releases whose `published_at`
+is older than three calendar months. Cleanup warnings do not invalidate the new release:
+an API outage
 can temporarily leave stale release metadata, but it cannot make a valid new ISO
 undiscoverable. A later successful run retries the age scan. Release age does not add a
 second OneDrive storage rule; OneDrive remains capped by the stricter per-channel counts.

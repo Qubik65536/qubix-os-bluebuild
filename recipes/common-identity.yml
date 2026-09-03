@@ -7,22 +7,26 @@
 # of its ordering constraint: it must run LATE, after every module that could regenerate
 # os-release — which, for a variant that swaps the kernel, includes that swap. DD-016.
 #
-# Docs:  docs/recipe-reference.md, docs/design-decisions.md (DD-003)
+# Docs:  docs/recipe-reference.md, docs/design-decisions.md (DD-003, DD-073)
 
 modules:
   # System identity rewrite (the one piece of imperative logic every variant runs).
   # A static os-release via the `files` module would discard every field upstream sets
-  # (VERSION_ID, VARIANT, IMAGE_VERSION, …), and PRETTY_NAME needs a build-time value.
-  # So: patch in place, changing only the three intended fields. DD-003.
+  # (VERSION_ID, VARIANT, IMAGE_VERSION, …), and PRETTY_NAME needs build-time values.
+  # So: patch in place, changing only the intended identity fields and adding Qubix's
+  # source-revision field. DD-003, DD-073.
   #
   # Details that matter:
   #   - IMAGE_VERSION is captured BEFORE the rewrites, then interpolated back in, so
   #     the upstream Aurora/Fedora build stays visible in PRETTY_NAME.
+  #   - CI writes the checked-out commit to the source-revision file before BlueBuild
+  #     starts; it is validated and retained as QUBIX_GIT_SHA.
   #   - Patterns are anchored (^ID=) so they cannot match VERSION_ID= and friends.
   #   - The last sed uses | as its delimiter because the replacement contains /.
-  #   - NAME is the clean visual product name. ID and PRETTY_NAME deliberately retain
-  #     technical BlueBuild provenance for tooling and detailed deployment labels.
-  #   - Single RUN with assertions: one layer, fails atomically. DD-065.
+  #   - NAME is the clean visual product name. ID, PRETTY_NAME, and QUBIX_GIT_SHA
+  #     deliberately retain technical BlueBuild/source provenance for tooling and
+  #     detailed deployment labels.
+  #   - Single RUN with assertions: one layer, fails atomically. DD-065, DD-073.
   #
   # A variant that wants its own PRETTY_NAME rewrites the field again AFTER this module
   # rather than parameterising it — see the non-standard recipes/recipe-*.yml files.
@@ -32,11 +36,22 @@ modules:
     snippets:
       - |
         RUN set -eu; \
+            SOURCE_REVISION_FILE=/usr/lib/qubix-os/source-revision; \
             IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"'); \
+            GIT_SHA=$(cat "${SOURCE_REVISION_FILE}"); \
+            if [ -z "${IMAGE_VERSION}" ] || [ "${#GIT_SHA}" -ne 40 ] || \
+                ! printf '%s' "${GIT_SHA}" | grep -Eq '^[0-9a-f]{40}$'; then \
+                echo "Missing or malformed image version/source revision" >&2; \
+                exit 1; \
+            fi; \
             sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release; \
             sed -i 's/^NAME=.*/NAME="Qubix OS"/' /usr/lib/os-release; \
-            sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release; \
+            sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"|" /usr/lib/os-release; \
+            sed -i '/^QUBIX_GIT_SHA=/d' /usr/lib/os-release; \
+            printf 'QUBIX_GIT_SHA="%s"\n' "${GIT_SHA}" >> /usr/lib/os-release; \
             grep -qxF 'ID=qubix_os_bluebuild' /usr/lib/os-release; \
             grep -qxF 'NAME="Qubix OS"' /usr/lib/os-release; \
-            grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"" \
+            grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"" \
+                /usr/lib/os-release; \
+            grep -qxF "QUBIX_GIT_SHA=\"${GIT_SHA}\"" \
                 /usr/lib/os-release

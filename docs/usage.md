@@ -264,13 +264,17 @@ Expected fields on Qubix OS:
 |---|---|
 | `ID` | `qubix_os_bluebuild` |
 | `NAME` | `Qubix OS` |
-| `PRETTY_NAME` | Names the selected dimensions: standard, `CachyOS Kernel`, `NVIDIA Open`, or `NVIDIA Open, CachyOS Kernel`, followed by the upstream `IMAGE_VERSION` |
+| `PRETTY_NAME` | Names the selected dimensions: standard, `CachyOS Kernel`, `NVIDIA Open`, or `NVIDIA Open, CachyOS Kernel`, followed by the upstream `IMAGE_VERSION` and full Git SHA |
+| `QUBIX_GIT_SHA` | The full 40-character Git SHA checked out by CI for this image |
 
 The version in `PRETTY_NAME` is the **Aurora/Fedora** version the image was built from —
-useful when reporting a bug, because it identifies the upstream base. Everything else in
-`os-release` is upstream's (DD-003, DD-065). This split is intentional: `NAME` is the
-clean visual product name, while `ID`, `PRETTY_NAME`, and the OCI repository names retain
-BlueBuild provenance for diagnostics, rebases, and detailed boot/deployment labels.
+useful when reporting a bug, because it identifies the upstream base. `QUBIX_GIT_SHA` is
+the full source revision of the Qubix image definition and is also included in
+`PRETTY_NAME` for copy-and-paste diagnostics. Everything else in `os-release` is
+upstream's, apart from this one Qubix provenance field (DD-003, DD-065, DD-073). This
+split is intentional: `NAME` is the clean visual product name, while `ID`, `PRETTY_NAME`,
+`QUBIX_GIT_SHA`, and the OCI repository names retain BlueBuild/source provenance for
+diagnostics, rebases, and detailed boot/deployment labels.
 
 Also available: System Settings → **About this System**, which reads
 `kcm-about-distrorc` and shows "Qubix OS" with the Qubix logo.
@@ -297,7 +301,9 @@ After the **iso** run succeeds, open the repository's
 has its own release. Its download table puts the anonymous OneDrive ISO link and literal
 SHA-256 on the same row, with the checksum-file link immediately below. Scheduled builds
 are normal releases; builds originating from a push or either manual route are marked as
-prereleases. Expect a multi-gigabyte download.
+prereleases. New generated releases use a UTC timestamp in their tag, so the newest
+records appear first on the page by release time; older legacy-tagged records may remain
+lower until retention cleanup removes them. Expect a multi-gigabyte download.
 
 OneDrive remains the file store: weekly builds live under `scheduled`, while push and
 manual builds live under `push`. The workflow permanently keeps three scheduled and five

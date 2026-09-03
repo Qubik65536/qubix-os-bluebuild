@@ -119,10 +119,10 @@ it through GRUB's existing `custom.cfg` hook (DD-057).
 | `files/system/usr/share/kde-settings/kde-profile/default/xdg/ksplashrc` | `/usr/share/kde-settings/kde-profile/default/xdg/ksplashrc` | KDE's distro profile. Selects `com.qubixos.desktop` for accounts without a higher-priority personal splash choice. |
 | `.github/lorax/qubix-product.tmpl` | Installer runtime `/etc/anaconda/qubix-product.buildstamp` plus two systemd drop-ins | Supplies Anaconda a partial `PRODBUILDPATH` overlay with `Product=Qubix OS`; Lorax's later technical `/.buildstamp` and the embedded OCI image name remain unchanged (DD-065). |
 
-`os-release` (`ID`, `NAME`, `PRETTY_NAME`) is *not* in this tree — it is patched at build
+`os-release` (`ID`, `NAME`, `PRETTY_NAME`, `QUBIX_GIT_SHA`) is *not* in this tree — it is patched at build
 time by the `containerfile` module. Its visual `NAME` is `Qubix OS`; technical `ID` and
-detail-oriented `PRETTY_NAME` retain BlueBuild provenance. See
-[`recipe-reference.md`](recipe-reference.md) and DD-065.
+detail-oriented `PRETTY_NAME` and `QUBIX_GIT_SHA` retain BlueBuild/source provenance. See
+[`recipe-reference.md`](recipe-reference.md) and DD-065, DD-073.
 
 ## Where branding shows up, by surface
 
@@ -134,15 +134,16 @@ detail-oriented `PRETTY_NAME` retain BlueBuild provenance. See
 | Installer welcome / product heading | Anaconda's partial `PRODBUILDPATH` fragment, set before startup by `.github/lorax/qubix-product.tmpl` |
 | System Settings → About this System | `kcm-about-distrorc` + `system-logo.png` |
 | Niri floating-bar launcher | `qubixos-logo.png` through the DMS preset migration (DD-048) |
-| `neofetch` / `fastfetch` / terminal | `os-release` `PRETTY_NAME` (+ `ID` for logo selection) |
+| `neofetch` / `fastfetch` / terminal | `os-release` `PRETTY_NAME` (+ `ID` for logo selection; `QUBIX_GIT_SHA` for exact source lookup) |
 | Plasma Kickoff/Kicker panel button | The applets' stock `start-here-kde-symbolic` lookup; every packaged Breeze KDE/Plasma regular and symbolic alias receives `distributor-logo.svg`'s bytes |
 | Application menus, icon lookups | `distributor-logo.svg` |
 | Fedora-aware apps and docs viewers | `fedora-logo*.png` overrides |
 
 Prominent product surfaces use the clean name **Qubix OS**. Diagnostic and boot/deployment
-details deliberately retain the **BlueBuild** qualifier: `PRETTY_NAME`, the About page's
-variant text, OCI/update identity, and therefore generated GRUB deployment names continue
-to expose how the system was built (DD-065).
+details deliberately retain the **BlueBuild** qualifier and source revision:
+`PRETTY_NAME`, `QUBIX_GIT_SHA`, the About page's variant text, OCI/update identity, and
+therefore generated GRUB deployment names continue to expose how the system was built
+(DD-065, DD-073).
 
 ## Changing the logo
 

@@ -96,7 +96,7 @@ image layer. Order is load-bearing. For `recipe.yml`:
 | 3 | `default-flatpaks` | `common-base.yml` | Configures Flathub (system + user), queues `io.github.ungoogled_software.ungoogled_chromium` and `org.gnome.Loupe` | Must come after the `dnf` removal of the Firefox RPM, so the Flatpak browser is the only browser (DD-023). |
 | 4 | `containerfile` | `common-base.yml` | Installs and validates the terminal environment, builds/asserts the bounded-range GRUB PF2 payload, validates Homebrew and KDE/DMS environment wiring, synchronizes the Qt runtime with KWin and Plasma Workspace, smoke-tests Quickshell and Plasma's battery QML plugin, asserts Aurora's package-free Plasma launcher defaults, and replaces Plasma's Breeze launcher aliases with Qubix distributor artwork | Needs packages from `dnf` and overlaid configuration/scripts from `files`; late assertions turn missing assets, renamed units, lost executable bits, or a Qt private-ABI mismatch into build failures (DD-057, DD-062, DD-063, DD-066…DD-071). |
 | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service`, `qubix-grub-theme.service`, and the per-user `qubix-app-launcher-refresh.path` | All units come from `files`: one changes existing accounts once (DD-035), one synchronises image-owned GRUB assets into machine-local `/boot` (DD-057), and the user path refreshes desktop application indexes after Homebrew installs (DD-062). |
-| 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
+| 6 | `containerfile` | `common-identity.yml` | Reads the CI source stamp, then rewrites `ID`, `NAME`, `PRETTY_NAME` and adds `QUBIX_GIT_SHA` in `/usr/lib/os-release` | Must run **after** any module that could rewrite `os-release` (upstream `dnf` operations can regenerate it via `fedora-release`). |
 | 7 | `initramfs` | `recipe.yml` | Regenerates the stock kernel's initramfs with the overlaid Plymouth files | Must run after `files`; late so it captures every early-boot change. Aurora's inherited initramfs otherwise retains Aurora's watermark (DD-049). |
 | 8 | `signing` | `recipe.yml` | Installs cosign policy and public key into the image | Conventionally last; the image's trust configuration should reflect the finished image. |
 
@@ -156,19 +156,29 @@ Consequences worth remembering:
 The `containerfile` snippet is the one piece of imperative logic in the build:
 
 ```sh
+SOURCE_REVISION_FILE=/usr/lib/qubix-os/source-revision
 IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"')
+GIT_SHA=$(cat "${SOURCE_REVISION_FILE}")
+test -n "${IMAGE_VERSION}"
+test "${#GIT_SHA}" -eq 40
+printf '%s' "${GIT_SHA}" | grep -Eq '^[0-9a-f]{40}$'
 sed -i 's/^ID=.*/ID=qubix_os_bluebuild/'                       /usr/lib/os-release
 sed -i 's/^NAME=.*/NAME="Qubix OS"/'                           /usr/lib/os-release
-sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release
+sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"|" /usr/lib/os-release
+sed -i '/^QUBIX_GIT_SHA=/d'                                    /usr/lib/os-release
+printf 'QUBIX_GIT_SHA="%s"\n' "${GIT_SHA}" >>                   /usr/lib/os-release
 ```
 
 - `IMAGE_VERSION` is injected into `os-release` by Universal Blue upstream; it is read
   **before** the rewrite so the Fedora/Aurora version stays visible in `PRETTY_NAME`.
+- The image workflow checks out the source first and writes its full commit SHA to
+  `files/system/usr/lib/qubix-os/source-revision`; the `files` module copies it into the
+  image before this module runs. The SHA is validated and retained as `QUBIX_GIT_SHA`.
 - `ID` uses underscores because `os-release` `ID` is expected to be a lowercase,
   shell-safe token; it is consumed by tooling, not by humans.
 - `NAME` is the clean visual product label. `PRETTY_NAME` stays deliberately detailed so
-  boot entries, diagnostics, and bug reports retain BlueBuild and upstream-version
-  provenance (DD-065).
+  boot entries, diagnostics, and bug reports retain BlueBuild, upstream-version, and
+  source-revision provenance (DD-065, DD-073).
 - The whole snippet is a single `RUN` under `set -eu`; semicolon-separated mutations and
   exact assertions therefore form one layer and fail atomically.
 

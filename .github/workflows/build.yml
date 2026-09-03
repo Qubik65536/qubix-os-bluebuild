@@ -111,7 +111,36 @@ jobs:
         recipe: ${{ fromJSON(needs.select-recipes.outputs.recipes) }}
 
     steps:
-      # The build, tag, sign, and push are all handled by the reusable action.
+      # Check out the exact revision that GitHub assigned to this run. The build action
+      # normally performs its own checkout, but we need the workspace first to stamp the
+      # source revision into the image overlay.
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Give the image identity module a trustworthy, build-specific source revision.
+      # The generated file is consumed by recipes/common-identity.yml and is not tracked
+      # in the repository; each matrix job writes the SHA for its own checkout.
+      - name: Stamp source revision
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "GitHub source revision is not a full Git SHA" >&2
+            exit 1
+          fi
+          CHECKED_OUT_SHA="$(git rev-parse HEAD)"
+          if [[ "${CHECKED_OUT_SHA}" != "${SOURCE_SHA}" ]]; then
+            echo "Checked-out revision does not match GitHub source revision" >&2
+            exit 1
+          fi
+          mkdir -p files/system/usr/lib/qubix-os
+          printf '%s\n' "${SOURCE_SHA}" > files/system/usr/lib/qubix-os/source-revision
+
+      # The build, tag, sign, and push are all handled by the reusable action. Checkout is
+      # disabled because the workspace was checked out and stamped in the preceding steps.
       # The cosign private key lives only in the SIGNING_SECRET repository secret —
       # never in git (.gitignore blocks cosign.key / cosign.private). All variants are
       # signed with the same key. DD-008.
@@ -122,6 +151,7 @@ jobs:
           cosign_private_key: ${{ secrets.SIGNING_SECRET }}
           registry_token: ${{ github.token }}
           pr_event_number: ${{ github.event.number }} # tags PR builds separately from `latest`
+          skip_checkout: true
 
           # Reclaims runner disk before building; these images are large.
           # enabled by default, disable if your image is small and you want faster builds

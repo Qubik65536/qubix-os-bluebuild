@@ -2,8 +2,9 @@
 # Publish one OneDrive-hosted Qubix installer as a GitHub Release.
 #
 # Release creation is required and fails the job. Cleanup is deliberately best-effort:
-# transient GitHub API failures must not hide a newly published, valid installer. Exact
-# release/tag names are derived only from validated Qubix version and channel values.
+# transient GitHub API failures must not hide a newly published, valid installer. New
+# release tags carry a sortable UTC timestamp; cleanup accepts both that family and the
+# legacy variant-first tags emitted before the ordering fix.
 
 set -euo pipefail
 
@@ -72,6 +73,32 @@ delete_release_and_tag() {
   fi
 }
 
+# OneDrive retention returns only a version-directory name. Legacy tags are directly
+# derivable; timestamp-prefixed tags are located by their exact validated suffix so the
+# matching release can be removed without touching another variant or version.
+delete_release_for_version() {
+  local version=$1
+  local legacy_tag="iso-${QUBIX_ISO_VARIANT}-${QUBIX_RETENTION_CHANNEL}-${version}"
+  local candidate_tag
+  local release_tags
+
+  delete_release_and_tag "${legacy_tag}"
+
+  if ! release_tags="$(gh api --paginate \
+    "/repos/${QUBIX_RELEASE_REPOSITORY}/releases?per_page=100" \
+    --jq '.[].tag_name')"; then
+    warn "cannot list GitHub Releases while purging OneDrive version ${version}"
+    return 0
+  fi
+
+  while IFS= read -r candidate_tag; do
+    [[ "${candidate_tag}" == iso-z-??????????????-"${QUBIX_ISO_VARIANT}"-"${QUBIX_RETENTION_CHANNEL}"-"${version}" ]] \
+      || continue
+    [[ "${candidate_tag:6:14}" =~ ^[0-9]{14}$ ]] || continue
+    delete_release_and_tag "${candidate_tag}"
+  done <<< "${release_tags}"
+}
+
 # ── Validate trusted workflow inputs before constructing API targets or Markdown ───────
 for required_name in \
   GH_TOKEN QUBIX_RELEASE_REPOSITORY QUBIX_ISO_VARIANT QUBIX_RETENTION_CHANNEL \
@@ -132,9 +159,13 @@ case "${QUBIX_SOURCE_EVENT}" in
 esac
 
 # ── Render the stable release title, tag, and reviewed Markdown body ────────────────────
-release_date="$(date -u '+%Y-%m-%d')"
-release_timestamp="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-release_tag="iso-${QUBIX_ISO_VARIANT}-${QUBIX_RETENTION_CHANNEL}-${QUBIX_ISO_VERSION}"
+# GitHub lists this non-semver release family by its tag identifier. Keep a fixed `z`
+# sentinel ahead of the timestamp so new tags sort above legacy `iso-<variant>-...` tags
+# while the timestamp itself remains the descending chronological key.
+release_sort_timestamp="$(date -u '+%Y%m%d%H%M%S')"
+release_date="${release_sort_timestamp:0:4}-${release_sort_timestamp:4:2}-${release_sort_timestamp:6:2}"
+release_timestamp="${release_date} ${release_sort_timestamp:8:2}:${release_sort_timestamp:10:2}:${release_sort_timestamp:12:2} UTC"
+release_tag="iso-z-${release_sort_timestamp}-${QUBIX_ISO_VARIANT}-${QUBIX_RETENTION_CHANNEL}-${QUBIX_ISO_VERSION}"
 release_title="Qubix OS ${variant_title} ISO — Fedora ${QUBIX_FEDORA_VERSION} — ${source_title} — ${release_date}"
 source_commit_url="${GITHUB_SERVER_URL}/${QUBIX_RELEASE_REPOSITORY}/commit/${QUBIX_SOURCE_SHA}"
 workflow_run_url="${GITHUB_SERVER_URL}/${QUBIX_RELEASE_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
@@ -210,12 +241,13 @@ echo "Published GitHub Release ${release_tag}: ${release_url}"
 while IFS= read -r purged_name; do
   [[ -n "${purged_name}" ]] || continue
   purged_version="${purged_name#v-}"
-  delete_release_and_tag "iso-${QUBIX_ISO_VARIANT}-${QUBIX_RETENTION_CHANNEL}-${purged_version}"
+  delete_release_for_version "${purged_version}"
 done < <(jq -r '.[]' <<< "${QUBIX_PURGED_VERSIONS}")
 
 # ── Best-effort three-calendar-month GitHub release retention ─────────────────────────
 # This catches old generated release records even if their OneDrive cleanup happened in a
-# previous run. It never targets a tag outside the strict `iso-<variant>-<channel>-` family.
+# previous run. It accepts the timestamp-prefixed family and the legacy
+# `iso-<variant>-<channel>-` family, but never targets another tag.
 cutoff_epoch="$(date -u --date='3 months ago' '+%s')" || {
   warn "cannot calculate the three-month release cutoff"
   exit 0
@@ -227,7 +259,7 @@ if ! gh api --paginate "/repos/${QUBIX_RELEASE_REPOSITORY}/releases?per_page=100
 fi
 
 while IFS=$'\t' read -r old_tag published_at; do
-  [[ "${old_tag}" =~ ^iso-(standard|cachyos|nvidia)-(scheduled|push)-[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$ ]] \
+  [[ "${old_tag}" =~ ^iso-(z-[0-9]{14}-)?(standard|cachyos|nvidia)-(scheduled|push)-[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$ ]] \
     || continue
   if ! published_epoch="$(date -u --date="${published_at}" '+%s' 2>/dev/null)"; then
     warn "cannot parse publication time for ${old_tag}"

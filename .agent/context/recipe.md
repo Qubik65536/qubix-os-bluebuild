@@ -51,14 +51,15 @@ described here or in `files/system/`.
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
   | 4 | `containerfile` | `common-base.yml` | Fourteen snippets: nine terminal/setup assertions, bounded-range Monaspace Krypton NF → GRUB PF2 build/validation, Homebrew desktop/icon validation, Qt private-ABI synchronization plus Quickshell and Plasma battery-plugin loader checks, an empty-home KDE/Breeze and DMS environment-boundary assertion, Aurora's package-free Plasma launcher-default assertion and compiled applet validation, and the Breeze launcher-alias rewrite | after `dnf`, `files`, and its own module 4d font install; the Qt synchronization runs before later package-owned edits, and the remaining validations depend on installed/overlaid files — DD-026, DD-033…DD-046, DD-057, DD-062, DD-063, DD-066…DD-071 |
   | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service`, `qubix-grub-theme.service`, and per-user `qubix-app-launcher-refresh.path`; the last stabilises fragile cask icons and refreshes Plasma/DMS indexes after Homebrew metadata changes | after `files`, which ships all units — DD-035, DD-057, DD-062 |
-  | 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
+  | 6 | `containerfile` | `common-identity.yml` | Reads the CI source stamp, rewrites `ID`, `NAME`, `PRETTY_NAME`, and adds `QUBIX_GIT_SHA` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003, DD-073) |
   | 7 | `initramfs` | `recipe.yml` | Rebuilds the stock kernel's archive with the overlaid Qubix Plymouth watermark | after `files`, late (DD-049) |
   | 8 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
 
 - **`os-release` result:** `ID=qubix_os_bluebuild`, `NAME="Qubix OS"`,
-  `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>)"`. `NAME` drives the
-  clean visual product label; `ID` and `PRETTY_NAME` retain technical provenance and all
-  other upstream fields survive untouched (DD-065).
+  `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>, Git SHA: <FULL_GIT_SHA>)"`,
+  and `QUBIX_GIT_SHA="<FULL_GIT_SHA>"`. `NAME` drives the clean visual product label;
+  `ID`, `PRETTY_NAME`, and `QUBIX_GIT_SHA` retain technical provenance and all other
+  upstream fields survive untouched (DD-065, DD-073).
 
 ### CachyOS-kernel recipes
 
@@ -121,8 +122,9 @@ described here or in `files/system/`.
   on Aurora DX that is libguestfs, `guestfs-tools`, `virt-v2v`, `libguestfs-appliance`,
   `libguestfs-xfs`, `virtualbox-guest-additions`, and `kernel-devel-matched`. All are
   restored afterwards. `kmod-*` packages are not, and cannot be.
-- The `containerfile` snippet reads `IMAGE_VERSION` **before** rewriting, then interpolates
-  it. Reordering the `sed` calls breaks `PRETTY_NAME`.
+- The `containerfile` snippet reads `IMAGE_VERSION` and the CI-stamped source revision
+  before rewriting, validates the full SHA, then interpolates both into `PRETTY_NAME` and
+  `QUBIX_GIT_SHA`. Reordering the `sed` calls breaks the identity assertions.
 - `sed` patterns are anchored (`^ID=`) so they can't match `VERSION_ID=`. Keep the anchors.
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
 - `firefox-langpacks` must be removed explicitly — dependency removal is not automatic.

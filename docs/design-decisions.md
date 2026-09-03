@@ -4302,3 +4302,86 @@ hardware display.
   package-owned files cannot be overwritten after Qubix patches them.
 - The checks verify dynamic loading in CI; only a rebuilt image and real Plasma/Niri session
   checks can confirm the complete graphical result on hardware.
+
+---
+
+## DD-072 — Prefix ISO release tags with a sortable UTC publication time
+
+**Status:** Accepted — amends the tag-ordering part of [DD-060](#dd-060--index-each-retained-onedrive-iso-as-a-per-variant-github-release)
+
+**Implements:** `BLD-013`
+
+**Context.** DD-060 gave each retained OneDrive ISO a unique GitHub Release, but the
+generated tag began with the variant and retention channel:
+`iso-<variant>-<channel>-<version>`. GitHub's Releases page orders this non-semver family
+by the tag identifier, so releases were grouped by variant and then by digest/version
+instead of appearing in publication-time order. The release body already recorded the
+actual UTC publication time, but that field does not control the page order. A migration
+also has to coexist with existing variant-first tags until their OneDrive versions or
+three-month age limit removes them.
+
+**Decision.** New generated tags use
+`iso-z-<YYYYMMDDHHMMSS>-<variant>-<channel>-<version>`. The fixed `z` sentinel sorts
+timestamp-prefixed records above legacy `iso-<variant>-...` records during migration.
+The compact UTC timestamp is the descending chronological key within the new family.
+The tag still targets the source image-definition commit, and the OneDrive version name
+does not change. When retention reports a purged version, cleanup checks the legacy exact
+tag and then finds a timestamp-prefixed tag only when its complete variant/channel/version
+suffix matches. Age cleanup accepts both generated families and continues to use the
+release's `published_at` field.
+
+**Consequences.**
+
+- New ISO records appear newest-first on the repository's Releases page, including across
+  variants; records published in the same second are ordered by the remaining tag suffix.
+- Existing releases are not rewritten or detached from their OneDrive links. The sentinel
+  keeps new records above them, and normal count/age cleanup removes old records safely.
+- OneDrive storage layout, version names, release body contents, source-commit targeting,
+  and scheduled/prerelease classification remain unchanged.
+- A timestamp is generated immediately before release creation, so it identifies the
+  publication operation rather than the source commit's author or committer time.
+- Local checks can validate the tag format and cleanup matching; only a future CI run can
+  confirm the resulting ordering against GitHub's live Releases page.
+
+---
+
+## DD-073 — Stamp the source revision into installed system identity
+
+**Status:** Accepted
+
+**Implements:** `BLD-014`
+
+**Amends:** [DD-003](#dd-003--rewrite-os-release-with-a-containerfile-snippet-not-a-static-file)
+
+**Context.** The existing identity rewrite preserves Universal Blue's `IMAGE_VERSION` in
+`PRETTY_NAME`, but an installed image does not identify which Qubix source revision
+produced it. BlueBuild's GitHub Action checks out the repository inside its composite
+action, while its current build interface does not pass arbitrary GitHub environment
+variables into the container build. A recipe reference to `GITHUB_SHA` would therefore
+not be a reliable image-build input.
+
+**Decision.** The image workflow checks out the source explicitly, validates
+`${{ github.sha }}`, and writes the full revision to the temporary overlay path
+`files/system/usr/lib/qubix-os/source-revision`. It invokes BlueBuild with
+`skip_checkout: true` so the action builds the stamped checkout rather than replacing it.
+The shared identity module reads that file after the `files` module has copied it into the
+image, validates the 40-character hexadecimal value, and adds
+`QUBIX_GIT_SHA="<full SHA>"` to `/usr/lib/os-release`. It also appends the
+`Git SHA: <full SHA>` suffix to every variant's existing `PRETTY_NAME` while retaining
+the upstream `IMAGE_VERSION` and each variant qualifier.
+
+**Consequences.**
+
+- `QUBIX_GIT_SHA` gives scripts and bug reports a stable, machine-readable source
+  revision, while `PRETTY_NAME` keeps the same human-readable version and variant
+  details with the revision visible beside them.
+- The workflow's source stamp is generated per matrix job and is not a repository file;
+  the retained image overlay copy makes the provenance available even when the build
+  workspace is gone.
+- The identity rewrite still patches `os-release` in place, so upstream fields such as
+  `VERSION_ID`, `VARIANT`, and `IMAGE_VERSION` survive unchanged. `QUBIX_GIT_SHA` is the
+  only new Qubix-specific field.
+- A missing or malformed stamp fails the image build instead of publishing an image with
+  an unknown or misleading source revision.
+- Local checks can validate the workflow, recipes, and assertions; only image CI can
+  confirm the final value inside a published `/etc/os-release`.

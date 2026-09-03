@@ -669,6 +669,30 @@ Nothing stays in **Open** merely because CI has not run yet.
     - Bash syntax, a mocked request-header contract, token redaction, task-ID uniqueness,
       and whitespace pass locally; a hosted OneDrive upload remains external verification
 
+- [x] **BLD-013** — Order ISO GitHub releases by publication time
+  - **Category:** Build / CI
+  - **Depends on:** BLD-008
+  - **Notes:** Requested 2026-09-03 after the GitHub Releases page showed generated ISO
+    records in variant/digest tag order instead of release-time order. GitHub's listing
+    treats these non-semver generated tags as sortable identifiers, so the old
+    `iso-<variant>-<channel>-<version>` prefix put the variant before the timestamp
+    recorded in the release body. A stable `z` sentinel keeps the new timestamp-prefixed
+    family above legacy `iso-<variant>-...` tags during migration. The fix preserves
+    source-commit targeting and OneDrive version names while allowing retention to remove
+    both new and legacy tags.
+    YAML, Bash, exact tag matching, and whitespace were checked locally on 2026-09-03;
+    the resulting order on GitHub remains the external CI/publication check.
+  - **Acceptance criteria:**
+    - New generated release tags carry a UTC `YYYYMMDDHHMMSS` timestamp immediately after
+      the migration sentinel and before variant/channel/version, so descending tag order
+      follows publication time and new records remain above legacy tags
+    - Existing release records remain removable, and OneDrive-purged versions remove
+      matching timestamp-prefixed releases without deleting unrelated generated tags
+    - Age cleanup accepts both legacy and timestamp-prefixed generated tag families
+    - Documentation, design decision, plan, and CI context describe the ordering contract
+    - Workflow/action YAML, Bash syntax, tag/cleanup matching, and whitespace pass local
+      validation
+
 - [x] **IMG-008** — Make the CachyOS kernel swap actually build
   - **Category:** Image content
   - **Depends on:** IMG-005
@@ -2107,6 +2131,34 @@ should look at.
     - On the rebased image, `distrobox enter fedora-box` — after one re-run of the hook —
       reaches a shell with the Qubix prompt and no question *(open — needs a build and
       hardware)*
+
+### Build and release
+
+- [ ] **BLD-014** — Include the source revision in installed system version information
+  - **Category:** Build / CI
+  - **Depends on:** —
+  - **Notes:** Requested 2026-09-03 after the installed system identity was found to expose
+    the upstream `IMAGE_VERSION` but not the Qubix source revision that produced the image.
+    GitHub Actions stamps the checked-out commit into the build overlay before the BlueBuild
+    action runs; the identity rewrite keeps the upstream version and adds the full source
+    SHA to a vendor-specific `QUBIX_GIT_SHA` field and to the detailed `PRETTY_NAME` shown
+    by system diagnostics. The implementation is complete; only the built-image inspection
+    remains.
+  - **Acceptance criteria:**
+    - The image workflow checks out the exact source used for the build, stamps its full
+      40-character Git SHA into the overlay, and tells BlueBuild not to check out a second
+      copy
+    - The shared identity rewrite preserves `IMAGE_VERSION`, adds
+      `QUBIX_GIT_SHA="<full SHA>"`, and includes both values in `PRETTY_NAME`
+    - Standard, CachyOS, NVIDIA, and parked NVIDIA+CachyOS identity strings all retain
+      their existing variant qualifiers while exposing the same source revision
+    - Build-time assertions fail for a missing or malformed source stamp and for any
+      missing version/provenance field
+    - Documentation, design decision, plan, and recipe/CI context describe the source
+      stamp, the new field, and the preserved upstream version
+    - Recipe/workflow YAML, shell syntax, identity assertions, and whitespace pass local
+      validation; a newly published image confirms the resulting `/etc/os-release` values
+      *(open — requires image CI and inspection of the built image)*
 
 *Everything else implemented up to and including `9c141bf` was confirmed on the machine
 on 2026-08-04.*

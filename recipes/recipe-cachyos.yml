@@ -40,12 +40,14 @@ modules:
   # os-release. DD-017.
   - from-file: common-kernel-cachyos.yml
 
-  # os-release rewrite: ID, NAME, PRETTY_NAME. Late, by constraint (DD-003).
+  # os-release rewrite: ID, NAME, PRETTY_NAME, and source revision. Late, by constraint
+  # (DD-003, DD-073).
   - from-file: common-identity.yml
 
   # Variant identity.
   # Rewrites PRETTY_NAME again so `cat /etc/os-release`, KDE's About page, and bug reports
-  # say which kernel is running. Written from scratch rather than patching the string
+  # say which kernel is running. The upstream version and Qubix source SHA come from the
+  # shared identity fields. Written from scratch rather than patching the string
   # common-identity.yml produced, so the two modules stay independent of each other's
   # wording (DD-016). ID and NAME stay shared: this is the same distribution, a different
   # build of it.
@@ -53,8 +55,10 @@ modules:
     snippets:
       - |
         RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, CachyOS Kernel, Version: ${IMAGE_VERSION})\"|" /usr/lib/os-release \
-            && grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, CachyOS Kernel, Version: ${IMAGE_VERSION})\"" /usr/lib/os-release
+            && GIT_SHA=$(grep '^QUBIX_GIT_SHA=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, CachyOS Kernel, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"|" /usr/lib/os-release \
+            && grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, CachyOS Kernel, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"" /usr/lib/os-release \
+            && grep -qxF "QUBIX_GIT_SHA=\"${GIT_SHA}\"" /usr/lib/os-release
 
   # Regenerate the initramfs for the kernel installed by the swap above.
   # Mandatory here: installing a kernel RPM in a container build does NOT produce

@@ -30,6 +30,13 @@ is the **only** place images and ISOs are built.
   `fail-fast: false`, `timeout-minutes: 90`. Job name is `Build <recipe>`.
 - **Inputs:** `cosign_private_key: ${{ secrets.SIGNING_SECRET }}`,
   `registry_token: ${{ github.token }}`, `pr_event_number`, `maximize_build_space: true`.
+- **Source provenance:** each matrix job uses pinned `actions/checkout` before the
+  BlueBuild action, validates that `git rev-parse HEAD` matches `github.sha`, and writes
+  the SHA to the temporary `files/system/usr/lib/qubix-os/source-revision` overlay path.
+  BlueBuild receives
+  `skip_checkout: true` so it builds that stamped checkout rather than replacing it;
+  `common-identity.yml` exposes the value as `QUBIX_GIT_SHA` and in `PRETTY_NAME`
+  (DD-073).
 - **Images built:** standard, CachyOS, and NVIDIA recipes → the matching
   `qubix-os-bluebuild{,-cachyos,-nvidia}` images. All use one signing key.
 - **Disabled:** `recipe-nvidia-cachyos.yml` remains in `recipes/` but appears in neither
@@ -185,9 +192,12 @@ Pointer to `AGENTS.md`. Contains no instructions of its own — keep it that way
 - With three active variants at 8 GB each, the steady retained payload is 192 GB and the
   post-upload/pre-purge peak is 216 GB. Approximate sizes and metadata justify 250 GB of
   available quota.
-- Release tags use `iso-<variant>-<channel>-<version>`. Cleanup validates that strict family
-  before mutation, deletes releases before tags, and remains best-effort so a GitHub API
-  cleanup outage cannot hide a newly published installer.
+- New release tags use
+  `iso-z-<YYYYMMDDHHMMSS>-<variant>-<channel>-<version>` so GitHub's non-semver release
+  listing is chronologically ordered; `z` keeps them above legacy variant-first tags during
+  migration. Cleanup validates both strict families, matches timestamped purges by exact
+  suffix, deletes releases before tags, and remains best-effort so a GitHub API cleanup
+  outage cannot hide a newly published installer.
 
 ## Update when
 

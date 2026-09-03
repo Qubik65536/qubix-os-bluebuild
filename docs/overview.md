@@ -40,7 +40,7 @@ Everything Aurora DX provides is inherited for free. This repository only record
 
 | Area | Change | Where |
 |---|---|---|
-| Identity | Visual product fields say `Qubix OS`; technical `ID`, `PRETTY_NAME`, OCI names, and detailed boot labels retain BlueBuild provenance | `common-identity.yml`, `.github/lorax/qubix-product.tmpl` |
+| Identity | Visual product fields say `Qubix OS`; technical `ID`, `PRETTY_NAME`, `QUBIX_GIT_SHA`, OCI names, and detailed boot labels retain BlueBuild/source provenance | `common-identity.yml`, `.github/lorax/qubix-product.tmpl` |
 | Branding | Qubix Boot Console for GRUB; distro logos, banners, Plymouth boot watermark, KDE splash and "About this system" | `files/system/usr/share/**`, `files/system/usr/bin/qubix-grub-theme` |
 | KDE appearance defaults | Complete Breeze Dark application/Plasma/KWin fallback plus KDE's Qt platform integration in both sessions; user theme choices remain higher priority | `files/system/etc/xdg/{kdeglobals,plasmarc,kwinrc}`, environment/profile fragments |
 | Packages added | `micro` (editor), `starship` (shell prompt, from COPR), `wezterm` (terminal, from COPR), `niri` (second session), `dms` + fonts + `cliphist` (Niri's shell, from COPR), Fcitx 5 + Pinyin + toolkit/KDE integration (Simplified Chinese input), `grub2-tools-extra` (PF2 font generation) | `recipe.yml` (`dnf`) |

@@ -7,3 +7,7 @@ cosign.private
 # Byte-compiled Python. `python3 -m py_compile` on the overlay's scripts drops a
 # __pycache__ next to them, and the `files` module would copy it into /usr/bin.
 __pycache__/
+
+# GitHub Actions generates this per-build source stamp before BlueBuild copies the
+# overlay into the image; it must never become a stale repository file.
+/files/system/usr/lib/qubix-os/source-revision
