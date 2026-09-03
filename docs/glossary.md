@@ -33,7 +33,7 @@ terms over synonyms.
 | **Homebrew** | The mutable userspace package manager inherited from Aurora DX. Universal Blue's `ublue-os/tap` supplies Linux casks such as Zed and VS Code that remain outside the immutable image and installer. See [`usage.md`](usage.md#homebrew-and-the-ublue-os-tap). |
 | **`image-version`** | The base image *tag* (`latest` here). A channel, not a Fedora version number. See DD-018. |
 | **`IMAGE_VERSION`** | A field Universal Blue writes into `os-release`, identifying the upstream build. Interpolated into `PRETTY_NAME` and preserved by Qubix (DD-003). |
-| **`QUBIX_GIT_SHA`** | Qubix's vendor-specific `os-release` field containing the full 40-character source commit stamped by image CI; it is also shown in `PRETTY_NAME` (DD-073). |
+| **`QUBIX_GIT_SHA`** | Qubix's vendor-specific `os-release` field containing the 12-character short source commit stamped by image CI; it is also shown without a label in `PRETTY_NAME` (DD-073). |
 | **initramfs** | The RAM filesystem the kernel boots into before mounting the real root. Every recipe regenerates it for Plymouth branding; CachyOS additionally needs an archive for its replacement kernel, and NVIDIA+CachyOS needs its rebuilt driver included. |
 | **KDL** | The configuration language niri uses (<https://kdl.dev>). Braces and nodes, not YAML. |
 | **Kinoite** | Fedora's official immutable KDE Plasma variant. Aurora's base. |

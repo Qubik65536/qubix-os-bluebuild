@@ -595,30 +595,31 @@ per-session state:
       RUN set -eu; \
           SOURCE_REVISION_FILE=/usr/lib/qubix-os/source-revision; \
           IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"'); \
-          GIT_SHA=$(cat "${SOURCE_REVISION_FILE}"); \
-          if [ -z "${IMAGE_VERSION}" ] || [ "${#GIT_SHA}" -ne 40 ] || \
-              ! printf '%s' "${GIT_SHA}" | grep -Eq '^[0-9a-f]{40}$'; then \
+          SHORT_SHA=$(cat "${SOURCE_REVISION_FILE}"); \
+          if [ -z "${IMAGE_VERSION}" ] || [ "${#SHORT_SHA}" -ne 12 ] || \
+              ! printf '%s' "${SHORT_SHA}" | grep -Eq '^[0-9a-f]{12}$'; then \
               echo "Missing or malformed image version/source revision" >&2; \
               exit 1; \
           fi; \
           sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release; \
           sed -i 's/^NAME=.*/NAME="Qubix OS"/' /usr/lib/os-release; \
-          sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"|" /usr/lib/os-release; \
+          sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, ${SHORT_SHA})\"|" /usr/lib/os-release; \
           sed -i '/^QUBIX_GIT_SHA=/d' /usr/lib/os-release; \
-          printf 'QUBIX_GIT_SHA="%s"\n' "${GIT_SHA}" >> /usr/lib/os-release; \
+          printf 'QUBIX_GIT_SHA="%s"\n' "${SHORT_SHA}" >> /usr/lib/os-release; \
           grep -qxF 'ID=qubix_os_bluebuild' /usr/lib/os-release; \
           grep -qxF 'NAME="Qubix OS"' /usr/lib/os-release; \
-          grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"" \
+          grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, ${SHORT_SHA})\"" \
               /usr/lib/os-release; \
-          grep -qxF "QUBIX_GIT_SHA=\"${GIT_SHA}\"" \
+          grep -qxF "QUBIX_GIT_SHA=\"${SHORT_SHA}\"" \
               /usr/lib/os-release
 ```
 
 The escape hatch: raw `Containerfile` directives injected at this point in the build. Used
 once, to rewrite the system identity — see DD-003 for why this cannot be a static file.
-The image workflow creates `/usr/lib/qubix-os/source-revision` from the checked-out
-commit before BlueBuild runs; this module validates that stamp and publishes it as the
-machine-readable `QUBIX_GIT_SHA` field (DD-073).
+The image workflow validates the full checked-out commit before BlueBuild runs, then
+creates `/usr/lib/qubix-os/source-revision` from its 12-character short prefix; this module
+validates that stamp and publishes it as the machine-readable `QUBIX_GIT_SHA` field
+(DD-073).
 
 Resulting fields:
 
@@ -626,8 +627,8 @@ Resulting fields:
 |---|---|---|
 | `ID` | `fedora` | `qubix_os_bluebuild` |
 | `NAME` | `Fedora Linux` | `Qubix OS` |
-| `PRETTY_NAME` | *(Aurora's)* | `Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>, Git SHA: <FULL_GIT_SHA>)` |
-| `QUBIX_GIT_SHA` | *(absent)* | `<FULL_GIT_SHA>` |
+| `PRETTY_NAME` | *(Aurora's)* | `Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>, <SHORT_SHA>)` |
+| `QUBIX_GIT_SHA` | *(absent)* | `<SHORT_SHA>` |
 
 Everything else in `os-release` is left untouched on purpose; `QUBIX_GIT_SHA` is the one
 Qubix-specific provenance field added alongside the existing upstream fields.
@@ -636,8 +637,9 @@ Implementation notes:
 - Single `RUN` with exact post-rewrite assertions — one layer, fails atomically.
 - Patterns are anchored with `^` so `ID=` cannot match `VERSION_ID=`.
 - `IMAGE_VERSION` is captured **before** the rewrites.
-- The full 40-character CI source stamp is validated before it is written to both
-  `QUBIX_GIT_SHA` and `PRETTY_NAME`.
+- The full 40-character CI source revision is validated in the workflow; its 12-character
+  short prefix is validated before it is written to both `QUBIX_GIT_SHA` and
+  `PRETTY_NAME`.
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
 - `NAME` is the visual product label; technical `ID`, `PRETTY_NAME`, and `QUBIX_GIT_SHA`
   retain BlueBuild, upstream-version, and source provenance for tooling and detailed

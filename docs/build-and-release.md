@@ -38,7 +38,7 @@ image, or confirm anything renders. Those need CI — and the kernel needs real 
 | `fail-fast` | `false` | One failing variant doesn't cancel the others. |
 | `timeout-minutes` | `90` | A full build is 30–45 min; this only catches a hung run. |
 | `maximize_build_space` | `true` | Reclaims runner disk before building; the images are large. |
-| Source provenance | Pinned checkout plus `files/system/usr/lib/qubix-os/source-revision` | The checked-out full Git SHA is stamped before BlueBuild runs; the action uses `skip_checkout: true` so it builds that exact workspace (DD-073). |
+| Source provenance | Pinned checkout plus `files/system/usr/lib/qubix-os/source-revision` | The full checked-out Git SHA is validated, then its 12-character short prefix is stamped before BlueBuild runs; the action uses `skip_checkout: true` so it builds that exact workspace (DD-073). |
 
 ### What gets built
 
@@ -56,12 +56,13 @@ it (DD-052). A registry tag left by an earlier attempt is not a current release.
 DD-016).
 
 Before the BlueBuild action runs, each matrix job checks out the exact `github.sha`,
-validates that it is a full 40-character hexadecimal revision, and writes it to the
-temporary overlay path `files/system/usr/lib/qubix-os/source-revision`. The action's
-`skip_checkout: true` input prevents a second checkout from replacing that stamped
-workspace. `common-identity.yml` copies the stamp into the image's `QUBIX_GIT_SHA`
-`os-release` field and includes it alongside the retained upstream `IMAGE_VERSION` in
-`PRETTY_NAME` (DD-073).
+validates that it is a full 40-character hexadecimal revision, and writes its
+12-character short prefix to the temporary overlay path
+`files/system/usr/lib/qubix-os/source-revision`. The action's `skip_checkout: true` input
+prevents a second checkout from replacing that stamped workspace.
+`common-identity.yml` copies the short stamp into the image's `QUBIX_GIT_SHA`
+`os-release` field and includes it without a label alongside the retained upstream
+`IMAGE_VERSION` in `PRETTY_NAME` (DD-073).
 
 ### Selecting recipes
 

@@ -125,9 +125,10 @@ optional body and expands Graph failures to status/code/message/request-ID diagn
 OneDrive for Business HTTP front end can require it even when Graph defines no JSON body.
 `BLD-013` tracks timestamp-prefixed ISO release tags so GitHub's non-semver Releases page
 is ordered by publication time while purge and age cleanup continue to accept legacy tags.
-`BLD-014` stamps the checked-out image source revision into the temporary overlay before
-BlueBuild runs, then exposes it as `QUBIX_GIT_SHA` and in every variant's detailed
-`PRETTY_NAME` without dropping the upstream `IMAGE_VERSION`; it awaits image CI inspection.
+`BLD-014` validates the checked-out image source revision, stamps its 12-character short
+prefix into the temporary overlay before BlueBuild runs, then exposes it as
+`QUBIX_GIT_SHA` and in every variant's detailed `PRETTY_NAME` without dropping the
+upstream `IMAGE_VERSION`; it awaits image CI inspection.
 `BLD-012` makes installer media carry a validated 25-app-plus-theme offline Flathub set
 rather than assuming the installer reads Flatpak intent from the OCI image. It preserves
 Qubix's no-Firefox browser policy and keeps Zed optional through `ublue-os/tap`. Its first

@@ -4360,28 +4360,28 @@ action, while its current build interface does not pass arbitrary GitHub environ
 variables into the container build. A recipe reference to `GITHUB_SHA` would therefore
 not be a reliable image-build input.
 
-**Decision.** The image workflow checks out the source explicitly, validates
-`${{ github.sha }}`, and writes the full revision to the temporary overlay path
+**Decision.** The image workflow checks out the source explicitly, validates the full
+`${{ github.sha }}`, and writes its 12-character short prefix to the temporary overlay path
 `files/system/usr/lib/qubix-os/source-revision`. It invokes BlueBuild with
 `skip_checkout: true` so the action builds the stamped checkout rather than replacing it.
 The shared identity module reads that file after the `files` module has copied it into the
-image, validates the 40-character hexadecimal value, and adds
-`QUBIX_GIT_SHA="<full SHA>"` to `/usr/lib/os-release`. It also appends the
-`Git SHA: <full SHA>` suffix to every variant's existing `PRETTY_NAME` while retaining
-the upstream `IMAGE_VERSION` and each variant qualifier.
+image, validates the 12-character hexadecimal value, and adds
+`QUBIX_GIT_SHA="<short SHA>"` to `/usr/lib/os-release`. It also appends the unlabeled
+`<short SHA>` suffix to every variant's existing `PRETTY_NAME` while retaining the
+upstream `IMAGE_VERSION` and each variant qualifier.
 
 **Consequences.**
 
-- `QUBIX_GIT_SHA` gives scripts and bug reports a stable, machine-readable source
+- `QUBIX_GIT_SHA` gives scripts and bug reports a concise, machine-readable source
   revision, while `PRETTY_NAME` keeps the same human-readable version and variant
-  details with the revision visible beside them.
+  details with the short revision visible beside them.
 - The workflow's source stamp is generated per matrix job and is not a repository file;
   the retained image overlay copy makes the provenance available even when the build
   workspace is gone.
 - The identity rewrite still patches `os-release` in place, so upstream fields such as
   `VERSION_ID`, `VARIANT`, and `IMAGE_VERSION` survive unchanged. `QUBIX_GIT_SHA` is the
   only new Qubix-specific field.
-- A missing or malformed stamp fails the image build instead of publishing an image with
+- A missing or malformed short stamp fails the image build instead of publishing an image with
   an unknown or misleading source revision.
 - Local checks can validate the workflow, recipes, and assertions; only image CI can
   confirm the final value inside a published `/etc/os-release`.

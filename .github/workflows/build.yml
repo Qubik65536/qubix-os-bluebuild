@@ -120,8 +120,8 @@ jobs:
           persist-credentials: false
 
       # Give the image identity module a trustworthy, build-specific source revision.
-      # The generated file is consumed by recipes/common-identity.yml and is not tracked
-      # in the repository; each matrix job writes the SHA for its own checkout.
+      # The full SHA is validated against the checkout; only its 12-character short form
+      # enters the generated file consumed by recipes/common-identity.yml.
       - name: Stamp source revision
         env:
           SOURCE_SHA: ${{ github.sha }}
@@ -136,8 +136,9 @@ jobs:
             echo "Checked-out revision does not match GitHub source revision" >&2
             exit 1
           fi
+          SHORT_SHA="${SOURCE_SHA:0:12}"
           mkdir -p files/system/usr/lib/qubix-os
-          printf '%s\n' "${SOURCE_SHA}" > files/system/usr/lib/qubix-os/source-revision
+          printf '%s\n' "${SHORT_SHA}" > files/system/usr/lib/qubix-os/source-revision
 
       # The build, tag, sign, and push are all handled by the reusable action. Checkout is
       # disabled because the workspace was checked out and stamped in the preceding steps.

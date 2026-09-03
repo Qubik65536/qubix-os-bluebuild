@@ -264,13 +264,13 @@ Expected fields on Qubix OS:
 |---|---|
 | `ID` | `qubix_os_bluebuild` |
 | `NAME` | `Qubix OS` |
-| `PRETTY_NAME` | Names the selected dimensions: standard, `CachyOS Kernel`, `NVIDIA Open`, or `NVIDIA Open, CachyOS Kernel`, followed by the upstream `IMAGE_VERSION` and full Git SHA |
-| `QUBIX_GIT_SHA` | The full 40-character Git SHA checked out by CI for this image |
+| `PRETTY_NAME` | Names the selected dimensions: standard, `CachyOS Kernel`, `NVIDIA Open`, or `NVIDIA Open, CachyOS Kernel`, followed by the upstream `IMAGE_VERSION` and the 12-character short source SHA |
+| `QUBIX_GIT_SHA` | The 12-character short source SHA checked out by CI for this image |
 
 The version in `PRETTY_NAME` is the **Aurora/Fedora** version the image was built from —
 useful when reporting a bug, because it identifies the upstream base. `QUBIX_GIT_SHA` is
-the full source revision of the Qubix image definition and is also included in
-`PRETTY_NAME` for copy-and-paste diagnostics. Everything else in `os-release` is
+the short source revision of the Qubix image definition and is also included without a label
+in `PRETTY_NAME` for copy-and-paste diagnostics. Everything else in `os-release` is
 upstream's, apart from this one Qubix provenance field (DD-003, DD-065, DD-073). This
 split is intentional: `NAME` is the clean visual product name, while `ID`, `PRETTY_NAME`,
 `QUBIX_GIT_SHA`, and the OCI repository names retain BlueBuild/source provenance for

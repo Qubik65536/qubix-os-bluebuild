@@ -134,7 +134,7 @@ detail-oriented `PRETTY_NAME` and `QUBIX_GIT_SHA` retain BlueBuild/source proven
 | Installer welcome / product heading | Anaconda's partial `PRODBUILDPATH` fragment, set before startup by `.github/lorax/qubix-product.tmpl` |
 | System Settings → About this System | `kcm-about-distrorc` + `system-logo.png` |
 | Niri floating-bar launcher | `qubixos-logo.png` through the DMS preset migration (DD-048) |
-| `neofetch` / `fastfetch` / terminal | `os-release` `PRETTY_NAME` (+ `ID` for logo selection; `QUBIX_GIT_SHA` for exact source lookup) |
+| `neofetch` / `fastfetch` / terminal | `os-release` `PRETTY_NAME` (+ `ID` for logo selection; `QUBIX_GIT_SHA` for source lookup) |
 | Plasma Kickoff/Kicker panel button | The applets' stock `start-here-kde-symbolic` lookup; every packaged Breeze KDE/Plasma regular and symbolic alias receives `distributor-logo.svg`'s bytes |
 | Application menus, icon lookups | `distributor-logo.svg` |
 | Fedora-aware apps and docs viewers | `fedora-logo*.png` overrides |

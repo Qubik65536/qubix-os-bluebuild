@@ -9,8 +9,8 @@ image, so **repository path = image path**. Two kinds of content live here: bran
 (the bulk of it) and system-wide desktop configuration.
 
 The image workflow temporarily adds `usr/lib/qubix-os/source-revision` before BlueBuild
-runs. It contains the checked-out full Git SHA and is consumed by
-`recipes/common-identity.yml`; it is generated per CI job rather than committed.
+runs. It contains the 12-character short prefix of the checked-out Git SHA and is consumed
+by `recipes/common-identity.yml`; it is generated per CI job rather than committed.
 
 ## Desktop configuration
 

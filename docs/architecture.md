@@ -158,27 +158,28 @@ The `containerfile` snippet is the one piece of imperative logic in the build:
 ```sh
 SOURCE_REVISION_FILE=/usr/lib/qubix-os/source-revision
 IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"')
-GIT_SHA=$(cat "${SOURCE_REVISION_FILE}")
+SHORT_SHA=$(cat "${SOURCE_REVISION_FILE}")
 test -n "${IMAGE_VERSION}"
-test "${#GIT_SHA}" -eq 40
-printf '%s' "${GIT_SHA}" | grep -Eq '^[0-9a-f]{40}$'
+test "${#SHORT_SHA}" -eq 12
+printf '%s' "${SHORT_SHA}" | grep -Eq '^[0-9a-f]{12}$'
 sed -i 's/^ID=.*/ID=qubix_os_bluebuild/'                       /usr/lib/os-release
 sed -i 's/^NAME=.*/NAME="Qubix OS"/'                           /usr/lib/os-release
-sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"|" /usr/lib/os-release
+sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, ${SHORT_SHA})\"|" /usr/lib/os-release
 sed -i '/^QUBIX_GIT_SHA=/d'                                    /usr/lib/os-release
-printf 'QUBIX_GIT_SHA="%s"\n' "${GIT_SHA}" >>                   /usr/lib/os-release
+printf 'QUBIX_GIT_SHA="%s"\n' "${SHORT_SHA}" >>                 /usr/lib/os-release
 ```
 
 - `IMAGE_VERSION` is injected into `os-release` by Universal Blue upstream; it is read
   **before** the rewrite so the Fedora/Aurora version stays visible in `PRETTY_NAME`.
-- The image workflow checks out the source first and writes its full commit SHA to
-  `files/system/usr/lib/qubix-os/source-revision`; the `files` module copies it into the
-  image before this module runs. The SHA is validated and retained as `QUBIX_GIT_SHA`.
+- The image workflow checks out the source first, validates its full commit SHA, and writes
+  its 12-character short prefix to `files/system/usr/lib/qubix-os/source-revision`; the
+  `files` module copies it into the image before this module runs. The short SHA is
+  validated and retained as `QUBIX_GIT_SHA`.
 - `ID` uses underscores because `os-release` `ID` is expected to be a lowercase,
   shell-safe token; it is consumed by tooling, not by humans.
 - `NAME` is the clean visual product label. `PRETTY_NAME` stays deliberately detailed so
   boot entries, diagnostics, and bug reports retain BlueBuild, upstream-version, and
-  source-revision provenance (DD-065, DD-073).
+  source-revision provenance without a redundant SHA label (DD-065, DD-073).
 - The whole snippet is a single `RUN` under `set -eu`; semicolon-separated mutations and
   exact assertions therefore form one layer and fail atomically.
 

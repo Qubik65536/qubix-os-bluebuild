@@ -2139,17 +2139,17 @@ should look at.
   - **Depends on:** —
   - **Notes:** Requested 2026-09-03 after the installed system identity was found to expose
     the upstream `IMAGE_VERSION` but not the Qubix source revision that produced the image.
-    GitHub Actions stamps the checked-out commit into the build overlay before the BlueBuild
-    action runs; the identity rewrite keeps the upstream version and adds the full source
-    SHA to a vendor-specific `QUBIX_GIT_SHA` field and to the detailed `PRETTY_NAME` shown
-    by system diagnostics. The implementation is complete; only the built-image inspection
-    remains.
+    GitHub Actions validates the checked-out commit and stamps its 12-character short
+    prefix into the build overlay before the BlueBuild action runs; the identity rewrite
+    keeps the upstream version and adds the short source SHA to a vendor-specific
+    `QUBIX_GIT_SHA` field and to the detailed `PRETTY_NAME` shown by system diagnostics.
+    The implementation is complete; only the built-image inspection remains.
   - **Acceptance criteria:**
-    - The image workflow checks out the exact source used for the build, stamps its full
-      40-character Git SHA into the overlay, and tells BlueBuild not to check out a second
-      copy
-    - The shared identity rewrite preserves `IMAGE_VERSION`, adds
-      `QUBIX_GIT_SHA="<full SHA>"`, and includes both values in `PRETTY_NAME`
+    - The image workflow checks out the exact source used for the build, validates its full
+      40-character Git SHA, stamps its 12-character short prefix into the overlay, and
+      tells BlueBuild not to check out a second copy
+    - The shared identity rewrite preserves `IMAGE_VERSION`, adds the 12-character
+      `QUBIX_GIT_SHA="<short SHA>"`, and includes both values in `PRETTY_NAME`
     - Standard, CachyOS, NVIDIA, and parked NVIDIA+CachyOS identity strings all retain
       their existing variant qualifiers while exposing the same source revision
     - Build-time assertions fail for a missing or malformed source stamp and for any

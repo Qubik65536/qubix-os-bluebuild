@@ -31,9 +31,9 @@ is the **only** place images and ISOs are built.
 - **Inputs:** `cosign_private_key: ${{ secrets.SIGNING_SECRET }}`,
   `registry_token: ${{ github.token }}`, `pr_event_number`, `maximize_build_space: true`.
 - **Source provenance:** each matrix job uses pinned `actions/checkout` before the
-  BlueBuild action, validates that `git rev-parse HEAD` matches `github.sha`, and writes
-  the SHA to the temporary `files/system/usr/lib/qubix-os/source-revision` overlay path.
-  BlueBuild receives
+  BlueBuild action, validates that `git rev-parse HEAD` matches the full `github.sha`, and
+  writes its 12-character short prefix to the temporary
+  `files/system/usr/lib/qubix-os/source-revision` overlay path. BlueBuild receives
   `skip_checkout: true` so it builds that stamped checkout rather than replacing it;
   `common-identity.yml` exposes the value as `QUBIX_GIT_SHA` and in `PRETTY_NAME`
   (DD-073).

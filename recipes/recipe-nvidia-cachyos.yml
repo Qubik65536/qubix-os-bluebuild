@@ -46,10 +46,10 @@ modules:
     snippets:
       - |
         RUN IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-            && GIT_SHA=$(grep '^QUBIX_GIT_SHA=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
-            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"|" /usr/lib/os-release \
-            && grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"" /usr/lib/os-release \
-            && grep -qxF "QUBIX_GIT_SHA=\"${GIT_SHA}\"" /usr/lib/os-release
+            && SHORT_SHA=$(grep '^QUBIX_GIT_SHA=' /usr/lib/os-release | cut -d= -f2 | tr -d '"') \
+            && sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: ${IMAGE_VERSION}, ${SHORT_SHA})\"|" /usr/lib/os-release \
+            && grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: ${IMAGE_VERSION}, ${SHORT_SHA})\"" /usr/lib/os-release \
+            && grep -qxF "QUBIX_GIT_SHA=\"${SHORT_SHA}\"" /usr/lib/os-release
 
   # Generate the replacement kernel's initramfs only after its NVIDIA modules exist.
   - type: initramfs

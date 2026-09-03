@@ -19,8 +19,8 @@ modules:
   # Details that matter:
   #   - IMAGE_VERSION is captured BEFORE the rewrites, then interpolated back in, so
   #     the upstream Aurora/Fedora build stays visible in PRETTY_NAME.
-  #   - CI writes the checked-out commit to the source-revision file before BlueBuild
-  #     starts; it is validated and retained as QUBIX_GIT_SHA.
+  #   - CI validates the checked-out commit before BlueBuild starts, then writes its
+  #     12-character short form to the source-revision file and QUBIX_GIT_SHA.
   #   - Patterns are anchored (^ID=) so they cannot match VERSION_ID= and friends.
   #   - The last sed uses | as its delimiter because the replacement contains /.
   #   - NAME is the clean visual product name. ID, PRETTY_NAME, and QUBIX_GIT_SHA
@@ -38,20 +38,20 @@ modules:
         RUN set -eu; \
             SOURCE_REVISION_FILE=/usr/lib/qubix-os/source-revision; \
             IMAGE_VERSION=$(grep '^IMAGE_VERSION=' /usr/lib/os-release | cut -d= -f2 | tr -d '"'); \
-            GIT_SHA=$(cat "${SOURCE_REVISION_FILE}"); \
-            if [ -z "${IMAGE_VERSION}" ] || [ "${#GIT_SHA}" -ne 40 ] || \
-                ! printf '%s' "${GIT_SHA}" | grep -Eq '^[0-9a-f]{40}$'; then \
+            SHORT_SHA=$(cat "${SOURCE_REVISION_FILE}"); \
+            if [ -z "${IMAGE_VERSION}" ] || [ "${#SHORT_SHA}" -ne 12 ] || \
+                ! printf '%s' "${SHORT_SHA}" | grep -Eq '^[0-9a-f]{12}$'; then \
                 echo "Missing or malformed image version/source revision" >&2; \
                 exit 1; \
             fi; \
             sed -i 's/^ID=.*/ID=qubix_os_bluebuild/' /usr/lib/os-release; \
             sed -i 's/^NAME=.*/NAME="Qubix OS"/' /usr/lib/os-release; \
-            sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"|" /usr/lib/os-release; \
+            sed -i "s|^PRETTY_NAME=.*|PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, ${SHORT_SHA})\"|" /usr/lib/os-release; \
             sed -i '/^QUBIX_GIT_SHA=/d' /usr/lib/os-release; \
-            printf 'QUBIX_GIT_SHA="%s"\n' "${GIT_SHA}" >> /usr/lib/os-release; \
+            printf 'QUBIX_GIT_SHA="%s"\n' "${SHORT_SHA}" >> /usr/lib/os-release; \
             grep -qxF 'ID=qubix_os_bluebuild' /usr/lib/os-release; \
             grep -qxF 'NAME="Qubix OS"' /usr/lib/os-release; \
-            grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, Git SHA: ${GIT_SHA})\"" \
+            grep -qxF "PRETTY_NAME=\"Qubix OS (BlueBuild Image, Version: ${IMAGE_VERSION}, ${SHORT_SHA})\"" \
                 /usr/lib/os-release; \
-            grep -qxF "QUBIX_GIT_SHA=\"${GIT_SHA}\"" \
+            grep -qxF "QUBIX_GIT_SHA=\"${SHORT_SHA}\"" \
                 /usr/lib/os-release

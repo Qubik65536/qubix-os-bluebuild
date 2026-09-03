@@ -56,8 +56,8 @@ described here or in `files/system/`.
   | 8 | `signing` | `recipe.yml` | Installs the client-side cosign trust policy | last, by convention |
 
 - **`os-release` result:** `ID=qubix_os_bluebuild`, `NAME="Qubix OS"`,
-  `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>, Git SHA: <FULL_GIT_SHA>)"`,
-  and `QUBIX_GIT_SHA="<FULL_GIT_SHA>"`. `NAME` drives the clean visual product label;
+  `PRETTY_NAME="Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>, <SHORT_SHA>)"`,
+  and `QUBIX_GIT_SHA="<SHORT_SHA>"`. `NAME` drives the clean visual product label;
   `ID`, `PRETTY_NAME`, and `QUBIX_GIT_SHA` retain technical provenance and all other
   upstream fields survive untouched (DD-065, DD-073).
 
@@ -122,9 +122,10 @@ described here or in `files/system/`.
   on Aurora DX that is libguestfs, `guestfs-tools`, `virt-v2v`, `libguestfs-appliance`,
   `libguestfs-xfs`, `virtualbox-guest-additions`, and `kernel-devel-matched`. All are
   restored afterwards. `kmod-*` packages are not, and cannot be.
-- The `containerfile` snippet reads `IMAGE_VERSION` and the CI-stamped source revision
-  before rewriting, validates the full SHA, then interpolates both into `PRETTY_NAME` and
-  `QUBIX_GIT_SHA`. Reordering the `sed` calls breaks the identity assertions.
+- The `containerfile` snippet reads `IMAGE_VERSION` and the CI-stamped 12-character source
+  revision before rewriting, validates the short SHA, then interpolates both into
+  `PRETTY_NAME` and `QUBIX_GIT_SHA`. The workflow validates the full SHA beforehand.
+  Reordering the `sed` calls breaks the identity assertions.
 - `sed` patterns are anchored (`^ID=`) so they can't match `VERSION_ID=`. Keep the anchors.
 - The third `sed` uses `|` as its delimiter because the replacement contains `/`.
 - `firefox-langpacks` must be removed explicitly — dependency removal is not automatic.

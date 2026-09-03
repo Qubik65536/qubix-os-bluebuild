@@ -278,13 +278,14 @@ grep -E '^(PRETTY_NAME|QUBIX_GIT_SHA)=' /etc/os-release
 
 | Variant | `PRETTY_NAME` |
 |---|---|
-| Standard | `Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>, Git SHA: <FULL_GIT_SHA>)` |
-| CachyOS | `Qubix OS (BlueBuild Image, CachyOS Kernel, Version: <IMAGE_VERSION>, Git SHA: <FULL_GIT_SHA>)` |
-| NVIDIA | `Qubix OS (BlueBuild Image, NVIDIA Open, Version: <IMAGE_VERSION>, Git SHA: <FULL_GIT_SHA>)` |
-| NVIDIA+CachyOS *(parked)* | `Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: <IMAGE_VERSION>, Git SHA: <FULL_GIT_SHA>)` |
+| Standard | `Qubix OS (BlueBuild Image, Version: <IMAGE_VERSION>, <SHORT_SHA>)` |
+| CachyOS | `Qubix OS (BlueBuild Image, CachyOS Kernel, Version: <IMAGE_VERSION>, <SHORT_SHA>)` |
+| NVIDIA | `Qubix OS (BlueBuild Image, NVIDIA Open, Version: <IMAGE_VERSION>, <SHORT_SHA>)` |
+| NVIDIA+CachyOS *(parked)* | `Qubix OS (BlueBuild Image, NVIDIA Open, CachyOS Kernel, Version: <IMAGE_VERSION>, <SHORT_SHA>)` |
 
 `ID` and `NAME` are shared—the active images are the same distribution, built three ways.
-`QUBIX_GIT_SHA` contains the same `<FULL_GIT_SHA>` without the surrounding display text.
+`QUBIX_GIT_SHA` contains the same 12-character `<SHORT_SHA>` without the surrounding
+display text.
 On the NVIDIA variant also check `nvidia-smi`; on the CachyOS variant `uname -r` must
 contain `cachyos`. The parked row documents what its retained recipe would report.
 
