@@ -49,7 +49,7 @@ described here or in `files/system/`.
   | 1 | `files` | `common-base.yml` | Copies `files/system/*` → `/` (branding + desktop config) | none (kept first by convention) |
   | 2 | `dnf` | `common-base.yml` | COPRs `atim/starship`, `wezfurlong/wezterm-nightly`, `avengemedia/dms`, `avengemedia/danklinux`, `lihaohong/yazi`, `atim/lazygit`; install `micro`, `starship`, `wezterm` + its config's fonts (`ibm-plex-mono-fonts`, `ibm-plex-sans-fonts`, `google-noto-sans-cjk-fonts`) + `unzip`, `grub2-tools-extra` for PF2 generation, `niri`, `dms` + fonts + `cliphist`, Fcitx 5 + Chinese addons + autostart/toolkit/KDE integration, and the terminal environment (`zsh` + plugins, `atuin`, `bat`, `yazi`, `lazygit`, `fastfetch`, `neovim`, `ripgrep`, `fd-find`, `fzf`, `git`, `cascadia-mono-nf-fonts`); remove `firefox`, `firefox-langpacks` | before `default-flatpaks` and before module 4 |
   | 3 | `default-flatpaks` | `common-base.yml` | Flathub system + user; installs `io.github.ungoogled_software.ungoogled_chromium`, `org.gnome.Loupe` | after `dnf` (DD-006, DD-023) |
-  | 4 | `containerfile` | `common-base.yml` | Thirteen snippets: nine terminal/setup assertions, bounded-range Monaspace Krypton NF → GRUB PF2 build/validation, Homebrew desktop/icon validation, an empty-home KDE/Breeze and DMS environment-boundary assertion, then Aurora's package-free Plasma launcher-default assertion and compiled applet validation plus the Breeze launcher-alias rewrite | after `dnf`, `files`, and its own module 4d font install; the final three validations depend on installed/overlaid files — DD-026, DD-033…DD-046, DD-057, DD-062, DD-063, DD-066…DD-069 |
+  | 4 | `containerfile` | `common-base.yml` | Fourteen snippets: nine terminal/setup assertions, bounded-range Monaspace Krypton NF → GRUB PF2 build/validation, Homebrew desktop/icon validation, an empty-home KDE/Breeze and DMS environment-boundary assertion, Aurora's package-free Plasma launcher-default assertion and compiled applet validation, the Breeze launcher-alias rewrite, and a targeted Qt runtime upgrade plus `/usr/bin/qs --version` loader smoke test | after `dnf`, `files`, and its own module 4d font install; the final validations depend on installed/overlaid files and the Quickshell runtime families — DD-026, DD-033…DD-046, DD-057, DD-062, DD-063, DD-066…DD-070 |
   | 5 | `systemd` | `common-base.yml` | Enables `qubix-default-shell.service`, `qubix-grub-theme.service`, and per-user `qubix-app-launcher-refresh.path`; the last stabilises fragile cask icons and refreshes Plasma/DMS indexes after Homebrew metadata changes | after `files`, which ships all units — DD-035, DD-057, DD-062 |
   | 6 | `containerfile` | `common-identity.yml` | `sed`-rewrites `ID`, `NAME`, `PRETTY_NAME` in `/usr/lib/os-release` | after anything that can regenerate `os-release` (DD-003) |
   | 7 | `initramfs` | `recipe.yml` | Rebuilds the stock kernel's archive with the overlaid Qubix Plymouth watermark | after `files`, late (DD-049) |
@@ -161,6 +161,11 @@ described here or in `files/system/`.
 - DMS itself is isolated from KDE's Qt platform plugin, while its supported default launch
   prefix adds that integration back only for applications opened from the shell; a personal
   DMS launch prefix wins (DD-066).
+- Quickshell uses Qt private APIs. The public Qt sonames can match while a patch-level
+  private symbol is missing, so the final containerfile snippet upgrades `qt6-qtbase`,
+  `qt6-qtdeclarative`, and `qt6-qtwayland` together and runs `/usr/bin/qs --version`.
+  That turns a DMS loader failure into a build failure instead of publishing a broken Niri
+  shell (DD-070).
 - Aurora's package-free Plasma taskbar and application-launcher defaults are asserted so
   Discover cannot return through a base-image change. Module 4m also proves the compiled
   Kickoff/Kicker applets and replaces every installed instance of four Breeze KDE/Plasma

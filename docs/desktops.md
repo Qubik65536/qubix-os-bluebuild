@@ -324,8 +324,41 @@ unset** — a fallback chain. If the Wayland plugin cannot connect, Qt silently 
 all: the bar and wallpaper can never map, while ordinary windows and the whole IPC surface
 keep working normally.
 
-Report what you find to IMG-012. The fix belongs in the image, not in your home directory —
+Report what you find to IMG-040. The fix belongs in the image, not in your home directory —
 please do not paper over it with per-user config before it is recorded.
+
+#### `qs` fails with an undefined Qt private symbol
+
+If `dms.service` exits with status 127 and the journal contains
+`QUntypedPropertyBinding` together with `Qt_6.11_PRIVATE_API`, Quickshell is failing in the
+dynamic loader before DMS can create any Wayland surfaces. This is a package ABI mismatch,
+not a Niri keybind, output, or wallpaper problem. Quickshell intentionally uses Qt private
+APIs, so the public `libQt6*.so.6` soname can match while the private symbol set does not.
+
+Capture the complete package and library boundary:
+
+```bash
+/usr/bin/qs --version
+rpm -q dms quickshell qt6-qtbase qt6-qtdeclarative qt6-qtwayland
+rpm -q --qf '%{NAME} %{VERSION}-%{RELEASE} build=%{BUILDTIME:date} install=%{INSTALLTIME:date}\n' \
+  dms quickshell qt6-qtbase qt6-qtdeclarative qt6-qtwayland
+command -v qs
+readlink -f /usr/bin/qs
+ldd /usr/bin/qs | grep -E 'Qt6|quickshell'
+journalctl --user -u dms.service -b -n 100 --no-pager -o cat
+```
+
+The Quickshell RPM release alone is not enough to identify a rebuild: the current COPR can
+publish the same `0.3.1-1` release after rebuilding it for a new Fedora Qt patch. Compare
+the Qt package versions and the library paths used by `ldd`. The image now runs a targeted
+upgrade of `qt6-qtbase`, `qt6-qtdeclarative`, and `qt6-qtwayland`, then executes
+`/usr/bin/qs --version` during the build. That keeps the private ABI aligned with the
+Quickshell COPR artifact and fails CI before a broken DMS image is published (DD-070).
+
+On an already booted image, `ujust update` saying there is nothing to update only means the
+current image digest is already installed. Rebase to an image built after DD-070, reboot
+into that deployment, and rerun the commands above. Do not try to repair this particular
+error with DMS settings or a personal Niri configuration.
 
 ## Niri configuration
 

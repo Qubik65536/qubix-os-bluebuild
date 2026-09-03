@@ -1768,6 +1768,30 @@ should look at.
       Discover entry in Plasma's default taskbar or application launcher *(open — requires a
       built image and hardware)*
 
+- [ ] **IMG-043** — Keep Quickshell's private Qt ABI matched to its runtime
+  - **Category:** Image content
+  - **Depends on:** IMG-003
+  - **Notes:** Reported after the image moved to a newer Qubix digest but
+    `/usr/bin/qs --version` still failed before startup with an undefined
+    `QUntypedPropertyBinding` symbol from `Qt_6.11_PRIVATE_API`. The published
+    `quickshell-0.3.1-1.fc44` COPR artifact was rebuilt in a Fedora 44 chroot carrying
+    Qt 6.11.2, while the Aurora-derived image retained Qt 6.11.1 because the DMS
+    dependency transaction satisfied the Qt sonames without upgrading the already
+    installed packages. Quickshell uses Qt private APIs, so matching only the soname is
+    insufficient. The shared recipe now upgrades the three Qt runtime families together
+    and runs `/usr/bin/qs --version` as a build-time loader smoke test; static checks pass,
+    and only the rebuilt-image Niri check remains.
+  - **Acceptance criteria:**
+    - Every active image upgrades the Qt runtime packages used by Quickshell
+      (`qt6-qtbase`, `qt6-qtdeclarative`, and `qt6-qtwayland`) during the image build
+    - A build-time `/usr/bin/qs --version` smoke assertion fails before publication when
+      the Quickshell loader cannot resolve its Qt private ABI
+    - The package, recipe, desktop, design-decision, and context-cache documentation
+      records the private-ABI constraint and the intentional targeted Qt upgrade
+    - Local recipe YAML, embedded shell syntax, and whitespace checks pass
+    - After rebasing, a Niri login starts DMS with its wallpaper, bar, and launcher
+      *(open — requires a built image and hardware)*
+
 - [ ] **IMG-039** — Discover Homebrew GUI applications in desktop launchers
   - **Category:** Image content
   - **Depends on:** IMG-002, IMG-003

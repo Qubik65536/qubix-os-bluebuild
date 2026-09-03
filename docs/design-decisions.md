@@ -4208,3 +4208,41 @@ Breeze's stock `start-here` aliases with the distributor logo.
   updates remain in the bootc update path.
 - The build fails closed if Aurora or another dependency begins shipping Discover or adds it
   to the inherited default launcher files.
+
+---
+
+## DD-070 — Match Quickshell's private Qt ABI to the image runtime
+
+**Status:** Accepted
+
+**Implements:** `IMG-043`
+
+**Context.** The image carrying the DMS environment boundary still failed before startup:
+`/usr/bin/qs --version` reported an undefined `QUntypedPropertyBinding` symbol versioned
+`Qt_6.11_PRIVATE_API`. The Quickshell RPM had been rebuilt in Fedora 44's current COPR
+chroot against Qt 6.11.2, while the Aurora-derived image retained Qt 6.11.1. RPM
+dependency resolution accepted the combination because the public Qt sonames matched; it
+does not validate every private symbol that a binary uses.
+
+Quickshell's private-API dependency is intentional and means its binary must be rebuilt
+for the Qt patch level it runs with. A matching `quickshell` NEVRA, or a successful DMS
+package transaction, is therefore not a sufficient runtime check.
+
+**Decision.** After the shared DMS package transaction, run a targeted
+`dnf5 -y upgrade --refresh` for `qt6-qtbase`, `qt6-qtdeclarative`, and `qt6-qtwayland`.
+These are the runtime families loaded by Quickshell; a blanket distribution upgrade would
+make an unrelated base-image change part of every Qubix build. Immediately execute
+`/usr/bin/qs --version` in the image build and fail if the dynamic loader cannot resolve
+the private ABI.
+
+**Consequences.**
+
+- The Quickshell COPR artifact and the Qt libraries used by DMS are selected from the same
+  current Fedora update stream at image-build time.
+- A COPR/Fedora synchronization gap fails CI before an image with a non-starting Niri
+  shell is published.
+- Existing deployments need a rebase and reboot to receive the corrected package set;
+  `ujust update` reporting no pending deployment does not change the packages inside the
+  currently booted image.
+- The guard is specific to Quickshell's runtime boundary and does not alter Plasma's
+  session environment or DMS's KDE platform-theme isolation.

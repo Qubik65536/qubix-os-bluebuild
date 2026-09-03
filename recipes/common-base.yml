@@ -818,6 +818,24 @@ modules:
             done < "$icons"; \
             rm -f "$icons"
 
+      #    4n. Keep Quickshell's private Qt ABI matched to the runtime libraries.
+      #
+      #        Quickshell links against Qt private symbols. Its RPM dependency metadata
+      #        checks the public Qt sonames, which can leave an older base-image library
+      #        installed even when the COPR binary was rebuilt against a newer Qt patch
+      #        release. Upgrade only the three runtime families Quickshell loads, then
+      #        execute its version path so an unresolved private symbol fails this build
+      #        instead of breaking DMS on a user's first Niri login. DD-070.
+      #
+      #        Ordering: after `dnf`, which installs DMS/Quickshell and supplies the Fedora
+      #        repositories, and after the other assertions, so the package boundary is
+      #        checked immediately before the image leaves this shared module.
+      - |
+        RUN set -eu; \
+            dnf5 -y upgrade --refresh \
+                qt6-qtbase qt6-qtdeclarative qt6-qtwayland; \
+            /usr/bin/qs --version >/dev/null
+
   # 5. Enable the system services this image adds.
   #    qubix-default-shell.service sets zsh as the login shell for accounts that already
   #    exist — the only thing in the terminal environment that cannot be delivered as a
